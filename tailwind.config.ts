@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -57,6 +58,31 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        energy: {
+          low: "hsl(var(--energy-low))",
+          medium: "hsl(var(--energy-medium))",
+          high: "hsl(var(--energy-high))",
+        },
+        bpm: {
+          slow: "hsl(var(--bpm-slow))",
+          medium: "hsl(var(--bpm-medium))",
+          fast: "hsl(var(--bpm-fast))",
+        },
+      },
+      backgroundImage: {
+        'gradient-primary': 'var(--gradient-primary)',
+        'gradient-energy': 'var(--gradient-energy)',
+        'gradient-card': 'var(--gradient-card)',
+        'gradient-waveform': 'var(--gradient-waveform)',
+      },
+      boxShadow: {
+        'glow': 'var(--shadow-glow)',
+        'card': 'var(--shadow-card)',
+        'elevated': 'var(--shadow-elevated)',
+      },
+      transitionProperty: {
+        'smooth': 'var(--transition-smooth)',
+        'bounce': 'var(--transition-bounce)',
       },
       borderRadius: {
         lg: "var(--radius)",
