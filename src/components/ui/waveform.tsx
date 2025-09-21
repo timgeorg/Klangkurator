@@ -7,31 +7,31 @@ interface WaveformProps {
   animate?: boolean;
 }
 
-export function Waveform({ className, variant = 'compact', animate = false }: WaveformProps) {
-  // Generate random waveform data for visualization
-  const bars = variant === 'compact' ? 32 : 64;
-  const waveformData = Array.from({ length: bars }, () => Math.random() * 100);
-  
+export function Waveform({ className, variant = 'compact' }: WaveformProps) {
   return (
     <div className={cn(
-      "flex items-end gap-[1px] bg-waveform-background rounded-sm overflow-hidden",
-      variant === 'compact' ? "w-16 h-8" : "w-32 h-12",
+      "flex items-center justify-center bg-waveform-background rounded-sm overflow-hidden",
+      variant === 'compact' ? "w-20 h-8" : "w-40 h-12",
       className
     )}>
-      {waveformData.map((height, index) => (
-        <div
-          key={index}
-          className={cn(
-            "bg-gradient-to-t from-waveform-primary to-waveform-secondary transition-all duration-75",
-            animate && "animate-pulse",
-            variant === 'compact' ? "w-[2px] min-h-[2px]" : "w-[3px] min-h-[3px]"
-          )}
-          style={{
-            height: `${Math.max(height, variant === 'compact' ? 8 : 12)}%`,
-            animationDelay: animate ? `${index * 20}ms` : undefined,
-          }}
+      <svg 
+        viewBox="0 0 100 32" 
+        className="w-full h-full opacity-80"
+        fill="none"
+      >
+        <path
+          d="M2 16h2v-4h2v8h2v-12h2v16h2v-6h2v10h2v-14h2v18h2v-8h2v12h2v-16h2v20h2v-10h2v14h2v-18h2v22h2v-12h2v16h2v-20h2v24h2v-14h2v18h2v-22h2v26h2v-16h2v20h2v-24h2v28h2v-18h2v22h2v-26h2v30h2v-20h2v24h2v-28h2v32h2v-22h2v26h2v-30h2v32h2v-24h2v28h2v-32h2v32h2v-26h2v30h2v-32h2v32h2v-28h2v30h2v-32h2v32h2v-30h2v32h2v-32h2v32h2v-30h2v32h2v-32h2v32"
+          stroke="url(#waveformGradient)"
+          strokeWidth="1"
+          strokeLinecap="round"
         />
-      ))}
+        <defs>
+          <linearGradient id="waveformGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="hsl(var(--waveform-secondary))" />
+            <stop offset="100%" stopColor="hsl(var(--waveform-primary))" />
+          </linearGradient>
+        </defs>
+      </svg>
     </div>
   );
 }
