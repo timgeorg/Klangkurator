@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DJLayout } from "@/components/layout/DJLayout";
-import { FileLoader } from "@/lib/fileLoader";
+import { DataServiceFactory } from "@/services/DataServiceFactory";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
@@ -14,10 +14,22 @@ const queryClient = new QueryClient();
 
 function App() {
   useEffect(() => {
-    // Initialize sample data on first load
-    console.log('App: Initializing sample data...');
-    FileLoader.initializeSampleData();
-    console.log('App: Sample data initialization complete');
+    // Initialize data using the appropriate service
+    console.log('App: Initializing data service...');
+    
+    // Force use of MockupDataService for development
+    const { MockupDataService } = require('@/services/MockupDataService');
+    const mockupService = new MockupDataService();
+    DataServiceFactory.setDataService(mockupService);
+    
+    const dataService = DataServiceFactory.getDataService();
+    const envInfo = DataServiceFactory.getEnvironmentInfo();
+    
+    console.log('App: Environment info:', envInfo);
+    console.log('App: Using data service:', dataService.getEnvironmentName());
+    
+    dataService.initializeData();
+    console.log('App: Data service initialization complete');
   }, []);
 
   return (
