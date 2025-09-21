@@ -437,161 +437,162 @@ export function SongLibrary() {
                       gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColumnWidth} 1fr`
                     }}
                   >
-                  {/* Play Button */}
-                  <div className="flex items-center justify-center">
-                    <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  
-                  {/* Waveform */}
-                  <div className="flex items-center">
-                    <Waveform className="w-16 h-6" variant="compact" />
-                  </div>
-                  
-                  {/* ID */}
-                  <div className="flex items-center text-muted-foreground font-mono">
-                    {String(index + 1).padStart(3, '0')}
-                  </div>
-                  
-                  {/* Title */}
-                  <div className="flex items-center font-medium text-foreground truncate">
-                    {song.title}
-                  </div>
-                  
-                  {/* Artist */}
-                  <div className="flex items-center text-foreground truncate">
-                    {song.artist}
-                  </div>
-                  
-                  {/* Album */}
-                  <div className="flex items-center text-muted-foreground truncate">
-                    {song.album || '-'}
-                  </div>
-                  
-                  {/* BPM */}
-                  <div className="flex items-center justify-center">
-                    {song.bpm ? (
-                      <Badge 
-                        variant="secondary" 
-                        className={cn(
-                          "text-xs px-1 py-0 h-5",
-                          getBpmColor(song.bpm)
-                        )}
-                      >
-                        {song.bpm}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </div>
-                  
-                  {/* Key */}
-                  <div className="flex items-center justify-center">
-                    {song.musical_key ? (
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs px-1 py-0 h-5 border-key-major",
-                          song.musical_key.includes('minor') ? "border-key-minor text-key-minor" : "text-key-major"
-                        )}
-                      >
-                        {song.musical_key.replace(' major', '').replace(' minor', 'm')}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </div>
-                  
-                  {/* Genre */}
-                  <div className="flex items-center justify-center text-muted-foreground truncate">
-                    {song.genre || '-'}
-                  </div>
-                  
-                  {/* Energy Rating */}
-                  <div className="flex items-center justify-center">
-                    <div className="flex gap-[2px]">
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            i < song.energy ? "bg-energy-high" : "bg-muted"
-                          )}
-                        />
-                      ))}
+                    {/* Play Button */}
+                    <div className="flex items-center justify-center">
+                      <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-3 h-3" />
+                      </Button>
                     </div>
-                  </div>
-                  
-                  {/* Danceability Rating */}
-                  <div className="flex items-center justify-center">
-                    <div className="flex gap-[2px]">
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            i < song.danceability ? "bg-accent" : "bg-muted"
-                          )}
-                        />
-                      ))}
+                    
+                    {/* Waveform */}
+                    <div className="flex items-center">
+                      <Waveform className="w-16 h-6" variant="compact" />
                     </div>
-                  </div>
-                  
-                  {/* Social Rating */}
-                  <div className="flex items-center justify-center">
-                    <div className="flex gap-[2px]">
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            i < song.social_acceptance ? "bg-secondary" : "bg-muted"
-                          )}
-                        />
-                      ))}
+                    
+                    {/* ID */}
+                    <div className="flex items-center text-muted-foreground font-mono">
+                      {String(index + 1).padStart(3, '0')}
                     </div>
-                  </div>
-                  
-                  {/* Duration */}
-                  <div className="flex items-center justify-center text-muted-foreground font-mono">
-                    {formatDuration(song.duration)}
-                  </div>
-                  
-                  {/* Tags */}
-                  <div className="flex items-center min-w-0">
-                    <TagSelector
-                      songId={song.id}
-                      selectedTags={songTags[song.id] || []}
-                      onTagsChange={(tags) => handleTagsChange(song.id, tags)}
-                      size="sm"
-                    />
-                  </div>
-                  
-                  {/* Notes */}
-                  <div className="flex items-center min-w-0">
-                    {editingNotes[song.id] !== undefined ? (
-                      <textarea
-                        value={editingNotes[song.id]}
-                        onChange={(e) => handleNotesEdit(song.id, e.target.value)}
-                        onBlur={() => handleNotesBlur(song.id)}
-                        onKeyDown={(e) => handleNotesKeyDown(e, song.id)}
-                        className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
-                        autoFocus
-                        placeholder="Add notes..."
-                      />
-                    ) : (
-                      <div 
-                        className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
-                        onClick={() => handleNotesEdit(song.id, getCurrentNotes(song))}
-                        title={getCurrentNotes(song) || 'Click to add notes'}
-                      >
-                        {getCurrentNotes(song) || 'Click to add notes...'}
+                    
+                    {/* Title */}
+                    <div className="flex items-center font-medium text-foreground truncate">
+                      {song.title}
+                    </div>
+                    
+                    {/* Artist */}
+                    <div className="flex items-center text-foreground truncate">
+                      {song.artist}
+                    </div>
+                    
+                    {/* Album */}
+                    <div className="flex items-center text-muted-foreground truncate">
+                      {song.album || '-'}
+                    </div>
+                    
+                    {/* BPM */}
+                    <div className="flex items-center justify-center">
+                      {song.bpm ? (
+                        <Badge 
+                          variant="secondary" 
+                          className={cn(
+                            "text-xs px-1 py-0 h-5",
+                            getBpmColor(song.bpm)
+                          )}
+                        >
+                          {song.bpm}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </div>
+                    
+                    {/* Key */}
+                    <div className="flex items-center justify-center">
+                      {song.musical_key ? (
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-xs px-1 py-0 h-5 border-key-major",
+                            song.musical_key.includes('minor') ? "border-key-minor text-key-minor" : "text-key-major"
+                          )}
+                        >
+                          {song.musical_key.replace(' major', '').replace(' minor', 'm')}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </div>
+                    
+                    {/* Genre */}
+                    <div className="flex items-center justify-center text-muted-foreground truncate">
+                      {song.genre || '-'}
+                    </div>
+                    
+                    {/* Energy Rating */}
+                    <div className="flex items-center justify-center">
+                      <div className="flex gap-[2px]">
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "w-2 h-2 rounded-full",
+                              i < song.energy ? "bg-energy-high" : "bg-muted"
+                            )}
+                          />
+                        ))}
                       </div>
-                    )}
+                    </div>
+                    
+                    {/* Danceability Rating */}
+                    <div className="flex items-center justify-center">
+                      <div className="flex gap-[2px]">
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "w-2 h-2 rounded-full",
+                              i < song.danceability ? "bg-accent" : "bg-muted"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Social Rating */}
+                    <div className="flex items-center justify-center">
+                      <div className="flex gap-[2px]">
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "w-2 h-2 rounded-full",
+                              i < song.social_acceptance ? "bg-secondary" : "bg-muted"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Duration */}
+                    <div className="flex items-center justify-center text-muted-foreground font-mono">
+                      {formatDuration(song.duration)}
+                    </div>
+                    
+                    {/* Tags */}
+                    <div className="flex items-center min-w-0">
+                      <TagSelector
+                        songId={song.id}
+                        selectedTags={songTags[song.id] || []}
+                        onTagsChange={(tags) => handleTagsChange(song.id, tags)}
+                        size="sm"
+                      />
+                    </div>
+                    
+                    {/* Notes */}
+                    <div className="flex items-center min-w-0">
+                      {editingNotes[song.id] !== undefined ? (
+                        <textarea
+                          value={editingNotes[song.id]}
+                          onChange={(e) => handleNotesEdit(song.id, e.target.value)}
+                          onBlur={() => handleNotesBlur(song.id)}
+                          onKeyDown={(e) => handleNotesKeyDown(e, song.id)}
+                          className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
+                          autoFocus
+                          placeholder="Add notes..."
+                        />
+                      ) : (
+                        <div 
+                          className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
+                          onClick={() => handleNotesEdit(song.id, getCurrentNotes(song))}
+                          title={getCurrentNotes(song) || 'Click to add notes'}
+                        >
+                          {getCurrentNotes(song) || 'Click to add notes...'}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
