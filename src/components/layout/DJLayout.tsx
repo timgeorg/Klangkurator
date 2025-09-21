@@ -12,17 +12,14 @@ export function DJLayout({ children }: DJLayoutProps) {
       <div className="min-h-screen flex w-full bg-background">
         <DJSidebar />
         
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-14 border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/30">
-            <div className="flex items-center h-full px-4 gap-4">
-              <SidebarTrigger className="text-foreground hover:bg-muted" />
-              <div className="flex-1" />
-            </div>
+          <header className="h-12 border-b border-table-border bg-table-header flex items-center px-4 flex-shrink-0">
+            <SidebarTrigger className="text-foreground hover:bg-table-row-hover" />
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 overflow-hidden">
             {children}
           </main>
         </div>

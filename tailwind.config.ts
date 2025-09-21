@@ -68,17 +68,30 @@ export default {
           medium: "hsl(var(--bpm-medium))",
           fast: "hsl(var(--bpm-fast))",
         },
+        key: {
+          major: "hsl(var(--key-major))",
+          minor: "hsl(var(--key-minor))",
+        },
+        table: {
+          header: "hsl(var(--table-header))",
+          row: "hsl(var(--table-row))",
+          "row-hover": "hsl(var(--table-row-hover))",
+          border: "hsl(var(--table-border))",
+        },
+        waveform: {
+          primary: "hsl(var(--waveform-primary))",
+          secondary: "hsl(var(--waveform-secondary))",
+          background: "hsl(var(--waveform-background))",
+        },
       },
       backgroundImage: {
         'gradient-primary': 'var(--gradient-primary)',
-        'gradient-energy': 'var(--gradient-energy)',
-        'gradient-card': 'var(--gradient-card)',
         'gradient-waveform': 'var(--gradient-waveform)',
+        'gradient-table-row': 'var(--gradient-table-row)',
       },
       boxShadow: {
         'glow': 'var(--shadow-glow)',
-        'card': 'var(--shadow-card)',
-        'elevated': 'var(--shadow-elevated)',
+        'row': 'var(--shadow-row)',
       },
       transitionProperty: {
         'smooth': 'var(--transition-smooth)',
