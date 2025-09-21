@@ -35,6 +35,7 @@ interface FilterState {
   energy: { min?: number; max?: number };
   danceability: { min?: number; max?: number };
   social: { min?: number; max?: number };
+  duration: { min?: number; max?: number };
   tags: string[];
 }
 
@@ -58,6 +59,7 @@ export function SongLibrary() {
     energy: {},
     danceability: {},
     social: {},
+    duration: {},
     tags: []
   });
 
@@ -168,6 +170,8 @@ export function SongLibrary() {
       if (filters.danceability.max !== undefined && song.danceability > filters.danceability.max) return false;
       if (filters.social.min !== undefined && song.social_acceptance < filters.social.min) return false;
       if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
+      if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
+      if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;
 
       // Tag filters
       if (filters.tags.length > 0) {
@@ -327,7 +331,7 @@ export function SongLibrary() {
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
               <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
-                gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
+                gridTemplateColumns: `40px 80px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
               }}>
                 <div className="flex items-center justify-center">
                   <Play className="w-3 h-3" />
@@ -335,10 +339,6 @@ export function SongLibrary() {
                 <div className="flex items-center gap-1">
                   <Volume2 className="w-3 h-3" />
                   Preview
-                </div>
-                <div className="flex items-center gap-1">
-                  <Hash className="w-3 h-3" />
-                  ID
                 </div>
                 <div className="flex items-center gap-1">
                   Title
@@ -439,7 +439,17 @@ export function SongLibrary() {
                     max={5}
                   />
                 </div>
-                <div className="text-center">Duration</div>
+                <div className="flex items-center gap-1">
+                  Duration
+                  <ColumnFilter
+                    title="Duration"
+                    type="range"
+                    value={filters.duration}
+                    onChange={(value) => updateFilter('duration', value)}
+                    min={0}
+                    max={600}
+                  />
+                </div>
                 <div className="flex items-center gap-1 relative group">
                   Tags
                   <ColumnFilter
@@ -472,7 +482,7 @@ export function SongLibrary() {
                       index % 2 === 0 ? "bg-table-row" : "bg-background"
                     )}
                     style={{
-                      gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
+                      gridTemplateColumns: `40px 80px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
                     }}
                   >
                     {/* Play Button */}
@@ -485,11 +495,6 @@ export function SongLibrary() {
                     {/* Waveform */}
                     <div className="flex items-center">
                       <Waveform className="w-16 h-6" variant="compact" />
-                    </div>
-                    
-                    {/* ID */}
-                    <div className="flex items-center text-muted-foreground font-mono">
-                      {String(index + 1).padStart(3, '0')}
                     </div>
                     
                     {/* Title */}
