@@ -120,9 +120,9 @@ export function SongLibrary() {
 
   const getBpmColor = (bpm?: number) => {
     if (!bpm) return 'text-muted-foreground';
-    if (bmp < 100) return 'text-bpm-slow bg-bpm-slow/20';
-    if (bmp < 130) return 'text-bpm-medium bg-bpm-medium/20';
-    return 'text-bpm-fast bg-bmp-fast/20';
+    if (bpm < 100) return 'text-bpm-slow bg-bpm-slow/20';
+    if (bpm < 130) return 'text-bpm-medium bg-bpm-medium/20';
+    return 'text-bpm-fast bg-bpm-fast/20';
   };
 
   // Get unique values for filter options
