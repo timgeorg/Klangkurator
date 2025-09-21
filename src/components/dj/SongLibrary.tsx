@@ -44,6 +44,8 @@ export function SongLibrary() {
   const [loading, setLoading] = useState(false);
   const [songTags, setSongTags] = useState<{[songId: string]: Tag[]}>({});
   const [editingNotes, setEditingNotes] = useState<{[songId: string]: string}>({});
+  const [tagsColWidth, setTagsColWidth] = useState<number>(160);
+  const [userResizedTags, setUserResizedTags] = useState<boolean>(false);
 
   // Column filters
   const [filters, setFilters] = useState<FilterState>({
@@ -186,6 +188,17 @@ export function SongLibrary() {
     )
   );
 
+  // Auto-adjust Tags column width when tags are added, unless user resized manually
+  useEffect(() => {
+    if (userResizedTags) return;
+    const maxCount = filteredSongs.reduce((max, s) => {
+      const c = songTags[s.id]?.length || 0;
+      return c > max ? c : max;
+    }, 0);
+    const autoWidth = Math.min(360, 160 + Math.max(0, maxCount - 1) * 70);
+    setTagsColWidth(autoWidth);
+  }, [songTags, filteredSongs, userResizedTags]);
+
   const updateFilter = (key: string, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
@@ -223,6 +236,27 @@ export function SongLibrary() {
 
   const getCurrentNotes = (song: Song) => {
     return song.mixing_notes || song.drum_notes || song.element_notes || '';
+  };
+
+  // Allow user to resize the Tags column via header handle
+  const startResizeTags = (e: React.MouseEvent) => {
+    setUserResizedTags(true);
+    const startX = e.clientX;
+    const startWidth = tagsColWidth;
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const newWidth = Math.max(140, Math.min(480, startWidth + delta));
+      setTagsColWidth(newWidth);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   return (
@@ -293,7 +327,7 @@ export function SongLibrary() {
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
               <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
-                gridTemplateColumns: "40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px 160px 1fr"
+                gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
               }}>
                 <div className="flex items-center justify-center">
                   <Play className="w-3 h-3" />
@@ -406,7 +440,7 @@ export function SongLibrary() {
                   />
                 </div>
                 <div className="text-center">Duration</div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Tags
                   <ColumnFilter
                     title="Tags"
@@ -414,6 +448,11 @@ export function SongLibrary() {
                     value={filters.tags}
                     onChange={(value) => updateFilter('tags', value)}
                     options={filterOptions.tags}
+                  />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={startResizeTags}
+                    title="Drag to resize Tags column"
                   />
                 </div>
                 <div>Notes</div>
@@ -423,8 +462,7 @@ export function SongLibrary() {
             {/* Table Body */}
             <div>
               {filteredSongs.map((song, index) => {
-                const songTagCount = songTags[song.id]?.length || 0;
-                const tagsColumnWidth = songTagCount >= 2 ? '200px' : '160px';
+                // using shared tagsColWidth for all rows
                 
                 return (
                   <div 
@@ -434,7 +472,7 @@ export function SongLibrary() {
                       index % 2 === 0 ? "bg-table-row" : "bg-background"
                     )}
                     style={{
-                      gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColumnWidth} 1fr`
+                      gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
                     }}
                   >
                     {/* Play Button */}
