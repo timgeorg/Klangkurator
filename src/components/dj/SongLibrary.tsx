@@ -43,6 +43,7 @@ export function SongLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [songTags, setSongTags] = useState<{[songId: string]: Tag[]}>({});
+  const [editingNotes, setEditingNotes] = useState<{[songId: string]: string}>({});
 
   // Column filters
   const [filters, setFilters] = useState<FilterState>({
@@ -187,6 +188,41 @@ export function SongLibrary() {
 
   const updateFilter = (key: string, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleNotesEdit = (songId: string, notes: string) => {
+    setEditingNotes(prev => ({ ...prev, [songId]: notes }));
+  };
+
+  const handleNotesBlur = (songId: string) => {
+    const notes = editingNotes[songId];
+    if (notes !== undefined) {
+      storage.updateSong(songId, { mixing_notes: notes });
+      loadSongs(); // Refresh the songs list
+      setEditingNotes(prev => {
+        const updated = { ...prev };
+        delete updated[songId];
+        return updated;
+      });
+    }
+  };
+
+  const handleNotesKeyDown = (e: React.KeyboardEvent, songId: string) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleNotesBlur(songId);
+    }
+    if (e.key === 'Escape') {
+      setEditingNotes(prev => {
+        const updated = { ...prev };
+        delete updated[songId];
+        return updated;
+      });
+    }
+  };
+
+  const getCurrentNotes = (song: Song) => {
+    return song.mixing_notes || song.drum_notes || song.element_notes || '';
   };
 
   return (
@@ -524,13 +560,25 @@ export function SongLibrary() {
                   </div>
                   
                   {/* Notes */}
-                  <div className="flex items-center text-muted-foreground truncate">
-                    {song.drum_notes || song.element_notes ? (
-                      <span className="truncate">
-                        {(song.drum_notes || song.element_notes || '').substring(0, 30)}...
-                      </span>
+                  <div className="flex items-center min-w-0">
+                    {editingNotes[song.id] !== undefined ? (
+                      <textarea
+                        value={editingNotes[song.id]}
+                        onChange={(e) => handleNotesEdit(song.id, e.target.value)}
+                        onBlur={() => handleNotesBlur(song.id)}
+                        onKeyDown={(e) => handleNotesKeyDown(e, song.id)}
+                        className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
+                        autoFocus
+                        placeholder="Add notes..."
+                      />
                     ) : (
-                      '-'
+                      <div 
+                        className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
+                        onClick={() => handleNotesEdit(song.id, getCurrentNotes(song))}
+                        title={getCurrentNotes(song) || 'Click to add notes'}
+                      >
+                        {getCurrentNotes(song) || 'Click to add notes...'}
+                      </div>
                     )}
                   </div>
                 </div>
