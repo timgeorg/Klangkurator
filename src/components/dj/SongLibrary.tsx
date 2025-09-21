@@ -57,7 +57,6 @@ export function SongLibrary() {
     energy: 80,
     danceability: 60,
     social: 60,
-    rating: 60,
     duration: 80,
     tags: 160,
     notes: 200
@@ -349,7 +348,7 @@ export function SongLibrary() {
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
               <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
-                gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.rating}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
+                gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
               }}>
                 <div className="flex items-center justify-center relative group">
                   <Play className="w-3 h-3" />
@@ -566,7 +565,7 @@ export function SongLibrary() {
                       index % 2 === 0 ? "bg-table-row" : "bg-background"
                     )}
                     style={{
-                      gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.rating}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
+                      gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
                     }}
                   >
                     {/* Play Button */}
@@ -678,11 +677,6 @@ export function SongLibrary() {
                           />
                         ))}
                       </div>
-                    </div>
-                    
-                    {/* Rating */}
-                    <div className="flex items-center">
-                      <Rating value={0} readonly size="sm" />
                     </div>
                     
                     {/* Duration */}
