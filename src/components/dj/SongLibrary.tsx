@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,12 +79,16 @@ export function SongLibrary() {
   });
 
   useEffect(() => {
+    // Force clear any existing data and reload
+    console.log('Initializing sample data...');
     loadSongs();
     loadSongTags();
   }, []);
 
   const loadSongs = () => {
+    console.log('Loading songs from storage...');
     const allSongs = storage.getSongs();
+    console.log('Found songs:', allSongs.length);
     setSongs(allSongs);
   };
 
@@ -164,9 +168,16 @@ export function SongLibrary() {
 
   const filterOptions = getFilterOptions();
 
-  // Apply filters
-  const applyFilters = (songs: Song[]) => {
-    return songs.filter(song => {
+  // Apply filters with memoization to prevent infinite loops
+  const filteredSongs = useMemo(() => {
+    const searchFiltered = songs.filter(song =>
+      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      song.genre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      song.musical_key?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return searchFiltered.filter(song => {
       // Text filters
       if (filters.title && !song.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
@@ -196,16 +207,7 @@ export function SongLibrary() {
 
       return true;
     });
-  };
-
-  const filteredSongs = applyFilters(
-    songs.filter(song =>
-      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.genre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.musical_key?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
+  }, [songs, searchQuery, filters, songTags]);
 
   // Auto-adjust Tags column width when tags are added, unless user resized manually
   useEffect(() => {
@@ -218,9 +220,9 @@ export function SongLibrary() {
     setColumnWidths(prev => ({ ...prev, tags: autoWidth }));
   }, [songTags, filteredSongs, userResized.tags]);
 
-  const updateFilter = (key: string, value: any) => {
+  const updateFilter = useCallback((key: string, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
   const handleNotesEdit = (songId: string, notes: string) => {
     setEditingNotes(prev => ({ ...prev, [songId]: notes }));

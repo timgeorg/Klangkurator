@@ -228,8 +228,12 @@ export class FileLoader {
 
   // Initialize with sample data for demo purposes
   static initializeSampleData() {
+    console.log('FileLoader: Checking existing songs...');
     const songs = storage.getSongs();
+    console.log('FileLoader: Found existing songs:', songs.length);
+    
     if (songs.length === 0) {
+      console.log('FileLoader: No existing songs, adding sample data...');
       // Add some sample songs to demonstrate the interface
       const sampleSongs = [
         {
@@ -467,8 +471,13 @@ export class FileLoader {
         }
       ];
       
-      sampleSongs.forEach(songData => storage.addSong(songData));
+      console.log('FileLoader: Adding', sampleSongs.length, 'sample songs...');
+      sampleSongs.forEach((songData, index) => {
+        const song = storage.addSong(songData);
+        console.log(`FileLoader: Added song ${index + 1}:`, song.title);
+      });
       
+      console.log('FileLoader: Adding sample tags...');
       // Add some sample tags
       const sampleTags = [
         { name: 'Peak Time', color: '#ef4444' },
@@ -479,7 +488,14 @@ export class FileLoader {
         { name: 'Underground', color: '#64748b' }
       ];
       
-      sampleTags.forEach(tagData => storage.addTag(tagData));
+      sampleTags.forEach((tagData, index) => {
+        const tag = storage.addTag(tagData);
+        console.log(`FileLoader: Added tag ${index + 1}:`, tag.name);
+      });
+      
+      console.log('FileLoader: Sample data initialization complete!');
+    } else {
+      console.log('FileLoader: Sample data already exists, skipping initialization');
     }
   }
 }

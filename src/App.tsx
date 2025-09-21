@@ -15,7 +15,9 @@ const queryClient = new QueryClient();
 function App() {
   useEffect(() => {
     // Initialize sample data on first load
+    console.log('App: Initializing sample data...');
     FileLoader.initializeSampleData();
+    console.log('App: Sample data initialization complete');
   }, []);
 
   return (
