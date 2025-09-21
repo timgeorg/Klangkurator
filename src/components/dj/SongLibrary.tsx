@@ -45,8 +45,23 @@ export function SongLibrary() {
   const [loading, setLoading] = useState(false);
   const [songTags, setSongTags] = useState<{[songId: string]: Tag[]}>({});
   const [editingNotes, setEditingNotes] = useState<{[songId: string]: string}>({});
-  const [tagsColWidth, setTagsColWidth] = useState<number>(160);
-  const [userResizedTags, setUserResizedTags] = useState<boolean>(false);
+  const [columnWidths, setColumnWidths] = useState({
+    play: 40,
+    preview: 80,
+    title: 200,
+    artist: 150,
+    album: 150,
+    bpm: 80,
+    key: 50,
+    energy: 80,
+    danceability: 60,
+    social: 60,
+    rating: 60,
+    duration: 80,
+    tags: 160,
+    notes: 200
+  });
+  const [userResized, setUserResized] = useState<{[key: string]: boolean}>({});
 
   // Column filters
   const [filters, setFilters] = useState<FilterState>({
@@ -194,14 +209,14 @@ export function SongLibrary() {
 
   // Auto-adjust Tags column width when tags are added, unless user resized manually
   useEffect(() => {
-    if (userResizedTags) return;
+    if (userResized.tags) return;
     const maxCount = filteredSongs.reduce((max, s) => {
       const c = songTags[s.id]?.length || 0;
       return c > max ? c : max;
     }, 0);
     const autoWidth = Math.min(360, 160 + Math.max(0, maxCount - 1) * 70);
-    setTagsColWidth(autoWidth);
-  }, [songTags, filteredSongs, userResizedTags]);
+    setColumnWidths(prev => ({ ...prev, tags: autoWidth }));
+  }, [songTags, filteredSongs, userResized.tags]);
 
   const updateFilter = (key: string, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -242,16 +257,18 @@ export function SongLibrary() {
     return song.mixing_notes || song.drum_notes || song.element_notes || '';
   };
 
-  // Allow user to resize the Tags column via header handle
-  const startResizeTags = (e: React.MouseEvent) => {
-    setUserResizedTags(true);
+  // Generic column resize function
+  const startColumnResize = (columnKey: string, e: React.MouseEvent) => {
+    setUserResized(prev => ({ ...prev, [columnKey]: true }));
     const startX = e.clientX;
-    const startWidth = tagsColWidth;
+    const startWidth = columnWidths[columnKey as keyof typeof columnWidths];
 
     const onMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startX;
-      const newWidth = Math.max(140, Math.min(480, startWidth + delta));
-      setTagsColWidth(newWidth);
+      const minWidth = columnKey === 'play' ? 40 : columnKey === 'key' ? 50 : 80;
+      const maxWidth = columnKey === 'tags' ? 480 : columnKey === 'title' ? 400 : 300;
+      const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
+      setColumnWidths(prev => ({ ...prev, [columnKey]: newWidth }));
     };
 
     const onUp = () => {
@@ -331,16 +348,26 @@ export function SongLibrary() {
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
               <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
-                gridTemplateColumns: `40px 80px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
+                gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.rating}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
               }}>
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center relative group">
                   <Play className="w-3 h-3" />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('play', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   <Volume2 className="w-3 h-3" />
                   Preview
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('preview', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Title
                   <ArrowUpDown className="w-3 h-3" />
                   <ColumnFilter
@@ -350,8 +377,13 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('title', value)}
                     placeholder="Filter titles..."
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('title', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Artist
                   <ArrowUpDown className="w-3 h-3" />
                   <ColumnFilter
@@ -361,8 +393,13 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('artist', value)}
                     placeholder="Filter artists..."
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('artist', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Album
                   <ArrowUpDown className="w-3 h-3" />
                   <ColumnFilter
@@ -372,8 +409,13 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('album', value)}
                     placeholder="Filter albums..."
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('album', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   BPM
                   <ArrowUpDown className="w-3 h-3" />
                   <ColumnFilter
@@ -384,8 +426,13 @@ export function SongLibrary() {
                     min={60}
                     max={200}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('bpm', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Key
                   <ArrowUpDown className="w-3 h-3" />
                   <ColumnFilter
@@ -395,8 +442,13 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('key', value)}
                     options={filterOptions.keys}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('key', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Genre
                   <ColumnFilter
                     title="Genre"
@@ -405,8 +457,13 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('genre', value)}
                     options={filterOptions.genres}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('genre', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Energy
                   <ColumnFilter
                     title="Energy"
@@ -416,8 +473,13 @@ export function SongLibrary() {
                     min={0}
                     max={5}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('energy', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Dance
                   <ColumnFilter
                     title="Danceability"
@@ -427,8 +489,13 @@ export function SongLibrary() {
                     min={0}
                     max={5}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('danceability', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Social
                   <ColumnFilter
                     title="Social"
@@ -438,8 +505,13 @@ export function SongLibrary() {
                     min={0}
                     max={5}
                   />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('social', e)}
+                    title="Drag to resize column"
+                  />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 relative group">
                   Duration
                   <ColumnFilter
                     title="Duration"
@@ -448,6 +520,11 @@ export function SongLibrary() {
                     onChange={(value) => updateFilter('duration', value)}
                     min={0}
                     max={600}
+                  />
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('duration', e)}
+                    title="Drag to resize column"
                   />
                 </div>
                 <div className="flex items-center gap-1 relative group">
@@ -461,11 +538,17 @@ export function SongLibrary() {
                   />
                   <div
                     className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={startResizeTags}
+                    onMouseDown={(e) => startColumnResize('tags', e)}
                     title="Drag to resize Tags column"
                   />
                 </div>
-                <div>Notes</div>
+                <div className="relative group">Notes
+                  <div
+                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                    onMouseDown={(e) => startColumnResize('notes', e)}
+                    title="Drag to resize column"
+                  />
+                </div>
               </div>
             </div>
 
@@ -482,7 +565,7 @@ export function SongLibrary() {
                       index % 2 === 0 ? "bg-table-row" : "bg-background"
                     )}
                     style={{
-                      gridTemplateColumns: `40px 80px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColWidth}px 1fr`
+                      gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.rating}px ${columnWidths.duration}px ${columnWidths.tags}px ${columnWidths.notes}px`
                     }}
                   >
                     {/* Play Button */}
