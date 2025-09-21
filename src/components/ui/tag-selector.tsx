@@ -104,8 +104,11 @@ export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }:
             key={tag.id}
             variant="secondary"
             className={cn(
-              "text-xs flex items-center gap-1 max-w-20 truncate",
-              size === 'sm' ? "px-1 py-0 h-4 text-[10px]" : "px-2 py-1 h-5"
+              "text-xs flex items-center gap-1",
+              // Increase size when multiple tags and remove max-width for better visibility
+              selectedTags.length >= 2 
+                ? "px-2 py-1 h-5 text-xs" 
+                : size === 'sm' ? "px-1 py-0 h-4 text-[10px] max-w-20 truncate" : "px-2 py-1 h-5 max-w-20 truncate"
             )}
             style={{ 
               backgroundColor: `${tag.color}20`, 
@@ -113,9 +116,12 @@ export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }:
               color: tag.color 
             }}
           >
-            <span className="truncate">{tag.name}</span>
+            <span className={cn(selectedTags.length >= 2 ? "" : "truncate")}>{tag.name}</span>
             <X 
-              className="w-2 h-2 cursor-pointer hover:opacity-70" 
+              className={cn(
+                "cursor-pointer hover:opacity-70",
+                selectedTags.length >= 2 ? "w-3 h-3" : "w-2 h-2"
+              )} 
               onClick={(e) => {
                 e.stopPropagation();
                 removeTag(tag.id);
