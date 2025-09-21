@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DJLayout } from "@/components/layout/DJLayout";
 import { DataServiceFactory } from "@/services/DataServiceFactory";
+import { MockupDataService } from "@/services/MockupDataService";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
@@ -18,7 +19,6 @@ function App() {
     console.log('App: Initializing data service...');
     
     // Force use of MockupDataService for development
-    const { MockupDataService } = require('@/services/MockupDataService');
     const mockupService = new MockupDataService();
     DataServiceFactory.setDataService(mockupService);
     
