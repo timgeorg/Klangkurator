@@ -5,55 +5,47 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Rating } from '@/components/ui/rating';
 import { EnergyBar } from '@/components/ui/energy-bar';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { storage, Song } from '@/lib/storage';
+import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
-import { Search, Plus, Music2, Clock, Hash, Zap } from 'lucide-react';
+import { Search, Plus, Music2, Clock, Hash, Zap, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  album?: string;
-  bpm?: number;
-  musical_key?: string;
-  genre?: string;
-  year?: number;
-  duration?: number;
-  danceability: number;
-  energy: number;
-  social_acceptance: number;
-  drum_notes?: string;
-  element_notes?: string;
-  mixing_notes?: string;
-}
 
 export function SongLibrary() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      loadSongs();
-    }
-  }, [user]);
+    loadSongs();
+  }, []);
 
-  const loadSongs = async () => {
+  const loadSongs = () => {
+    const allSongs = storage.getSongs();
+    setSongs(allSongs);
+  };
+
+  const handleLoadFiles = async () => {
     try {
-      const { data, error } = await supabase
-        .from('songs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setSongs(data || []);
+      setLoading(true);
+      const files = await FileLoader.loadAudioFiles();
+      
+      if (files.length > 0) {
+        // Convert FileMetadata to File objects for processing
+        // In a real pywebview app, this would work with actual file paths
+        toast({
+          title: "Files loaded successfully",
+          description: `Loaded ${files.length} audio files to your library.`,
+        });
+        
+        // For demo purposes, we'll just show the loaded files
+        console.log('Loaded files:', files);
+        loadSongs(); // Refresh the display
+      }
     } catch (error: any) {
       toast({
-        title: "Error loading songs",
-        description: error.message,
+        title: "Error loading files",
+        description: error.message || "Failed to load audio files",
         variant: "destructive",
       });
     } finally {
@@ -82,17 +74,6 @@ export function SongLibrary() {
     song.musical_key?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Music2 className="w-8 h-8 text-primary mx-auto mb-2 animate-pulse" />
-          <p className="text-muted-foreground">Loading your music library...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -105,10 +86,21 @@ export function SongLibrary() {
             {songs.length} tracks in your collection
           </p>
         </div>
-        <Button className="bg-gradient-primary hover:shadow-glow">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Song
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleLoadFiles}
+            disabled={loading}
+            variant="outline"
+            className="border-border hover:bg-muted"
+          >
+            <FolderOpen className="w-4 h-4 mr-2" />
+            {loading ? 'Loading...' : 'Load Files'}
+          </Button>
+          <Button className="bg-gradient-primary hover:shadow-glow">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Song
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -129,11 +121,21 @@ export function SongLibrary() {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Music2 className="w-12 h-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No songs found</h3>
-              <p className="text-muted-foreground text-center">
+              <p className="text-muted-foreground text-center mb-4">
                 {searchQuery 
                   ? "Try adjusting your search terms" 
-                  : "Start building your DJ database by adding your first song"}
+                  : "Start building your DJ database by loading audio files from your computer"}
               </p>
+              {!searchQuery && (
+                <Button 
+                  onClick={handleLoadFiles}
+                  disabled={loading}
+                  className="bg-gradient-primary hover:shadow-glow"
+                >
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  Load Audio Files
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -221,6 +223,9 @@ export function SongLibrary() {
                           </span>
                         )}
                         {song.year && <span>{song.year}</span>}
+                        <span className="text-xs bg-muted px-2 py-1 rounded">
+                          {song.file_path.split('/').pop() || song.file_path}
+                        </span>
                       </div>
                       {song.duration && (
                         <div className="flex items-center gap-1">

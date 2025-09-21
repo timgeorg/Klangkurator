@@ -14,7 +14,6 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/components/auth/AuthProvider';
 import { 
   Music, 
   Library, 
@@ -22,11 +21,13 @@ import {
   Search, 
   Plus,
   Settings,
-  LogOut,
+  FolderOpen,
   Disc3,
   GitBranch,
   ListMusic,
-  Zap
+  Zap,
+  Download,
+  Upload
 } from 'lucide-react';
 
 const navigationItems = [
@@ -38,14 +39,19 @@ const navigationItems = [
 ];
 
 const quickActions = [
+  { title: 'Load Files', url: '/load-files', icon: FolderOpen },
   { title: 'Add Song', url: '/add-song', icon: Plus },
   { title: 'Bulk Import', url: '/import', icon: Zap },
+];
+
+const dataActions = [
+  { title: 'Export Data', url: '/export', icon: Download },
+  { title: 'Import Data', url: '/import-data', icon: Upload },
 ];
 
 export function DJSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { signOut } = useAuth();
   const currentPath = location.pathname;
   
   const collapsed = state === 'collapsed';
@@ -68,7 +74,7 @@ export function DJSidebar() {
           {!collapsed && (
             <div>
               <h1 className="font-bold text-lg text-sidebar-foreground">DJ Database</h1>
-              <p className="text-xs text-sidebar-foreground/60">Music Organization</p>
+              <p className="text-xs text-sidebar-foreground/60">Local Music Library</p>
             </div>
           )}
         </div>
@@ -116,6 +122,24 @@ export function DJSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel>Data Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {dataActions.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className={getNavCls}>
+                      <item.icon className="w-4 h-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
           <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -133,15 +157,14 @@ export function DJSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => signOut()}
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50"
-        >
-          <LogOut className="w-4 h-4" />
-          {!collapsed && <span className="ml-2">Sign Out</span>}
-        </Button>
+        <div className="text-xs text-sidebar-foreground/60 text-center">
+          {!collapsed && (
+            <>
+              <div>Local DJ Database</div>
+              <div>v1.0.0</div>
+            </>
+          )}
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
