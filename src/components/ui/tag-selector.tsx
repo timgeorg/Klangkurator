@@ -98,13 +98,13 @@ export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }:
   return (
     <div className="flex items-center gap-1 min-w-0">
       {/* Selected Tags */}
-      <div className="flex flex-wrap gap-1 min-w-0">
+      <div className="flex items-center gap-1 min-w-0 flex-nowrap">
         {selectedTags.map((tag) => (
           <Badge
             key={tag.id}
             variant="secondary"
             className={cn(
-              "text-xs flex items-center gap-1",
+              "text-xs flex items-center gap-1 flex-shrink-0",
               // Increase size when multiple tags and remove max-width for better visibility
               selectedTags.length >= 2 
                 ? "px-2 py-1 h-5 text-xs" 

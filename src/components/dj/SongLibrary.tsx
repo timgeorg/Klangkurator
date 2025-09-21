@@ -292,7 +292,9 @@ export function SongLibrary() {
           <div className="min-w-full">
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
-              <div className="grid grid-cols-[40px_80px_60px_200px_150px_150px_80px_50px_80px_60px_60px_60px_80px_120px_1fr] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground">
+              <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
+                gridTemplateColumns: "40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px 160px 1fr"
+              }}>
                 <div className="flex items-center justify-center">
                   <Play className="w-3 h-3" />
                 </div>
@@ -420,14 +422,21 @@ export function SongLibrary() {
 
             {/* Table Body */}
             <div>
-              {filteredSongs.map((song, index) => (
-                <div 
-                  key={song.id}
-                  className={cn(
-                    "grid grid-cols-[40px_80px_60px_200px_150px_150px_80px_50px_80px_60px_60px_60px_80px_120px_1fr] gap-2 px-3 py-2 text-xs border-b border-table-border hover:bg-table-row-hover transition-colors cursor-pointer group",
-                    index % 2 === 0 ? "bg-table-row" : "bg-background"
-                  )}
-                >
+              {filteredSongs.map((song, index) => {
+                const songTagCount = songTags[song.id]?.length || 0;
+                const tagsColumnWidth = songTagCount >= 2 ? '200px' : '160px';
+                
+                return (
+                  <div 
+                    key={song.id}
+                    className={cn(
+                      "grid gap-2 px-3 py-2 text-xs border-b border-table-border hover:bg-table-row-hover transition-colors cursor-pointer group",
+                      index % 2 === 0 ? "bg-table-row" : "bg-background"
+                    )}
+                    style={{
+                      gridTemplateColumns: `40px 80px 60px 200px 150px 150px 80px 50px 80px 60px 60px 60px 80px ${tagsColumnWidth} 1fr`
+                    }}
+                  >
                   {/* Play Button */}
                   <div className="flex items-center justify-center">
                     <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
