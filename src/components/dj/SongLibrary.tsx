@@ -6,6 +6,7 @@ import { Rating } from '@/components/ui/rating';
 import { Waveform } from '@/components/ui/waveform';
 import { TagSelector } from '@/components/ui/tag-selector';
 import { ColumnFilter } from '@/components/ui/column-filter';
+import { SongRelationshipsDialog } from './SongRelationshipsDialog';
 import { storage, Song, Tag } from '@/lib/storage';
 import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
@@ -62,6 +63,14 @@ export function SongLibrary() {
     notes: 200
   });
   const [userResized, setUserResized] = useState<{[key: string]: boolean}>({});
+
+  // Relationships dialog state
+  const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
+  const [selectedSongForRelationships, setSelectedSongForRelationships] = useState<Song | null>(null);
+  const [songRelationships, setSongRelationships] = useState<{
+    asSource: Array<any>;
+    asTarget: Array<any>;
+  }>({ asSource: [], asTarget: [] });
 
   // Column filters
   const [filters, setFilters] = useState<FilterState>({
@@ -147,6 +156,33 @@ export function SongLibrary() {
     if (bpm < 100) return 'text-bpm-slow bg-bpm-slow/20';
     if (bpm < 130) return 'text-bpm-medium bg-bpm-medium/20';
     return 'text-bpm-fast bg-bpm-fast/20';
+  };
+
+  const handleSongClick = (song: Song) => {
+    setSelectedSongForRelationships(song);
+    
+    // Load relationships for this song
+    const allRelationships = storage.getSongRelationships();
+    const allSongs = storage.getSongs();
+    
+    const asSource = allRelationships
+      .filter(rel => rel.source_song_id === song.id)
+      .map(rel => ({
+        ...rel,
+        targetSong: allSongs.find(s => s.id === rel.target_song_id)!
+      }))
+      .filter(rel => rel.targetSong);
+    
+    const asTarget = allRelationships
+      .filter(rel => rel.target_song_id === song.id)
+      .map(rel => ({
+        ...rel,
+        sourceSong: allSongs.find(s => s.id === rel.source_song_id)!
+      }))
+      .filter(rel => rel.sourceSong);
+    
+    setSongRelationships({ asSource, asTarget });
+    setRelationshipsDialogOpen(true);
   };
 
   // Get unique values for filter options
@@ -583,7 +619,11 @@ export function SongLibrary() {
                     </div>
                     
                     {/* Title */}
-                    <div className="flex items-center font-medium text-foreground truncate">
+                    <div 
+                      className="flex items-center font-medium text-foreground truncate hover:text-primary cursor-pointer transition-colors"
+                      onClick={() => handleSongClick(song)}
+                      title="Click to view relationships"
+                    >
                       {song.title}
                     </div>
                     
@@ -725,6 +765,13 @@ export function SongLibrary() {
           </div>
         )}
       </div>
+
+      <SongRelationshipsDialog
+        song={selectedSongForRelationships}
+        open={relationshipsDialogOpen}
+        onOpenChange={setRelationshipsDialogOpen}
+        relationships={songRelationships}
+      />
     </div>
   );
 }

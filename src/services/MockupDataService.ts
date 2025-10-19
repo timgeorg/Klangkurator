@@ -113,6 +113,23 @@ export class MockupDataService implements DataService {
         mixing_notes: 'Radio-friendly anthem, wide appeal'
       },
       {
+        title: 'Titanium Future Rave Remix',
+        artist: 'David Guetta & MORTEN',
+        album: 'Future Rave',
+        bpm: 130,
+        musical_key: 'E♭ minor',
+        genre: 'Future Rave',
+        year: 2021,
+        duration: 218,
+        file_path: '/music/David Guetta MORTEN - Titanium Future Rave Remix.mp3',
+        danceability: 5,
+        energy: 5,
+        social_acceptance: 4,
+        drum_notes: 'Hard-hitting techno kicks, industrial groove',
+        element_notes: 'Dark rave synths, reimagined vocals',
+        mixing_notes: 'Underground energy meets mainstage power'
+      },
+      {
         title: 'Animals',
         artist: 'Martin Garrix',
         bpm: 128,
@@ -330,10 +347,26 @@ export class MockupDataService implements DataService {
     ];
 
     console.log('MockupDataService: Adding', sampleSongs.length, 'sample songs...');
+    const addedSongs: { [key: string]: any } = {};
     sampleSongs.forEach((songData, index) => {
       const song = storage.addSong(songData);
+      addedSongs[song.title] = song;
       console.log(`MockupDataService: Added song ${index + 1}:`, song.title);
     });
+
+    // Create relationships between songs
+    console.log('MockupDataService: Creating song relationships...');
+    
+    // Titanium Future Rave Remix is a remix of Titanium
+    if (addedSongs['Titanium'] && addedSongs['Titanium Future Rave Remix']) {
+      storage.addSongRelationship({
+        source_song_id: addedSongs['Titanium Future Rave Remix'].id,
+        target_song_id: addedSongs['Titanium'].id,
+        relationship_type: 'remix',
+        notes: 'Future Rave reimagining with darker, harder techno elements'
+      });
+      console.log('MockupDataService: Created remix relationship between Titanium tracks');
+    }
 
     // Add comprehensive sample tags
     const sampleTags = [
