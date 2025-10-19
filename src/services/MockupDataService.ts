@@ -28,8 +28,7 @@ export class MockupDataService implements DataService {
     const existingSongs = storage.getSongs();
     
     if (existingSongs.length > 0) {
-      console.log('MockupDataService: Data already exists, clearing and reinitializing...');
-      this.clearData();
+      console.log('MockupDataService: Data exists, performing idempotent upsert (no clearing).');
     }
 
     console.log('MockupDataService: Initializing comprehensive sample data...');
@@ -354,12 +353,25 @@ export class MockupDataService implements DataService {
       }
     ];
 
-    console.log('MockupDataService: Adding', sampleSongs.length, 'sample songs...');
+    console.log('MockupDataService: Upserting', sampleSongs.length, 'sample songs...');
     const addedSongs: { [key: string]: any } = {};
-    sampleSongs.forEach((songData, index) => {
-      const song = storage.addSong(songData);
-      addedSongs[song.title] = song;
-      console.log(`MockupDataService: Added song ${index + 1}:`, song.title);
+
+    const normalizeKey = (s: { title: string; artist: string }) => `${s.artist} - ${s.title}`.toLowerCase().trim();
+    const existing = storage.getSongs();
+    const existingMap = new Map(existing.map(s => [normalizeKey(s), s]));
+
+    sampleSongs.forEach((songData) => {
+      const key = normalizeKey(songData as any);
+      const existingSong = existingMap.get(key);
+      if (existingSong) {
+        const updated = storage.updateSong(existingSong.id, { ...(songData as any) });
+        addedSongs[(songData as any).title] = updated || existingSong;
+        console.log('MockupDataService: Updated existing song:', (songData as any).title);
+      } else {
+        const created = storage.addSong(songData as any);
+        addedSongs[(songData as any).title] = created;
+        console.log('MockupDataService: Added new song:', (songData as any).title);
+      }
     });
 
     // Create relationships between songs
@@ -367,23 +379,32 @@ export class MockupDataService implements DataService {
     
     // Titanium Future Rave Remix is a remix of Titanium
     if (addedSongs['Titanium'] && addedSongs['Titanium Future Rave Remix']) {
-      const relationship = storage.addSongRelationship({
-        source_song_id: addedSongs['Titanium Future Rave Remix'].id,
-        target_song_id: addedSongs['Titanium'].id,
-        relationship_type: 'remix',
-        notes: 'Future Rave reimagining with darker, harder techno elements'
-      });
-      console.log('MockupDataService: Created remix relationship:', {
-        relationship,
-        remixId: addedSongs['Titanium Future Rave Remix'].id,
-        remixTitle: addedSongs['Titanium Future Rave Remix'].title,
-        originalId: addedSongs['Titanium'].id,
-        originalTitle: addedSongs['Titanium'].title
-      });
+      const sourceId = addedSongs['Titanium Future Rave Remix'].id;
+      const targetId = addedSongs['Titanium'].id;
+      const rels = storage.getSongRelationships();
+      const existsRel = rels.some(r => r.source_song_id === sourceId && r.target_song_id === targetId && r.relationship_type === 'remix');
       
-      // Verify it was stored
+      if (!existsRel) {
+        const relationship = storage.addSongRelationship({
+          source_song_id: sourceId,
+          target_song_id: targetId,
+          relationship_type: 'remix',
+          notes: 'Future Rave reimagining with darker, harder techno elements'
+        });
+        console.log('MockupDataService: Created remix relationship:', {
+          relationship,
+          remixId: sourceId,
+          remixTitle: addedSongs['Titanium Future Rave Remix'].title,
+          originalId: targetId,
+          originalTitle: addedSongs['Titanium'].title
+        });
+      } else {
+        console.log('MockupDataService: Remix relationship already exists');
+      }
+      
+      // Verify stored relationships
       const allRelationships = storage.getSongRelationships();
-      console.log('MockupDataService: Total relationships in storage after creation:', allRelationships.length);
+      console.log('MockupDataService: Total relationships in storage after upsert:', allRelationships.length);
       console.log('MockupDataService: All relationships:', allRelationships);
     } else {
       console.log('MockupDataService: Could not create relationship - songs not found:', {
@@ -406,10 +427,20 @@ export class MockupDataService implements DataService {
       { name: 'Chill', color: '#14b8a6' }
     ];
 
-    console.log('MockupDataService: Adding sample tags...');
-    sampleTags.forEach((tagData, index) => {
-      const tag = storage.addTag(tagData);
-      console.log(`MockupDataService: Added tag ${index + 1}:`, tag.name);
+    console.log('MockupDataService: Upserting sample tags...');
+    const existingTags = storage.getTags();
+    const tagMap = new Map(existingTags.map(t => [t.name.toLowerCase().trim(), t]));
+
+    sampleTags.forEach((tagData) => {
+      const key = tagData.name.toLowerCase().trim();
+      const existing = tagMap.get(key);
+      if (existing) {
+        storage.updateTag(existing.id, { color: tagData.color });
+        console.log('MockupDataService: Updated tag:', existing.name);
+      } else {
+        const tag = storage.addTag(tagData);
+        console.log('MockupDataService: Added tag:', tag.name);
+      }
     });
 
     console.log('MockupDataService: Sample data initialization complete!');
