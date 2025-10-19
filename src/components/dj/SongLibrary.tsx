@@ -159,14 +159,22 @@ export function SongLibrary() {
   };
 
   const handleSongClick = (song: Song) => {
+    console.log('Clicked song:', song.title, song.id);
     setSelectedSongForRelationships(song);
     
     // Load relationships for this song
     const allRelationships = storage.getSongRelationships();
     const allSongs = storage.getSongs();
     
+    console.log('All relationships in storage:', allRelationships.length);
+    console.log('All songs in storage:', allSongs.length);
+    
     const asSource = allRelationships
-      .filter(rel => rel.source_song_id === song.id)
+      .filter(rel => {
+        const matches = rel.source_song_id === song.id;
+        if (matches) console.log('Found relationship as source:', rel);
+        return matches;
+      })
       .map(rel => ({
         ...rel,
         targetSong: allSongs.find(s => s.id === rel.target_song_id)!
@@ -174,12 +182,19 @@ export function SongLibrary() {
       .filter(rel => rel.targetSong);
     
     const asTarget = allRelationships
-      .filter(rel => rel.target_song_id === song.id)
+      .filter(rel => {
+        const matches = rel.target_song_id === song.id;
+        if (matches) console.log('Found relationship as target:', rel);
+        return matches;
+      })
       .map(rel => ({
         ...rel,
         sourceSong: allSongs.find(s => s.id === rel.source_song_id)!
       }))
       .filter(rel => rel.sourceSong);
+    
+    console.log('Relationships as source:', asSource.length);
+    console.log('Relationships as target:', asTarget.length);
     
     setSongRelationships({ asSource, asTarget });
     setRelationshipsDialogOpen(true);

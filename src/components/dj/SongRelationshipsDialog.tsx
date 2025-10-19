@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Song, SongRelationship } from '@/lib/storage';
 import { Music, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,9 @@ export function SongRelationshipsDialog({
             <Music className="w-5 h-5" />
             Song Relationships
           </DialogTitle>
+          <DialogDescription>
+            View remixes, covers, and other related songs
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
