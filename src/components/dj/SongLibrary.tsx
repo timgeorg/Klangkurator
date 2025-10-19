@@ -167,12 +167,17 @@ export function SongLibrary() {
     const allSongs = storage.getSongs();
     
     console.log('All relationships in storage:', allRelationships.length);
+    console.log('Relationships details:', allRelationships);
     console.log('All songs in storage:', allSongs.length);
     
     const asSource = allRelationships
       .filter(rel => {
         const matches = rel.source_song_id === song.id;
-        if (matches) console.log('Found relationship as source:', rel);
+        console.log('Checking as source:', {
+          relationshipSourceId: rel.source_song_id,
+          currentSongId: song.id,
+          matches
+        });
         return matches;
       })
       .map(rel => ({
@@ -184,7 +189,11 @@ export function SongLibrary() {
     const asTarget = allRelationships
       .filter(rel => {
         const matches = rel.target_song_id === song.id;
-        if (matches) console.log('Found relationship as target:', rel);
+        console.log('Checking as target:', {
+          relationshipTargetId: rel.target_song_id,
+          currentSongId: song.id,
+          matches
+        });
         return matches;
       })
       .map(rel => ({

@@ -13,6 +13,14 @@ export class MockupDataService implements DataService {
     
     const tags = storage.getTags();
     tags.forEach(tag => storage.deleteTag(tag.id));
+    
+    // Clear relationships
+    const relationships = storage.getSongRelationships();
+    relationships.forEach(rel => storage.deleteSongRelationship(rel.id));
+    
+    // Clear playlists
+    const playlists = storage.getPlaylists();
+    playlists.forEach(playlist => storage.deletePlaylist(playlist.id));
   }
 
   initializeData(): void {
@@ -359,13 +367,29 @@ export class MockupDataService implements DataService {
     
     // Titanium Future Rave Remix is a remix of Titanium
     if (addedSongs['Titanium'] && addedSongs['Titanium Future Rave Remix']) {
-      storage.addSongRelationship({
+      const relationship = storage.addSongRelationship({
         source_song_id: addedSongs['Titanium Future Rave Remix'].id,
         target_song_id: addedSongs['Titanium'].id,
         relationship_type: 'remix',
         notes: 'Future Rave reimagining with darker, harder techno elements'
       });
-      console.log('MockupDataService: Created remix relationship between Titanium tracks');
+      console.log('MockupDataService: Created remix relationship:', {
+        relationship,
+        remixId: addedSongs['Titanium Future Rave Remix'].id,
+        remixTitle: addedSongs['Titanium Future Rave Remix'].title,
+        originalId: addedSongs['Titanium'].id,
+        originalTitle: addedSongs['Titanium'].title
+      });
+      
+      // Verify it was stored
+      const allRelationships = storage.getSongRelationships();
+      console.log('MockupDataService: Total relationships in storage after creation:', allRelationships.length);
+      console.log('MockupDataService: All relationships:', allRelationships);
+    } else {
+      console.log('MockupDataService: Could not create relationship - songs not found:', {
+        titanium: addedSongs['Titanium']?.title,
+        remix: addedSongs['Titanium Future Rave Remix']?.title
+      });
     }
 
     // Add comprehensive sample tags
