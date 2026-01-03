@@ -7,6 +7,7 @@ import { Waveform } from '@/components/ui/waveform';
 import { TagSelector } from '@/components/ui/tag-selector';
 import { ColumnFilter } from '@/components/ui/column-filter';
 import { SongRelationshipsDialog } from './SongRelationshipsDialog';
+import { EditSongDialog } from './EditSongDialog';
 import { storage, Song, Tag } from '@/lib/storage';
 import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
@@ -22,7 +23,8 @@ import {
   Play,
   Volume2,
   ArrowUpDown,
-  Filter
+  Filter,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +73,10 @@ export function SongLibrary() {
     asSource: Array<any>;
     asTarget: Array<any>;
   }>({ asSource: [], asTarget: [] });
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedSongForEdit, setSelectedSongForEdit] = useState<Song | null>(null);
 
   // Column filters
   const [filters, setFilters] = useState<FilterState>({
@@ -207,6 +213,17 @@ export function SongLibrary() {
     
     setSongRelationships({ asSource, asTarget });
     setRelationshipsDialogOpen(true);
+  };
+
+  const handleEditSong = (song: Song, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSongForEdit(song);
+    setEditDialogOpen(true);
+  };
+
+  const handleSongSaved = (updatedSong: Song) => {
+    loadSongs();
+    loadSongTags();
   };
 
   // Get unique values for filter options
@@ -630,10 +647,19 @@ export function SongLibrary() {
                       gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.duration}px ${columnWidths.tags}px 1fr`
                     }}
                   >
-                    {/* Play Button */}
-                    <div className="flex items-center justify-center">
+                    {/* Play/Edit Buttons */}
+                    <div className="flex items-center justify-center gap-1">
                       <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Play className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
+                        onClick={(e) => handleEditSong(song, e)}
+                        title="Edit song"
+                      >
+                        <Pencil className="w-3 h-3" />
                       </Button>
                     </div>
                     
@@ -795,6 +821,13 @@ export function SongLibrary() {
         open={relationshipsDialogOpen}
         onOpenChange={setRelationshipsDialogOpen}
         relationships={songRelationships}
+      />
+
+      <EditSongDialog
+        song={selectedSongForEdit}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSave={handleSongSaved}
       />
     </div>
   );
