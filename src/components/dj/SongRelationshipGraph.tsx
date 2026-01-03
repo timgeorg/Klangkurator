@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Song, SongRelationship } from '@/lib/storage';
+import { Song, SongRelationship, storage } from '@/lib/storage';
 
 interface GraphNode {
   id: string;
@@ -23,6 +23,7 @@ interface SongRelationshipGraphProps {
     asSource: Array<SongRelationship & { targetSong: Song }>;
     asTarget: Array<SongRelationship & { sourceSong: Song }>;
   };
+  onNavigateToSong?: (song: Song) => void;
 }
 
 const relationshipColors: Record<string, string> = {
@@ -43,7 +44,7 @@ const relationshipLabels: Record<string, string> = {
   same_sample: 'Same Sample',
 };
 
-export function SongRelationshipGraph({ centerSong, relationships }: SongRelationshipGraphProps) {
+export function SongRelationshipGraph({ centerSong, relationships, onNavigateToSong }: SongRelationshipGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
@@ -52,6 +53,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
   const [draggingNode, setDraggingNode] = useState<GraphNode | null>(null);
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null);
 
   // Build graph data from relationships
   useEffect(() => {
@@ -73,11 +75,8 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
     });
 
     // Add related nodes from source relationships
-    const relatedSongs: Song[] = [];
-    
     relationships.asSource.forEach((rel) => {
       if (rel.targetSong && !nodeMap.has(rel.targetSong.id)) {
-        relatedSongs.push(rel.targetSong);
         nodeMap.set(rel.targetSong.id, {
           id: rel.targetSong.id,
           song: rel.targetSong,
@@ -98,7 +97,6 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
     // Add related nodes from target relationships
     relationships.asTarget.forEach((rel) => {
       if (rel.sourceSong && !nodeMap.has(rel.sourceSong.id)) {
-        relatedSongs.push(rel.sourceSong);
         nodeMap.set(rel.sourceSong.id, {
           id: rel.sourceSong.id,
           song: rel.sourceSong,
@@ -117,7 +115,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
     });
 
     // Position related nodes in a circle around center
-    const radius = Math.min(dimensions.width, dimensions.height) * 0.35;
+    const radius = Math.min(dimensions.width, dimensions.height) * 0.32;
     const relatedNodes = Array.from(nodeMap.values()).filter(n => !n.isCenter);
     const angleStep = (2 * Math.PI) / Math.max(relatedNodes.length, 1);
     
@@ -153,7 +151,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
       const updatedNodes = [...nodes];
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
-      const targetRadius = Math.min(dimensions.width, dimensions.height) * 0.35;
+      const targetRadius = Math.min(dimensions.width, dimensions.height) * 0.32;
 
       updatedNodes.forEach((node) => {
         if (node.isCenter || draggingNode?.id === node.id) return;
@@ -175,8 +173,8 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
           const odx = node.x - other.x;
           const ody = node.y - other.y;
           const oDist = Math.sqrt(odx * odx + ody * ody);
-          if (oDist < 100 && oDist > 0) {
-            const repulsion = (100 - oDist) * 0.01;
+          if (oDist < 120 && oDist > 0) {
+            const repulsion = (120 - oDist) * 0.01;
             node.vx += (odx / oDist) * repulsion;
             node.vy += (ody / oDist) * repulsion;
           }
@@ -188,9 +186,9 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
         node.vx *= 0.9;
         node.vy *= 0.9;
 
-        // Keep in bounds
-        node.x = Math.max(60, Math.min(dimensions.width - 60, node.x));
-        node.y = Math.max(40, Math.min(dimensions.height - 40, node.y));
+        // Keep in bounds (with more margin for labels)
+        node.x = Math.max(80, Math.min(dimensions.width - 80, node.x));
+        node.y = Math.max(50, Math.min(dimensions.height - 50, node.y));
       });
 
       setNodes(updatedNodes);
@@ -250,23 +248,27 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
       ctx.fillStyle = color;
       ctx.fill();
 
-      // Draw relationship label
-      const labelX = arrowX;
-      const labelY = arrowY - 12;
+      // Draw relationship label on edge
       const label = relationshipLabels[edge.relationship.relationship_type] || edge.relationship.relationship_type;
-      
-      ctx.font = '10px system-ui';
+      ctx.font = '9px system-ui';
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.fillText(label, labelX, labelY);
+      ctx.fillText(label, arrowX, arrowY - 10);
     });
 
     // Draw nodes
     nodes.forEach((node) => {
       const isHovered = hoveredNode?.id === node.id;
-      const nodeRadius = node.isCenter ? 40 : 30;
+      const nodeRadius = node.isCenter ? 28 : 22;
       
-      // Node background
+      // Node background with glow effect for hovered
+      if (isHovered && !node.isCenter) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, nodeRadius + 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'hsl(var(--primary) / 0.3)';
+        ctx.fill();
+      }
+      
       ctx.beginPath();
       ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2);
       ctx.fillStyle = node.isCenter 
@@ -276,47 +278,67 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
           : 'hsl(var(--muted))';
       ctx.fill();
       ctx.strokeStyle = node.isCenter 
-        ? 'hsl(var(--primary-foreground))' 
-        : 'hsl(var(--border))';
-      ctx.lineWidth = 2;
+        ? 'hsl(var(--primary-foreground) / 0.5)' 
+        : isHovered
+          ? 'hsl(var(--primary))'
+          : 'hsl(var(--border))';
+      ctx.lineWidth = isHovered ? 3 : 2;
       ctx.stroke();
 
-      // Node text
+      // Music icon inside node (simple circle)
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 6, 0, Math.PI * 2);
       ctx.fillStyle = node.isCenter 
-        ? 'hsl(var(--primary-foreground))' 
-        : 'hsl(var(--foreground))';
+        ? 'hsl(var(--primary-foreground) / 0.6)' 
+        : 'hsl(var(--muted-foreground) / 0.5)';
+      ctx.fill();
+    });
+
+    // Draw labels OUTSIDE nodes (after all nodes drawn so labels are on top)
+    nodes.forEach((node) => {
+      const isHovered = hoveredNode?.id === node.id;
+      const nodeRadius = node.isCenter ? 28 : 22;
+      const labelY = node.y + nodeRadius + 14;
+
+      // Background for label
       ctx.font = node.isCenter ? 'bold 11px system-ui' : '10px system-ui';
+      const titleWidth = ctx.measureText(node.song.title).width;
+      ctx.font = '9px system-ui';
+      const artistWidth = ctx.measureText(node.song.artist).width;
+      const bgWidth = Math.max(titleWidth, artistWidth) + 12;
+      const bgHeight = 28;
+
+      ctx.fillStyle = 'hsl(var(--background) / 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(node.x - bgWidth / 2, labelY - 12, bgWidth, bgHeight, 4);
+      ctx.fill();
+
+      // Title
+      ctx.font = node.isCenter ? 'bold 11px system-ui' : '10px system-ui';
+      ctx.fillStyle = node.isCenter 
+        ? 'hsl(var(--primary))' 
+        : isHovered
+          ? 'hsl(var(--primary))'
+          : 'hsl(var(--foreground))';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.fillText(node.song.title, node.x, labelY - 2);
       
-      // Truncate title if needed
-      const maxWidth = nodeRadius * 1.8;
-      let title = node.song.title;
-      while (ctx.measureText(title).width > maxWidth && title.length > 3) {
-        title = title.slice(0, -4) + '...';
-      }
-      
-      ctx.fillText(title, node.x, node.y - 5);
-      
-      // Artist (smaller)
+      // Artist
       ctx.font = '9px system-ui';
-      ctx.fillStyle = node.isCenter 
-        ? 'hsl(var(--primary-foreground) / 0.8)' 
-        : 'hsl(var(--muted-foreground))';
-      let artist = node.song.artist;
-      while (ctx.measureText(artist).width > maxWidth && artist.length > 3) {
-        artist = artist.slice(0, -4) + '...';
-      }
-      ctx.fillText(artist, node.x, node.y + 8);
+      ctx.fillStyle = 'hsl(var(--muted-foreground))';
+      ctx.fillText(node.song.artist, node.x, labelY + 10);
     });
   }, [nodes, edges, hoveredNode, dimensions]);
 
   // Mouse interaction handlers
   const getNodeAtPosition = useCallback((x: number, y: number): GraphNode | null => {
-    for (const node of nodes) {
+    // Check nodes in reverse order (top nodes first)
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i];
       const dx = x - node.x;
       const dy = y - node.y;
-      const radius = node.isCenter ? 40 : 30;
+      const radius = node.isCenter ? 28 : 22;
       if (dx * dx + dy * dy <= radius * radius) {
         return node;
       }
@@ -341,7 +363,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
     } else {
       const node = getNodeAtPosition(x, y);
       setHoveredNode(node);
-      canvas.style.cursor = node ? 'pointer' : 'default';
+      canvas.style.cursor = node && !node.isCenter ? 'pointer' : 'default';
     }
   }, [draggingNode, getNodeAtPosition]);
 
@@ -356,11 +378,38 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
     const node = getNodeAtPosition(x, y);
     if (node && !node.isCenter) {
       setDraggingNode(node);
+      setDragStartPos({ x, y });
     }
   }, [getNodeAtPosition]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Check if it was a click (not a drag)
+    if (draggingNode && dragStartPos) {
+      const dx = x - dragStartPos.x;
+      const dy = y - dragStartPos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // If moved less than 5px, treat as click
+      if (distance < 5 && onNavigateToSong) {
+        onNavigateToSong(draggingNode.song);
+      }
+    }
+    
     setDraggingNode(null);
+    setDragStartPos(null);
+  }, [draggingNode, dragStartPos, onNavigateToSong]);
+
+  const handleMouseLeave = useCallback(() => {
+    setDraggingNode(null);
+    setDragStartPos(null);
+    setHoveredNode(null);
   }, []);
 
   const hasRelationships = relationships.asSource.length > 0 || relationships.asTarget.length > 0;
@@ -374,7 +423,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
   }
 
   return (
-    <div ref={containerRef} className="w-full h-80 relative">
+    <div ref={containerRef} className="w-full h-96 relative">
       <canvas
         ref={canvasRef}
         width={dimensions.width}
@@ -382,7 +431,7 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         className="w-full h-full rounded-lg bg-muted/30"
       />
       
@@ -399,22 +448,10 @@ export function SongRelationshipGraph({ centerSong, relationships }: SongRelatio
         ))}
       </div>
 
-      {/* Tooltip */}
-      {hoveredNode && !hoveredNode.isCenter && (
-        <div 
-          className="absolute bg-popover text-popover-foreground rounded-md shadow-lg p-2 text-xs pointer-events-none"
-          style={{
-            left: Math.min(hoveredNode.x + 45, dimensions.width - 120),
-            top: Math.max(hoveredNode.y - 30, 10),
-          }}
-        >
-          <p className="font-medium">{hoveredNode.song.title}</p>
-          <p className="text-muted-foreground">{hoveredNode.song.artist}</p>
-          {hoveredNode.song.genre && (
-            <p className="text-muted-foreground">{hoveredNode.song.genre}</p>
-          )}
-        </div>
-      )}
+      {/* Click hint */}
+      <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-2 py-1">
+        Click a node to explore its relationships
+      </div>
     </div>
   );
 }
