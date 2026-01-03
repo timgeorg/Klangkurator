@@ -129,7 +129,7 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
     });
 
     // Position related nodes in a circle around center
-    const radius = Math.min(dimensions.width, dimensions.height) * 0.32;
+    const radius = Math.min(dimensions.width, dimensions.height) * 0.38;
     const relatedNodes = Array.from(nodeMap.values()).filter(n => !n.isCenter);
     const angleStep = (2 * Math.PI) / Math.max(relatedNodes.length, 1);
     
@@ -165,7 +165,7 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
       const updatedNodes = [...nodes];
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
-      const targetRadius = Math.min(dimensions.width, dimensions.height) * 0.32;
+      const targetRadius = Math.min(dimensions.width, dimensions.height) * 0.38;
 
       updatedNodes.forEach((node) => {
         if (node.isCenter || draggingNode?.id === node.id) return;
