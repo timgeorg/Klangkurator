@@ -24,8 +24,19 @@ import {
   Volume2,
   ArrowUpDown,
   Filter,
-  Pencil
+  Pencil,
+  Columns,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface FilterState {
@@ -65,6 +76,65 @@ export function SongLibrary() {
     notes: 200
   });
   const [userResized, setUserResized] = useState<{[key: string]: boolean}>({});
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState({
+    play: true,
+    preview: true,
+    title: true,
+    artist: true,
+    album: true,
+    bpm: true,
+    key: true,
+    genre: true,
+    energy: true,
+    danceability: true,
+    social: true,
+    duration: true,
+    tags: true,
+    notes: true,
+  });
+
+  const columnLabels: Record<string, string> = {
+    play: 'Play/Edit',
+    preview: 'Preview',
+    title: 'Title',
+    artist: 'Artist',
+    album: 'Album',
+    bpm: 'BPM',
+    key: 'Key',
+    genre: 'Genre',
+    energy: 'Energy',
+    danceability: 'Danceability',
+    social: 'Social',
+    duration: 'Duration',
+    tags: 'Tags',
+    notes: 'Notes',
+  };
+
+  const toggleColumnVisibility = (column: keyof typeof columnVisibility) => {
+    setColumnVisibility(prev => ({ ...prev, [column]: !prev[column] }));
+  };
+
+  // Build dynamic grid template based on visible columns
+  const getGridTemplate = useMemo(() => {
+    const columns: string[] = [];
+    if (columnVisibility.play) columns.push(`${columnWidths.play}px`);
+    if (columnVisibility.preview) columns.push(`${columnWidths.preview}px`);
+    if (columnVisibility.title) columns.push(`${columnWidths.title}px`);
+    if (columnVisibility.artist) columns.push(`${columnWidths.artist}px`);
+    if (columnVisibility.album) columns.push(`${columnWidths.album}px`);
+    if (columnVisibility.bpm) columns.push(`${columnWidths.bpm}px`);
+    if (columnVisibility.key) columns.push(`${columnWidths.key}px`);
+    if (columnVisibility.genre) columns.push(`${columnWidths.genre}px`);
+    if (columnVisibility.energy) columns.push(`${columnWidths.energy}px`);
+    if (columnVisibility.danceability) columns.push(`${columnWidths.danceability}px`);
+    if (columnVisibility.social) columns.push(`${columnWidths.social}px`);
+    if (columnVisibility.duration) columns.push(`${columnWidths.duration}px`);
+    if (columnVisibility.tags) columns.push(`${columnWidths.tags}px`);
+    if (columnVisibility.notes) columns.push('1fr');
+    return columns.join(' ');
+  }, [columnVisibility, columnWidths]);
 
   // Relationships dialog state
   const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
@@ -379,6 +449,34 @@ export function SongLibrary() {
               className="pl-10 w-64 h-8 bg-input border-border text-sm"
             />
           </div>
+          
+          {/* Column Visibility Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                size="sm"
+                variant="outline"
+                className="h-8 border-border hover:bg-table-row-hover text-xs"
+              >
+                <Columns className="w-3 h-3 mr-1" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {Object.entries(columnVisibility).map(([key, visible]) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={visible}
+                  onCheckedChange={() => toggleColumnVisibility(key as keyof typeof columnVisibility)}
+                >
+                  {columnLabels[key]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Button 
             onClick={handleLoadFiles}
             disabled={loading}
@@ -427,215 +525,241 @@ export function SongLibrary() {
             {/* Table Header */}
             <div className="sticky top-0 z-10 bg-table-header border-b border-table-border">
               <div className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground" style={{
-                gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.duration}px ${columnWidths.tags}px 1fr`
+                gridTemplateColumns: getGridTemplate
               }}>
-                <div className="flex items-center justify-center relative group">
-                  <Play className="w-3 h-3" />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('play', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  <Volume2 className="w-3 h-3" />
-                  Preview
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('preview', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Title
-                  <ArrowUpDown className="w-3 h-3" />
-                  <ColumnFilter
-                    title="Title"
-                    type="text"
-                    value={filters.title}
-                    onChange={(value) => updateFilter('title', value)}
-                    placeholder="Filter titles..."
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('title', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Artist
-                  <ArrowUpDown className="w-3 h-3" />
-                  <ColumnFilter
-                    title="Artist"
-                    type="text"
-                    value={filters.artist}
-                    onChange={(value) => updateFilter('artist', value)}
-                    placeholder="Filter artists..."
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('artist', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Album
-                  <ArrowUpDown className="w-3 h-3" />
-                  <ColumnFilter
-                    title="Album"
-                    type="text"
-                    value={filters.album}
-                    onChange={(value) => updateFilter('album', value)}
-                    placeholder="Filter albums..."
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('album', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  BPM
-                  <ArrowUpDown className="w-3 h-3" />
-                  <ColumnFilter
-                    title="BPM"
-                    type="range"
-                    value={filters.bpm}
-                    onChange={(value) => updateFilter('bpm', value)}
-                    min={60}
-                    max={200}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('bpm', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Key
-                  <ArrowUpDown className="w-3 h-3" />
-                  <ColumnFilter
-                    title="Key"
-                    type="multiselect"
-                    value={filters.key}
-                    onChange={(value) => updateFilter('key', value)}
-                    options={filterOptions.keys}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('key', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Genre
-                  <ColumnFilter
-                    title="Genre"
-                    type="multiselect"
-                    value={filters.genre}
-                    onChange={(value) => updateFilter('genre', value)}
-                    options={filterOptions.genres}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('genre', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Energy
-                  <ColumnFilter
-                    title="Energy"
-                    type="range"
-                    value={filters.energy}
-                    onChange={(value) => updateFilter('energy', value)}
-                    min={0}
-                    max={5}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('energy', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Dance
-                  <ColumnFilter
-                    title="Danceability"
-                    type="range"
-                    value={filters.danceability}
-                    onChange={(value) => updateFilter('danceability', value)}
-                    min={0}
-                    max={5}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('danceability', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Social
-                  <ColumnFilter
-                    title="Social"
-                    type="range"
-                    value={filters.social}
-                    onChange={(value) => updateFilter('social', value)}
-                    min={0}
-                    max={5}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('social', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Duration
-                  <ColumnFilter
-                    title="Duration"
-                    type="range"
-                    value={filters.duration}
-                    onChange={(value) => updateFilter('duration', value)}
-                    min={0}
-                    max={600}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('duration', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
-                <div className="flex items-center gap-1 relative group">
-                  Tags
-                  <ColumnFilter
-                    title="Tags"
-                    type="multiselect"
-                    value={filters.tags}
-                    onChange={(value) => updateFilter('tags', value)}
-                    options={filterOptions.tags}
-                  />
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('tags', e)}
-                    title="Drag to resize Tags column"
-                  />
-                </div>
-                <div className="relative group">Notes
-                  <div
-                    className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
-                    onMouseDown={(e) => startColumnResize('notes', e)}
-                    title="Drag to resize column"
-                  />
-                </div>
+                {columnVisibility.play && (
+                  <div className="flex items-center justify-center relative group">
+                    <Play className="w-3 h-3" />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('play', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.preview && (
+                  <div className="flex items-center gap-1 relative group">
+                    <Volume2 className="w-3 h-3" />
+                    Preview
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('preview', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.title && (
+                  <div className="flex items-center gap-1 relative group">
+                    Title
+                    <ArrowUpDown className="w-3 h-3" />
+                    <ColumnFilter
+                      title="Title"
+                      type="text"
+                      value={filters.title}
+                      onChange={(value) => updateFilter('title', value)}
+                      placeholder="Filter titles..."
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('title', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.artist && (
+                  <div className="flex items-center gap-1 relative group">
+                    Artist
+                    <ArrowUpDown className="w-3 h-3" />
+                    <ColumnFilter
+                      title="Artist"
+                      type="text"
+                      value={filters.artist}
+                      onChange={(value) => updateFilter('artist', value)}
+                      placeholder="Filter artists..."
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('artist', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.album && (
+                  <div className="flex items-center gap-1 relative group">
+                    Album
+                    <ArrowUpDown className="w-3 h-3" />
+                    <ColumnFilter
+                      title="Album"
+                      type="text"
+                      value={filters.album}
+                      onChange={(value) => updateFilter('album', value)}
+                      placeholder="Filter albums..."
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('album', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.bpm && (
+                  <div className="flex items-center gap-1 relative group">
+                    BPM
+                    <ArrowUpDown className="w-3 h-3" />
+                    <ColumnFilter
+                      title="BPM"
+                      type="range"
+                      value={filters.bpm}
+                      onChange={(value) => updateFilter('bpm', value)}
+                      min={60}
+                      max={200}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('bpm', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.key && (
+                  <div className="flex items-center gap-1 relative group">
+                    Key
+                    <ArrowUpDown className="w-3 h-3" />
+                    <ColumnFilter
+                      title="Key"
+                      type="multiselect"
+                      value={filters.key}
+                      onChange={(value) => updateFilter('key', value)}
+                      options={filterOptions.keys}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('key', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.genre && (
+                  <div className="flex items-center gap-1 relative group">
+                    Genre
+                    <ColumnFilter
+                      title="Genre"
+                      type="multiselect"
+                      value={filters.genre}
+                      onChange={(value) => updateFilter('genre', value)}
+                      options={filterOptions.genres}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('genre', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.energy && (
+                  <div className="flex items-center gap-1 relative group">
+                    Energy
+                    <ColumnFilter
+                      title="Energy"
+                      type="range"
+                      value={filters.energy}
+                      onChange={(value) => updateFilter('energy', value)}
+                      min={0}
+                      max={5}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('energy', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.danceability && (
+                  <div className="flex items-center gap-1 relative group">
+                    Dance
+                    <ColumnFilter
+                      title="Danceability"
+                      type="range"
+                      value={filters.danceability}
+                      onChange={(value) => updateFilter('danceability', value)}
+                      min={0}
+                      max={5}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('danceability', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.social && (
+                  <div className="flex items-center gap-1 relative group">
+                    Social
+                    <ColumnFilter
+                      title="Social"
+                      type="range"
+                      value={filters.social}
+                      onChange={(value) => updateFilter('social', value)}
+                      min={0}
+                      max={5}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('social', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.duration && (
+                  <div className="flex items-center gap-1 relative group">
+                    Duration
+                    <ColumnFilter
+                      title="Duration"
+                      type="range"
+                      value={filters.duration}
+                      onChange={(value) => updateFilter('duration', value)}
+                      min={0}
+                      max={600}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('duration', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.tags && (
+                  <div className="flex items-center gap-1 relative group">
+                    Tags
+                    <ColumnFilter
+                      title="Tags"
+                      type="multiselect"
+                      value={filters.tags}
+                      onChange={(value) => updateFilter('tags', value)}
+                      options={filterOptions.tags}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('tags', e)}
+                      title="Drag to resize Tags column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.notes && (
+                  <div className="relative group">Notes
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('notes', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Table Body */}
             <div>
               {filteredSongs.map((song, index) => {
-                // using shared tagsColWidth for all rows
-                
                 return (
                   <div 
                     key={song.id}
@@ -644,170 +768,198 @@ export function SongLibrary() {
                       index % 2 === 0 ? "bg-table-row" : "bg-background"
                     )}
                     style={{
-                      gridTemplateColumns: `${columnWidths.play}px ${columnWidths.preview}px ${columnWidths.title}px ${columnWidths.artist}px ${columnWidths.album}px ${columnWidths.bpm}px ${columnWidths.key}px ${columnWidths.genre}px ${columnWidths.energy}px ${columnWidths.danceability}px ${columnWidths.social}px ${columnWidths.duration}px ${columnWidths.tags}px 1fr`
+                      gridTemplateColumns: getGridTemplate
                     }}
                   >
                     {/* Play/Edit Buttons */}
-                    <div className="flex items-center justify-center gap-1">
-                      <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Play className="w-3 h-3" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
-                        onClick={(e) => handleEditSong(song, e)}
-                        title="Edit song"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </Button>
-                    </div>
+                    {columnVisibility.play && (
+                      <div className="flex items-center justify-center gap-1">
+                        <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="w-3 h-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
+                          onClick={(e) => handleEditSong(song, e)}
+                          title="Edit song"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
                     
                     {/* Waveform */}
-                    <div className="flex items-center">
-                      <Waveform className="w-16 h-6" variant="compact" />
-                    </div>
+                    {columnVisibility.preview && (
+                      <div className="flex items-center">
+                        <Waveform className="w-16 h-6" variant="compact" />
+                      </div>
+                    )}
                     
                     {/* Title */}
-                    <div 
-                      className="flex items-center font-medium text-foreground truncate hover:text-primary cursor-pointer transition-colors"
-                      onClick={() => handleSongClick(song)}
-                      title="Click to view relationships"
-                    >
-                      {song.title}
-                    </div>
+                    {columnVisibility.title && (
+                      <div 
+                        className="flex items-center font-medium text-foreground truncate hover:text-primary cursor-pointer transition-colors"
+                        onClick={() => handleSongClick(song)}
+                        title="Click to view relationships"
+                      >
+                        {song.title}
+                      </div>
+                    )}
                     
                     {/* Artist */}
-                    <div className="flex items-center text-foreground truncate">
-                      {song.artist}
-                    </div>
+                    {columnVisibility.artist && (
+                      <div className="flex items-center text-foreground truncate">
+                        {song.artist}
+                      </div>
+                    )}
                     
                     {/* Album */}
-                    <div className="flex items-center text-muted-foreground truncate">
-                      {song.album || '-'}
-                    </div>
+                    {columnVisibility.album && (
+                      <div className="flex items-center text-muted-foreground truncate">
+                        {song.album || '-'}
+                      </div>
+                    )}
                     
                     {/* BPM */}
-                    <div className="flex items-center">
-                      {song.bpm ? (
-                        <Badge 
-                          variant="secondary" 
-                          className={cn(
-                            "text-xs px-1 py-0 h-5",
-                            getBpmColor(song.bpm)
-                          )}
-                        >
-                          {song.bpm}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </div>
+                    {columnVisibility.bpm && (
+                      <div className="flex items-center">
+                        {song.bpm ? (
+                          <Badge 
+                            variant="secondary" 
+                            className={cn(
+                              "text-xs px-1 py-0 h-5",
+                              getBpmColor(song.bpm)
+                            )}
+                          >
+                            {song.bpm}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Key */}
-                    <div className="flex items-center">
-                      {song.musical_key ? (
-                        <Badge 
-                          variant="outline" 
-                          className={cn(
-                            "text-xs px-1 py-0 h-5 border-key-major",
-                            song.musical_key.includes('minor') ? "border-key-minor text-key-minor" : "text-key-major"
-                          )}
-                        >
-                          {song.musical_key.replace(' major', '').replace(' minor', 'm')}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </div>
+                    {columnVisibility.key && (
+                      <div className="flex items-center">
+                        {song.musical_key ? (
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-xs px-1 py-0 h-5 border-key-major",
+                              song.musical_key.includes('minor') ? "border-key-minor text-key-minor" : "text-key-major"
+                            )}
+                          >
+                            {song.musical_key.replace(' major', '').replace(' minor', 'm')}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Genre */}
-                    <div className="flex items-center text-muted-foreground truncate">
-                      {song.genre || '-'}
-                    </div>
+                    {columnVisibility.genre && (
+                      <div className="flex items-center text-muted-foreground truncate">
+                        {song.genre || '-'}
+                      </div>
+                    )}
                     
                     {/* Energy Rating */}
-                    <div className="flex items-center">
-                      <div className="flex gap-[2px]">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "w-2 h-2 rounded-full",
-                              i < song.energy ? "bg-energy-high" : "bg-muted"
-                            )}
-                          />
-                        ))}
+                    {columnVisibility.energy && (
+                      <div className="flex items-center">
+                        <div className="flex gap-[2px]">
+                          {Array.from({ length: 5 }, (_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "w-2 h-2 rounded-full",
+                                i < song.energy ? "bg-energy-high" : "bg-muted"
+                              )}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     {/* Danceability Rating */}
-                    <div className="flex items-center">
-                      <div className="flex gap-[2px]">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "w-2 h-2 rounded-full",
-                              i < song.danceability ? "bg-accent" : "bg-muted"
-                            )}
-                          />
-                        ))}
+                    {columnVisibility.danceability && (
+                      <div className="flex items-center">
+                        <div className="flex gap-[2px]">
+                          {Array.from({ length: 5 }, (_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "w-2 h-2 rounded-full",
+                                i < song.danceability ? "bg-accent" : "bg-muted"
+                              )}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     {/* Social Rating */}
-                    <div className="flex items-center">
-                      <div className="flex gap-[2px]">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "w-2 h-2 rounded-full",
-                              i < song.social_acceptance ? "bg-secondary" : "bg-muted"
-                            )}
-                          />
-                        ))}
+                    {columnVisibility.social && (
+                      <div className="flex items-center">
+                        <div className="flex gap-[2px]">
+                          {Array.from({ length: 5 }, (_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "w-2 h-2 rounded-full",
+                                i < song.social_acceptance ? "bg-secondary" : "bg-muted"
+                              )}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     {/* Duration */}
-                    <div className="flex items-center text-muted-foreground font-mono">
-                      {formatDuration(song.duration)}
-                    </div>
+                    {columnVisibility.duration && (
+                      <div className="flex items-center text-muted-foreground font-mono">
+                        {formatDuration(song.duration)}
+                      </div>
+                    )}
                     
                     {/* Tags */}
-                    <div className="flex items-center min-w-0">
-                      <TagSelector
-                        songId={song.id}
-                        selectedTags={songTags[song.id] || []}
-                        onTagsChange={(tags) => handleTagsChange(song.id, tags)}
-                        size="sm"
-                      />
-                    </div>
+                    {columnVisibility.tags && (
+                      <div className="flex items-center min-w-0">
+                        <TagSelector
+                          songId={song.id}
+                          selectedTags={songTags[song.id] || []}
+                          onTagsChange={(tags) => handleTagsChange(song.id, tags)}
+                          size="sm"
+                        />
+                      </div>
+                    )}
                     
                     {/* Notes */}
-                    <div className="flex items-center min-w-0">
-                      {editingNotes[song.id] !== undefined ? (
-                        <textarea
-                          value={editingNotes[song.id]}
-                          onChange={(e) => handleNotesEdit(song.id, e.target.value)}
-                          onBlur={() => handleNotesBlur(song.id)}
-                          onKeyDown={(e) => handleNotesKeyDown(e, song.id)}
-                          className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
-                          autoFocus
-                          placeholder="Add notes..."
-                        />
-                      ) : (
-                        <div 
-                          className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
-                          onClick={() => handleNotesEdit(song.id, getCurrentNotes(song))}
-                          title={getCurrentNotes(song) || 'Click to add notes'}
-                        >
-                          {getCurrentNotes(song) || 'Click to add notes...'}
-                        </div>
-                      )}
-                    </div>
+                    {columnVisibility.notes && (
+                      <div className="flex items-center min-w-0">
+                        {editingNotes[song.id] !== undefined ? (
+                          <textarea
+                            value={editingNotes[song.id]}
+                            onChange={(e) => handleNotesEdit(song.id, e.target.value)}
+                            onBlur={() => handleNotesBlur(song.id)}
+                            onKeyDown={(e) => handleNotesKeyDown(e, song.id)}
+                            className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
+                            autoFocus
+                            placeholder="Add notes..."
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
+                            onClick={() => handleNotesEdit(song.id, getCurrentNotes(song))}
+                            title={getCurrentNotes(song) || 'Click to add notes'}
+                          >
+                            {getCurrentNotes(song) || 'Click to add notes...'}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
