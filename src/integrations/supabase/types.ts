@@ -191,6 +191,7 @@ export type Database = {
           file_path: string | null
           genre: string | null
           id: string
+          lyrics: string | null
           mixing_notes: string | null
           musical_key: string | null
           social_acceptance: number | null
@@ -213,6 +214,7 @@ export type Database = {
           file_path?: string | null
           genre?: string | null
           id?: string
+          lyrics?: string | null
           mixing_notes?: string | null
           musical_key?: string | null
           social_acceptance?: number | null
@@ -235,6 +237,7 @@ export type Database = {
           file_path?: string | null
           genre?: string | null
           id?: string
+          lyrics?: string | null
           mixing_notes?: string | null
           musical_key?: string | null
           social_acceptance?: number | null

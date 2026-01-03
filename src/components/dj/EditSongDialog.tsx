@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Song, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
-import { Music, Save, X } from 'lucide-react';
+import { Music, Save, X, FileText } from 'lucide-react';
+import { LyricsDialog } from './LyricsDialog';
 
 interface EditSongDialogProps {
   song: Song | null;
@@ -55,10 +56,12 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
   });
 
   const [saving, setSaving] = useState(false);
-
+  const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
+  const [currentSong, setCurrentSong] = useState<Song | null>(song);
   // Reset form when song changes
   useEffect(() => {
     if (song) {
+      setCurrentSong(song);
       setFormData({
         title: song.title || '',
         artist: song.artist || '',
@@ -76,6 +79,10 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
       });
     }
   }, [song]);
+
+  const handleLyricsSave = (updatedSong: Song) => {
+    setCurrentSong(updatedSong);
+  };
 
   const handleSave = () => {
     if (!song) return;
@@ -333,6 +340,19 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
               </div>
             </div>
           </div>
+
+          {/* Lyrics */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Lyrics</h3>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={() => setLyricsDialogOpen(true)}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {currentSong?.lyrics ? 'View / Edit Lyrics' : 'Add Lyrics'}
+            </Button>
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
@@ -346,6 +366,13 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <LyricsDialog
+        song={currentSong}
+        open={lyricsDialogOpen}
+        onOpenChange={setLyricsDialogOpen}
+        onSave={handleLyricsSave}
+      />
     </Dialog>
   );
 }

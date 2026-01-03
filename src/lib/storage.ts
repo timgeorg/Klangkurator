@@ -22,6 +22,9 @@ export interface Song {
   element_notes?: string;
   mixing_notes?: string;
   
+  // Lyrics
+  lyrics?: string;
+  
   created_at: string;
   updated_at: string;
 }
