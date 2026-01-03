@@ -27,12 +27,12 @@ interface SongRelationshipGraphProps {
 }
 
 const relationshipColors: Record<string, string> = {
-  remix: 'hsl(280, 70%, 60%)',
-  cover: 'hsl(200, 70%, 60%)',
-  mashup: 'hsl(320, 70%, 60%)',
-  edit: 'hsl(160, 70%, 60%)',
-  bootleg: 'hsl(30, 70%, 60%)',
-  same_sample: 'hsl(50, 70%, 60%)',
+  remix: '#a855f7',      // Purple
+  cover: '#3b82f6',      // Blue
+  mashup: '#ec4899',     // Pink
+  edit: '#22c55e',       // Green
+  bootleg: '#f97316',    // Orange
+  same_sample: '#eab308', // Yellow
 };
 
 const relationshipLabels: Record<string, string> = {
@@ -42,6 +42,20 @@ const relationshipLabels: Record<string, string> = {
   edit: 'Edit',
   bootleg: 'Bootleg',
   same_sample: 'Same Sample',
+};
+
+// Canvas-compatible colors (not CSS variables)
+const COLORS = {
+  centerNode: '#404040',        // Neutral gray for center
+  centerNodeBorder: '#666666',
+  relatedNode: '#1e293b',       // Slate dark
+  relatedNodeBorder: '#475569',
+  hoveredNode: '#334155',
+  hoveredNodeBorder: '#f97316', // Orange accent
+  background: 'rgba(15, 15, 15, 0.9)',
+  text: '#e2e8f0',
+  textMuted: '#94a3b8',
+  textPrimary: '#f97316',       // Orange accent
 };
 
 export function SongRelationshipGraph({ centerSong, relationships, onNavigateToSong }: SongRelationshipGraphProps) {
@@ -209,18 +223,47 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+    // Clear canvas with dark background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, dimensions.width, dimensions.height);
 
-    // Draw edges
+    // Draw subtle grid pattern
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    const gridSize = 30;
+    for (let x = 0; x < dimensions.width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, dimensions.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < dimensions.height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(dimensions.width, y);
+      ctx.stroke();
+    }
+
+    // Draw edges with glow effect
     edges.forEach((edge) => {
       const sourceNode = nodes.find(n => n.id === edge.source);
       const targetNode = nodes.find(n => n.id === edge.target);
       
       if (!sourceNode || !targetNode) return;
 
-      const color = relationshipColors[edge.relationship.relationship_type] || 'hsl(var(--muted-foreground))';
+      const color = relationshipColors[edge.relationship.relationship_type] || '#888888';
       
+      // Glow effect
+      ctx.beginPath();
+      ctx.moveTo(sourceNode.x, sourceNode.y);
+      ctx.lineTo(targetNode.x, targetNode.y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 6;
+      ctx.globalAlpha = 0.15;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      
+      // Main line
       ctx.beginPath();
       ctx.moveTo(sourceNode.x, sourceNode.y);
       ctx.lineTo(targetNode.x, targetNode.y);
@@ -230,104 +273,140 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
 
       // Draw arrow
       const angle = Math.atan2(targetNode.y - sourceNode.y, targetNode.x - sourceNode.x);
-      const arrowSize = 8;
+      const arrowSize = 10;
       const arrowX = (sourceNode.x + targetNode.x) / 2;
       const arrowY = (sourceNode.y + targetNode.y) / 2;
 
       ctx.beginPath();
-      ctx.moveTo(arrowX, arrowY);
+      ctx.moveTo(arrowX + arrowSize * Math.cos(angle), arrowY + arrowSize * Math.sin(angle));
       ctx.lineTo(
-        arrowX - arrowSize * Math.cos(angle - Math.PI / 6),
-        arrowY - arrowSize * Math.sin(angle - Math.PI / 6)
+        arrowX - arrowSize * Math.cos(angle - Math.PI / 5),
+        arrowY - arrowSize * Math.sin(angle - Math.PI / 5)
       );
       ctx.lineTo(
-        arrowX - arrowSize * Math.cos(angle + Math.PI / 6),
-        arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
+        arrowX - arrowSize * Math.cos(angle + Math.PI / 5),
+        arrowY - arrowSize * Math.sin(angle + Math.PI / 5)
       );
       ctx.closePath();
       ctx.fillStyle = color;
       ctx.fill();
 
-      // Draw relationship label on edge
+      // Draw relationship label on edge with background
       const label = relationshipLabels[edge.relationship.relationship_type] || edge.relationship.relationship_type;
-      ctx.font = '9px system-ui';
+      const labelX = arrowX;
+      const labelY = arrowY - 16;
+      
+      ctx.font = 'bold 10px system-ui';
+      const labelWidth = ctx.measureText(label).width + 8;
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(labelX - labelWidth / 2, labelY - 8, labelWidth, 16, 4);
+      ctx.fill();
+      
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.fillText(label, arrowX, arrowY - 10);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, labelX, labelY);
     });
 
     // Draw nodes
     nodes.forEach((node) => {
       const isHovered = hoveredNode?.id === node.id;
-      const nodeRadius = node.isCenter ? 28 : 22;
+      const nodeRadius = node.isCenter ? 32 : 26;
       
-      // Node background with glow effect for hovered
+      // Glow effect for hovered nodes
       if (isHovered && !node.isCenter) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, nodeRadius + 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'hsl(var(--primary) / 0.3)';
+        ctx.arc(node.x, node.y, nodeRadius + 8, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(node.x, node.y, nodeRadius, node.x, node.y, nodeRadius + 12);
+        gradient.addColorStop(0, 'rgba(249, 115, 22, 0.4)');
+        gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
+        ctx.fillStyle = gradient;
         ctx.fill();
       }
       
+      // Node fill with gradient
       ctx.beginPath();
       ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = node.isCenter 
-        ? 'hsl(var(--primary))' 
-        : isHovered 
-          ? 'hsl(var(--accent))' 
-          : 'hsl(var(--muted))';
+      
+      if (node.isCenter) {
+        // Neutral gradient for center node
+        const gradient = ctx.createRadialGradient(node.x - 8, node.y - 8, 0, node.x, node.y, nodeRadius);
+        gradient.addColorStop(0, '#555555');
+        gradient.addColorStop(1, '#2a2a2a');
+        ctx.fillStyle = gradient;
+      } else {
+        // Colored gradient for related nodes
+        const gradient = ctx.createRadialGradient(node.x - 6, node.y - 6, 0, node.x, node.y, nodeRadius);
+        gradient.addColorStop(0, isHovered ? '#475569' : '#334155');
+        gradient.addColorStop(1, isHovered ? '#1e293b' : '#0f172a');
+        ctx.fillStyle = gradient;
+      }
       ctx.fill();
+      
+      // Node border
       ctx.strokeStyle = node.isCenter 
-        ? 'hsl(var(--primary-foreground) / 0.5)' 
-        : isHovered
-          ? 'hsl(var(--primary))'
-          : 'hsl(var(--border))';
+        ? '#777777'
+        : isHovered 
+          ? COLORS.hoveredNodeBorder
+          : '#475569';
       ctx.lineWidth = isHovered ? 3 : 2;
       ctx.stroke();
 
-      // Music icon inside node (simple circle)
+      // Music note icon (simplified)
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = node.isCenter 
-        ? 'hsl(var(--primary-foreground) / 0.6)' 
-        : 'hsl(var(--muted-foreground) / 0.5)';
+      ctx.arc(node.x, node.y - 2, 5, 0, Math.PI * 2);
+      ctx.fillStyle = node.isCenter ? '#999999' : (isHovered ? COLORS.textPrimary : '#64748b');
       ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(node.x + 5, node.y - 2);
+      ctx.lineTo(node.x + 5, node.y - 12);
+      ctx.strokeStyle = node.isCenter ? '#999999' : (isHovered ? COLORS.textPrimary : '#64748b');
+      ctx.lineWidth = 2;
+      ctx.stroke();
     });
 
-    // Draw labels OUTSIDE nodes (after all nodes drawn so labels are on top)
+    // Draw labels below nodes
     nodes.forEach((node) => {
       const isHovered = hoveredNode?.id === node.id;
-      const nodeRadius = node.isCenter ? 28 : 22;
-      const labelY = node.y + nodeRadius + 14;
+      const nodeRadius = node.isCenter ? 32 : 26;
+      const labelY = node.y + nodeRadius + 16;
 
-      // Background for label
-      ctx.font = node.isCenter ? 'bold 11px system-ui' : '10px system-ui';
+      // Measure text for background
+      ctx.font = node.isCenter ? 'bold 12px system-ui' : '11px system-ui';
       const titleWidth = ctx.measureText(node.song.title).width;
-      ctx.font = '9px system-ui';
+      ctx.font = '10px system-ui';
       const artistWidth = ctx.measureText(node.song.artist).width;
-      const bgWidth = Math.max(titleWidth, artistWidth) + 12;
-      const bgHeight = 28;
+      const bgWidth = Math.max(titleWidth, artistWidth) + 16;
+      const bgHeight = 34;
 
-      ctx.fillStyle = 'hsl(var(--background) / 0.85)';
+      // Label background with rounded corners
+      ctx.fillStyle = COLORS.background;
       ctx.beginPath();
-      ctx.roundRect(node.x - bgWidth / 2, labelY - 12, bgWidth, bgHeight, 4);
+      ctx.roundRect(node.x - bgWidth / 2, labelY - 14, bgWidth, bgHeight, 6);
       ctx.fill();
+      
+      // Border for label
+      ctx.strokeStyle = node.isCenter ? '#555555' : (isHovered ? COLORS.hoveredNodeBorder : '#333333');
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
-      // Title
-      ctx.font = node.isCenter ? 'bold 11px system-ui' : '10px system-ui';
+      // Title text
+      ctx.font = node.isCenter ? 'bold 12px system-ui' : '11px system-ui';
       ctx.fillStyle = node.isCenter 
-        ? 'hsl(var(--primary))' 
-        : isHovered
-          ? 'hsl(var(--primary))'
-          : 'hsl(var(--foreground))';
+        ? '#ffffff'
+        : isHovered 
+          ? COLORS.textPrimary 
+          : COLORS.text;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(node.song.title, node.x, labelY - 2);
+      ctx.fillText(node.song.title, node.x, labelY);
       
-      // Artist
-      ctx.font = '9px system-ui';
-      ctx.fillStyle = 'hsl(var(--muted-foreground))';
-      ctx.fillText(node.song.artist, node.x, labelY + 10);
+      // Artist text
+      ctx.font = '10px system-ui';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(node.song.artist, node.x, labelY + 14);
     });
   }, [nodes, edges, hoveredNode, dimensions]);
 
@@ -432,7 +511,7 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
-        className="w-full h-full rounded-lg bg-muted/30"
+        className="w-full h-full rounded-lg"
       />
       
       {/* Legend */}
