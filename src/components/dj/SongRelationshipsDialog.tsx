@@ -193,6 +193,7 @@ export function SongRelationshipsDialog({
           {/* Graph View */}
           {viewMode === 'graph' && hasRelationships && (
             <SongRelationshipGraph 
+              key={song.id}
               centerSong={song} 
               relationships={relationships} 
               onNavigateToSong={handleNavigateToSong}
