@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Song, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
-import { Music, Save, X, FileText } from 'lucide-react';
+import { Music, Save, X, FileText, Link2 } from 'lucide-react';
 import { LyricsDialog } from './LyricsDialog';
+import { EditRelationshipsDialog } from './EditRelationshipsDialog';
 
 interface EditSongDialogProps {
   song: Song | null;
@@ -57,6 +58,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
 
   const [saving, setSaving] = useState(false);
   const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
+  const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
   const [currentSong, setCurrentSong] = useState<Song | null>(song);
   // Reset form when song changes
   useEffect(() => {
@@ -353,6 +355,19 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
               {currentSong?.lyrics ? 'View / Edit Lyrics' : 'Add Lyrics'}
             </Button>
           </div>
+
+          {/* Relationships */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Relationships</h3>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={() => setRelationshipsDialogOpen(true)}
+            >
+              <Link2 className="w-4 h-4 mr-2" />
+              Manage Song Relationships
+            </Button>
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
@@ -372,6 +387,13 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         open={lyricsDialogOpen}
         onOpenChange={setLyricsDialogOpen}
         onSave={handleLyricsSave}
+      />
+
+      <EditRelationshipsDialog
+        song={currentSong}
+        open={relationshipsDialogOpen}
+        onOpenChange={setRelationshipsDialogOpen}
+        onSave={() => {}}
       />
     </Dialog>
   );
