@@ -56,13 +56,16 @@ export function SongRelationshipsDialog({
   relationships: initialRelationships,
 }: SongRelationshipsDialogProps) {
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
-  const [currentSong, setCurrentSong] = useState<Song | null>(initialSong);
-  const [currentRelationships, setCurrentRelationships] = useState(initialRelationships);
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [currentRelationships, setCurrentRelationships] = useState<{
+    asSource: Array<SongRelationship & { targetSong: Song }>;
+    asTarget: Array<SongRelationship & { sourceSong: Song }>;
+  } | null>(null);
   const [navigationHistory, setNavigationHistory] = useState<Song[]>([]);
 
-  // Reset state when dialog opens with a new song
+  // Use current navigation state or fall back to initial props
   const song = currentSong || initialSong;
-  const relationships = currentSong ? currentRelationships : initialRelationships;
+  const relationships = currentRelationships || initialRelationships;
 
   // Navigate to a different song in the graph
   const handleNavigateToSong = useCallback((targetSong: Song) => {
@@ -93,11 +96,11 @@ export function SongRelationshipsDialog({
   const handleOpenChange = useCallback((isOpen: boolean) => {
     if (!isOpen) {
       setCurrentSong(null);
-      setCurrentRelationships(initialRelationships);
+      setCurrentRelationships(null);
       setNavigationHistory([]);
     }
     onOpenChange(isOpen);
-  }, [onOpenChange, initialRelationships]);
+  }, [onOpenChange]);
 
   if (!song) return null;
 
