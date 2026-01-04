@@ -25,6 +25,7 @@ const relationshipTypes = [
   { value: 'bootleg', label: 'Bootleg' },
   { value: 'same_sample', label: 'Same Sample' },
   { value: 'in_playlist', label: 'In Playlist' },
+  { value: 'transition', label: 'Transition' },
 ];
 
 const relationshipLabels: Record<string, { source: string; target: string }> = {
@@ -35,6 +36,7 @@ const relationshipLabels: Record<string, { source: string; target: string }> = {
   bootleg: { source: 'Is Bootleg Of', target: 'Bootlegged By' },
   same_sample: { source: 'Uses Same Sample As', target: 'Same Sample Used By' },
   in_playlist: { source: 'In Playlist', target: 'Contains' },
+  transition: { source: 'Transitions To', target: 'Transitioned From' },
 };
 
 interface ExistingRelationship {

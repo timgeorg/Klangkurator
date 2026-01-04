@@ -45,7 +45,7 @@ export interface SongRelationship {
   id: string;
   source_song_id: string;
   target_song_id: string;
-  relationship_type: 'remix' | 'same_sample' | 'cover' | 'mashup' | 'edit' | 'bootleg' | 'in_playlist';
+  relationship_type: 'remix' | 'same_sample' | 'cover' | 'mashup' | 'edit' | 'bootleg' | 'in_playlist' | 'transition';
   notes?: string;
   created_at: string;
 }
