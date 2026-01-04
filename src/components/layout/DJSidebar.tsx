@@ -17,13 +17,10 @@ import { Button } from '@/components/ui/button';
 import { 
   Music, 
   Library, 
-  Tags, 
-  Search, 
   Plus,
   Settings,
   FolderOpen,
   Disc3,
-  GitBranch,
   ListMusic,
   Zap,
   Download,
@@ -32,9 +29,6 @@ import {
 
 const navigationItems = [
   { title: 'Library', url: '/', icon: Library },
-  { title: 'Search', url: '/search', icon: Search },
-  { title: 'Tags', url: '/tags', icon: Tags },
-  { title: 'Relationships', url: '/relationships', icon: GitBranch },
   { title: 'Playlists', url: '/playlists', icon: ListMusic },
 ];
 
