@@ -73,6 +73,23 @@ export interface PlaylistSong {
   position: number;
 }
 
+// Block = a sequence of songs with transitions
+export interface BlockSong {
+  song_id: string;
+  position: number;
+  transition_notes?: string; // Notes about transition TO the next song
+}
+
+export interface Block {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  songs: BlockSong[];
+  created_at: string;
+  updated_at: string;
+}
+
 class LocalStorage {
   private getKey(type: string): string {
     return `dj_database_${type}`;
@@ -291,6 +308,57 @@ class LocalStorage {
     this.setData('playlist_songs', filtered);
   }
 
+  // Blocks
+  getBlocks(): Block[] {
+    return this.getData<Block>('blocks');
+  }
+
+  addBlock(block: Omit<Block, 'id' | 'created_at' | 'updated_at'>): Block {
+    const blocks = this.getBlocks();
+    const newBlock: Block = {
+      ...block,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    blocks.push(newBlock);
+    this.setData('blocks', blocks);
+    return newBlock;
+  }
+
+  updateBlock(id: string, updates: Partial<Block>): Block | null {
+    const blocks = this.getBlocks();
+    const index = blocks.findIndex(b => b.id === id);
+    if (index === -1) return null;
+    
+    blocks[index] = { ...blocks[index], ...updates, updated_at: new Date().toISOString() };
+    this.setData('blocks', blocks);
+    return blocks[index];
+  }
+
+  deleteBlock(id: string): boolean {
+    const blocks = this.getBlocks();
+    const filtered = blocks.filter(b => b.id !== id);
+    if (filtered.length === blocks.length) return false;
+    
+    this.setData('blocks', filtered);
+    return true;
+  }
+
+  getBlockWithSongs(blockId: string): { block: Block; songs: Song[] } | null {
+    const blocks = this.getBlocks();
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return null;
+
+    const allSongs = this.getSongs();
+    const songs = block.songs
+      .sort((a, b) => a.position - b.position)
+      .map(bs => allSongs.find(s => s.id === bs.song_id))
+      .filter(Boolean) as Song[];
+
+    return { block, songs };
+  }
+
   // Utility methods
   searchSongs(query: string): Song[] {
     const songs = this.getSongs();
@@ -356,6 +424,7 @@ class LocalStorage {
       song_relationships: this.getSongRelationships(),
       playlists: this.getPlaylists(),
       playlist_songs: this.getPlaylistSongs(),
+      blocks: this.getBlocks(),
       exported_at: new Date().toISOString(),
     };
     return JSON.stringify(data, null, 2);
@@ -371,6 +440,7 @@ class LocalStorage {
       if (data.song_relationships) this.setData('song_relationships', data.song_relationships);
       if (data.playlists) this.setData('playlists', data.playlists);
       if (data.playlist_songs) this.setData('playlist_songs', data.playlist_songs);
+      if (data.blocks) this.setData('blocks', data.blocks);
       
       return true;
     } catch (error) {
