@@ -24,12 +24,14 @@ import {
   ListMusic,
   Zap,
   Download,
-  Upload
+  Upload,
+  LayoutDashboard
 } from 'lucide-react';
 
 const navigationItems = [
   { title: 'Library', url: '/', icon: Library },
   { title: 'Playlists', url: '/playlists', icon: ListMusic },
+  { title: 'Sets', url: '/sets', icon: LayoutDashboard },
 ];
 
 const quickActions = [
