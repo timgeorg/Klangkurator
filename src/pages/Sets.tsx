@@ -1,9 +1,59 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, LayoutDashboard, Boxes, ArrowRight } from 'lucide-react';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, LayoutDashboard, Boxes } from 'lucide-react';
+import { Block, storage } from '@/lib/storage';
+import { BlockEditor } from '@/components/sets/BlockEditor';
+import { BlockCard } from '@/components/sets/BlockCard';
+import { toast } from '@/hooks/use-toast';
 
 export default function Sets() {
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
+  const [deleteBlock, setDeleteBlock] = useState<Block | null>(null);
+
+  const loadBlocks = () => {
+    setBlocks(storage.getBlocks());
+  };
+
+  useEffect(() => {
+    loadBlocks();
+  }, []);
+
+  const handleCreateBlock = () => {
+    setEditingBlock(null);
+    setEditorOpen(true);
+  };
+
+  const handleEditBlock = (block: Block) => {
+    setEditingBlock(block);
+    setEditorOpen(true);
+  };
+
+  const handleDeleteBlock = (block: Block) => {
+    setDeleteBlock(block);
+  };
+
+  const confirmDelete = () => {
+    if (deleteBlock) {
+      storage.deleteBlock(deleteBlock.id);
+      toast({ title: "Block deleted", description: "The block has been removed." });
+      loadBlocks();
+      setDeleteBlock(null);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -16,79 +66,91 @@ export default function Sets() {
             Build DJ sets by organizing songs into blocks and arranging them on a canvas
           </p>
         </div>
-        <Button>
+        <Button onClick={handleCreateBlock}>
           <Plus className="w-4 h-4 mr-2" />
-          New Set
+          New Block
         </Button>
       </div>
 
-      {/* Concept explanation */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Boxes className="w-5 h-5" />
-              Blocks
-            </CardTitle>
-            <CardDescription>
-              Groups of songs connected by transitions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              A block is a sequence of songs with defined transitions between them. 
-              Once you've tested a transition works well, save it as a block for reuse.
-            </p>
-            <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg text-sm">
-              <div className="px-3 py-1.5 bg-primary/20 rounded border">Song A</div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-              <div className="px-3 py-1.5 bg-primary/20 rounded border">Song B</div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-              <div className="px-3 py-1.5 bg-primary/20 rounded border">Song C</div>
-            </div>
-            <Button variant="outline" className="w-full">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Block
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Blocks Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Boxes className="w-5 h-5" />
+          <h2 className="text-xl font-semibold">Blocks</h2>
+          <span className="text-muted-foreground">({blocks.length})</span>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <LayoutDashboard className="w-5 h-5" />
-              Sets
-            </CardTitle>
-            <CardDescription>
-              Visual canvas to arrange blocks into a complete DJ set
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        {blocks.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <Boxes className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-medium mb-2">No blocks yet</h3>
+              <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                Create your first block by chaining songs together with transitions.
+              </p>
+              <Button onClick={handleCreateBlock}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Block
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {blocks.map(block => (
+              <BlockCard 
+                key={block.id} 
+                block={block}
+                onEdit={handleEditBlock}
+                onDelete={handleDeleteBlock}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sets Section (placeholder for future) */}
+      <div className="space-y-4 pt-6 border-t">
+        <div className="flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5" />
+          <h2 className="text-xl font-semibold">Sets</h2>
+          <span className="text-sm text-muted-foreground">(Coming Soon)</span>
+        </div>
+        
+        <Card className="border-dashed bg-muted/20">
+          <CardContent className="py-8 text-center">
+            <LayoutDashboard className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
             <p className="text-sm text-muted-foreground">
-              Arrange your blocks on a canvas to plan your DJ set. 
-              Connect blocks together and visualize the flow of your performance.
+              Create blocks first, then arrange them into sets on a visual canvas.
             </p>
-            <div className="p-3 bg-muted/30 rounded-lg border-2 border-dashed border-muted-foreground/30 min-h-[80px] flex items-center justify-center">
-              <span className="text-sm text-muted-foreground">Canvas preview</span>
-            </div>
-            <Button variant="outline" className="w-full" disabled>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Set
-            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Empty state */}
-      <Card className="border-dashed">
-        <CardContent className="py-12 text-center">
-          <LayoutDashboard className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium mb-2">No sets yet</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-            Start by creating blocks from your song library, then combine them into sets.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Block Editor Dialog */}
+      <BlockEditor
+        block={editingBlock}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        onSave={loadBlocks}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteBlock} onOpenChange={() => setDeleteBlock(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Block</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteBlock?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
