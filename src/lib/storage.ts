@@ -90,6 +90,31 @@ export interface Block {
   updated_at: string;
 }
 
+// Set = a sequence of songs/blocks with transitions (including alternatives)
+export interface SetItem {
+  id: string;
+  type: 'song' | 'block';
+  song_id?: string;
+  block_id?: string;
+  position: number;
+  transition_notes?: string; // Primary transition to next item
+  alternative_transitions?: Array<{
+    to_song_id?: string;
+    to_block_id?: string;
+    notes?: string;
+  }>;
+}
+
+export interface DJSet {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  items: SetItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 class LocalStorage {
   private getKey(type: string): string {
     return `dj_database_${type}`;
@@ -359,6 +384,55 @@ class LocalStorage {
     return { block, songs };
   }
 
+  // DJ Sets
+  getSets(): DJSet[] {
+    return this.getData<DJSet>('sets');
+  }
+
+  addSet(set: Omit<DJSet, 'id' | 'created_at' | 'updated_at'>): DJSet {
+    const sets = this.getSets();
+    const newSet: DJSet = {
+      ...set,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    sets.push(newSet);
+    this.setData('sets', sets);
+    return newSet;
+  }
+
+  updateSet(id: string, updates: Partial<DJSet>): DJSet | null {
+    const sets = this.getSets();
+    const index = sets.findIndex(s => s.id === id);
+    if (index === -1) return null;
+    
+    sets[index] = { ...sets[index], ...updates, updated_at: new Date().toISOString() };
+    this.setData('sets', sets);
+    return sets[index];
+  }
+
+  deleteSet(id: string): boolean {
+    const sets = this.getSets();
+    const filtered = sets.filter(s => s.id !== id);
+    if (filtered.length === sets.length) return false;
+    
+    this.setData('sets', filtered);
+    return true;
+  }
+
+  // Get transition suggestions for a song based on existing relationships
+  getTransitionSuggestions(songId: string): Array<{ song: Song; notes?: string }> {
+    const relationships = this.getSongRelationships()
+      .filter(r => r.relationship_type === 'transition' && r.source_song_id === songId);
+    const songs = this.getSongs();
+    
+    return relationships.map(rel => {
+      const song = songs.find(s => s.id === rel.target_song_id);
+      return song ? { song, notes: rel.notes } : null;
+    }).filter(Boolean) as Array<{ song: Song; notes?: string }>;
+  }
+
   // Utility methods
   searchSongs(query: string): Song[] {
     const songs = this.getSongs();
@@ -425,6 +499,7 @@ class LocalStorage {
       playlists: this.getPlaylists(),
       playlist_songs: this.getPlaylistSongs(),
       blocks: this.getBlocks(),
+      sets: this.getSets(),
       exported_at: new Date().toISOString(),
     };
     return JSON.stringify(data, null, 2);
@@ -441,6 +516,7 @@ class LocalStorage {
       if (data.playlists) this.setData('playlists', data.playlists);
       if (data.playlist_songs) this.setData('playlist_songs', data.playlist_songs);
       if (data.blocks) this.setData('blocks', data.blocks);
+      if (data.sets) this.setData('sets', data.sets);
       
       return true;
     } catch (error) {
