@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Song, SongRelationship, storage } from '@/lib/storage';
+import { Song, SongRelationship, SongPlaylistMembership, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
-import { Link2, Plus, Trash2, Save, X, Music } from 'lucide-react';
+import { Link2, Plus, Trash2, Save, X, Music, ListMusic } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -24,6 +24,7 @@ const relationshipTypes = [
   { value: 'edit', label: 'Edit' },
   { value: 'bootleg', label: 'Bootleg' },
   { value: 'same_sample', label: 'Same Sample' },
+  { value: 'in_playlist', label: 'In Playlist' },
 ];
 
 const relationshipLabels: Record<string, { source: string; target: string }> = {
@@ -33,6 +34,7 @@ const relationshipLabels: Record<string, { source: string; target: string }> = {
   edit: { source: 'Is Edit Of', target: 'Edited By' },
   bootleg: { source: 'Is Bootleg Of', target: 'Bootlegged By' },
   same_sample: { source: 'Uses Same Sample As', target: 'Same Sample Used By' },
+  in_playlist: { source: 'In Playlist', target: 'Contains' },
 };
 
 interface ExistingRelationship {
@@ -46,6 +48,7 @@ interface ExistingRelationship {
 export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: EditRelationshipsDialogProps) {
   const [existingRelationships, setExistingRelationships] = useState<ExistingRelationship[]>([]);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
+  const [playlistMemberships, setPlaylistMemberships] = useState<SongPlaylistMembership[]>([]);
   const [saving, setSaving] = useState(false);
 
   // New relationship form
@@ -54,7 +57,7 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
   const [newTargetSongId, setNewTargetSongId] = useState<string>('');
   const [newNotes, setNewNotes] = useState('');
 
-  // Load existing relationships
+  // Load existing relationships and playlist memberships
   useEffect(() => {
     if (song && open) {
       const songs = storage.getSongs();
@@ -90,6 +93,11 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
       });
 
       setExistingRelationships(existing);
+      
+      // Load playlist memberships
+      const memberships = storage.getPlaylistsForSong(song.id);
+      setPlaylistMemberships(memberships);
+      
       resetForm();
     }
   }, [song, open]);
@@ -201,9 +209,36 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
         </DialogHeader>
 
         <div className="flex-1 min-h-0 space-y-4">
+          {/* Playlist Memberships */}
+          {playlistMemberships.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <ListMusic className="w-4 h-4" />
+                In Playlists
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {playlistMemberships.map((membership) => (
+                  <Badge 
+                    key={membership.playlist.id} 
+                    variant="outline"
+                    style={{ 
+                      borderColor: membership.playlist.color,
+                      backgroundColor: `${membership.playlist.color}20`
+                    }}
+                  >
+                    {membership.playlist.name}
+                    <span className="ml-1 text-muted-foreground text-xs">
+                      (#{membership.position + 1})
+                    </span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Existing Relationships */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Current Relationships</Label>
+            <Label className="text-sm font-medium">Song Relationships</Label>
             
             {existingRelationships.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground bg-muted/30 rounded-lg">
