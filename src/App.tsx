@@ -9,6 +9,7 @@ import { MockupDataService } from "@/services/MockupDataService";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
+import Sets from "./pages/Sets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/load-files" element={<LoadFiles />} />
+              <Route path="/sets" element={<Sets />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
