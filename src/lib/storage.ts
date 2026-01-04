@@ -45,9 +45,15 @@ export interface SongRelationship {
   id: string;
   source_song_id: string;
   target_song_id: string;
-  relationship_type: 'remix' | 'same_sample' | 'cover' | 'mashup' | 'edit' | 'bootleg';
+  relationship_type: 'remix' | 'same_sample' | 'cover' | 'mashup' | 'edit' | 'bootleg' | 'in_playlist';
   notes?: string;
   created_at: string;
+}
+
+// Utility interface for playlist membership display
+export interface SongPlaylistMembership {
+  playlist: Playlist;
+  position: number;
 }
 
 export interface Playlist {
@@ -330,6 +336,15 @@ class LocalStorage {
     });
 
     return related;
+  }
+
+  getPlaylistsForSong(songId: string): SongPlaylistMembership[] {
+    const playlistSongs = this.getPlaylistSongs().filter(ps => ps.song_id === songId);
+    const playlists = this.getPlaylists();
+    return playlistSongs.map(ps => {
+      const playlist = playlists.find(p => p.id === ps.playlist_id);
+      return playlist ? { playlist, position: ps.position } : null;
+    }).filter(Boolean) as SongPlaylistMembership[];
   }
 
   // Export/Import functionality for backup
