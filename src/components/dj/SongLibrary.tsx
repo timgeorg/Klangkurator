@@ -74,6 +74,7 @@ export function SongLibrary() {
     social: 60,
     duration: 80,
     tags: 160,
+    lyrics: 120,
     notes: 200
   });
   const [userResized, setUserResized] = useState<{[key: string]: boolean}>({});
@@ -93,6 +94,7 @@ export function SongLibrary() {
     social: true,
     duration: true,
     tags: true,
+    lyrics: true,
     notes: true,
   });
 
@@ -110,6 +112,7 @@ export function SongLibrary() {
     social: 'Social',
     duration: 'Duration',
     tags: 'Tags',
+    lyrics: 'Lyrics',
     notes: 'Notes',
   };
 
@@ -133,6 +136,7 @@ export function SongLibrary() {
     if (columnVisibility.social) columns.push(`${columnWidths.social}px`);
     if (columnVisibility.duration) columns.push(`${columnWidths.duration}px`);
     if (columnVisibility.tags) columns.push(`${columnWidths.tags}px`);
+    if (columnVisibility.lyrics) columns.push(`${columnWidths.lyrics}px`);
     if (columnVisibility.notes) columns.push('1fr');
     return columns.join(' ');
   }, [columnVisibility, columnWidths]);
@@ -761,6 +765,16 @@ export function SongLibrary() {
                     />
                   </div>
                 )}
+                {columnVisibility.lyrics && (
+                  <div className="flex items-center gap-1 relative group">
+                    Lyrics
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('lyrics', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
                 {columnVisibility.notes && (
                   <div className="relative group">Notes
                     <div
@@ -968,6 +982,22 @@ export function SongLibrary() {
                           onTagsChange={(tags) => handleTagsChange(song.id, tags)}
                           size="sm"
                         />
+                      </div>
+                    )}
+                    
+                    {/* Lyrics */}
+                    {columnVisibility.lyrics && (
+                      <div className="flex items-center min-w-0">
+                        {song.lyrics ? (
+                          <div 
+                            className="text-xs text-muted-foreground truncate cursor-pointer hover:text-foreground"
+                            title={song.lyrics.substring(0, 200) + (song.lyrics.length > 200 ? '...' : '')}
+                          >
+                            {song.lyrics.substring(0, 50)}{song.lyrics.length > 50 ? '...' : ''}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">No lyrics</span>
+                        )}
                       </div>
                     )}
                     
