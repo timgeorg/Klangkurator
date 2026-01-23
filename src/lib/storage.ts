@@ -7,6 +7,8 @@ export interface Song {
   bpm?: number;
   musical_key?: string;
   duration?: number; // in seconds
+  genres?: string[]; // Multiple genres support
+  /** @deprecated Use genres instead */
   genre?: string;
   year?: number;
   file_path: string;
@@ -440,7 +442,8 @@ class LocalStorage {
     return songs.filter(song =>
       song.title.toLowerCase().includes(lowerQuery) ||
       song.artist.toLowerCase().includes(lowerQuery) ||
-      song.genre?.toLowerCase().includes(lowerQuery) ||
+      song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
+      song.genre?.toLowerCase().includes(lowerQuery) || // Legacy support
       song.musical_key?.toLowerCase().includes(lowerQuery) ||
       song.album?.toLowerCase().includes(lowerQuery)
     );

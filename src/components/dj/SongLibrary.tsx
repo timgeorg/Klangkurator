@@ -8,6 +8,7 @@ import { TagSelector } from '@/components/ui/tag-selector';
 import { ColumnFilter } from '@/components/ui/column-filter';
 import { SongRelationshipsDialog } from './SongRelationshipsDialog';
 import { EditSongDialog } from './EditSongDialog';
+import { GenreSelector, getGenreColor } from '@/components/ui/genre-selector';
 import { storage, Song, Tag } from '@/lib/storage';
 import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
@@ -298,7 +299,16 @@ export function SongLibrary() {
 
   // Get unique values for filter options
   const getFilterOptions = () => {
-    const genres = [...new Set(songs.map(s => s.genre).filter(Boolean))].map(g => ({ label: g!, value: g! }));
+    // Collect all genres from songs (supporting both genres array and legacy genre string)
+    const allGenres = new Set<string>();
+    songs.forEach(s => {
+      if (s.genres) {
+        s.genres.forEach(g => allGenres.add(g));
+      } else if (s.genre) {
+        allGenres.add(s.genre);
+      }
+    });
+    const genres = [...allGenres].map(g => ({ label: g, value: g }));
     const keys = [...new Set(songs.map(s => s.musical_key).filter(Boolean))].map(k => ({ 
       label: k!, 
       value: k!,
@@ -317,12 +327,15 @@ export function SongLibrary() {
 
   // Apply filters with memoization to prevent infinite loops
   const filteredSongs = useMemo(() => {
-    const searchFiltered = songs.filter(song =>
-      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.genre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.musical_key?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const searchFiltered = songs.filter(song => {
+      const lowerQuery = searchQuery.toLowerCase();
+      const matchesGenre = song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
+                           song.genre?.toLowerCase().includes(lowerQuery);
+      return song.title.toLowerCase().includes(lowerQuery) ||
+        song.artist.toLowerCase().includes(lowerQuery) ||
+        matchesGenre ||
+        song.musical_key?.toLowerCase().includes(lowerQuery);
+    });
 
     return searchFiltered.filter(song => {
       // Text filters
@@ -330,8 +343,11 @@ export function SongLibrary() {
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
       if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
 
-      // Multi-select filters
-      if (filters.genre.length > 0 && (!song.genre || !filters.genre.includes(song.genre))) return false;
+      // Multi-select filters - genre now checks against genres array
+      if (filters.genre.length > 0) {
+        const songGenres = song.genres || (song.genre ? [song.genre] : []);
+        if (!songGenres.some(g => filters.genre.includes(g))) return false;
+      }
       if (filters.key.length > 0 && (!song.musical_key || !filters.key.includes(song.musical_key))) return false;
 
       // Range filters
@@ -861,8 +877,27 @@ export function SongLibrary() {
                     
                     {/* Genre */}
                     {columnVisibility.genre && (
-                      <div className="flex items-center text-muted-foreground truncate">
-                        {song.genre || '-'}
+                      <div className="flex items-center gap-1 min-w-0 flex-wrap">
+                        {(() => {
+                          const genres = song.genres || (song.genre ? [song.genre] : []);
+                          if (genres.length === 0) {
+                            return <span className="text-muted-foreground">-</span>;
+                          }
+                          return genres.map(genre => (
+                            <Badge
+                              key={genre}
+                              variant="secondary"
+                              className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                              style={{ 
+                                backgroundColor: `${getGenreColor(genre)}20`, 
+                                borderColor: getGenreColor(genre),
+                                color: getGenreColor(genre)
+                              }}
+                            >
+                              {genre}
+                            </Badge>
+                          ));
+                        })()}
                       </div>
                     )}
                     
