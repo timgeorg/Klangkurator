@@ -55,7 +55,29 @@ const GENRE_COLORS: { [key: string]: string } = {
 };
 
 const getGenreColor = (genre: string): string => {
-  return GENRE_COLORS[genre] || '#6366f1';
+  // Check predefined colors first
+  if (GENRE_COLORS[genre]) {
+    return GENRE_COLORS[genre];
+  }
+  // Check custom genres from localStorage
+  const customGenres = localStorage.getItem('dj_database_custom_genres');
+  if (customGenres) {
+    const parsed = JSON.parse(customGenres) as { name: string; color: string }[];
+    const custom = parsed.find(g => g.name === genre);
+    if (custom) return custom.color;
+  }
+  return '#6366f1';
+};
+
+// Get all genres including custom ones
+const getAllGenres = (): string[] => {
+  const customGenres = localStorage.getItem('dj_database_custom_genres');
+  if (customGenres) {
+    const parsed = JSON.parse(customGenres) as { name: string; color: string }[];
+    const customNames = parsed.map(g => g.name).filter(n => !PREDEFINED_GENRES.includes(n));
+    return [...PREDEFINED_GENRES, ...customNames];
+  }
+  return PREDEFINED_GENRES;
 };
 
 export function GenreSelector({ selectedGenres, onGenresChange, size = 'sm' }: GenreSelectorProps) {
@@ -63,7 +85,8 @@ export function GenreSelector({ selectedGenres, onGenresChange, size = 'sm' }: G
   const [searchValue, setSearchValue] = useState('');
   const [customGenres, setCustomGenres] = useState<string[]>([]);
 
-  const allGenres = [...PREDEFINED_GENRES, ...customGenres.filter(g => !PREDEFINED_GENRES.includes(g))];
+  // Load all genres including custom ones
+  const allGenres = [...getAllGenres(), ...customGenres.filter(g => !getAllGenres().includes(g))];
 
   const addGenre = (genre: string) => {
     if (!selectedGenres.includes(genre)) {
