@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
 import Sets from "./pages/Sets";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ function App() {
               <Route path="/" element={<Index />} />
               <Route path="/load-files" element={<LoadFiles />} />
               <Route path="/sets" element={<Sets />} />
+              <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
