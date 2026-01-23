@@ -8,7 +8,7 @@ import { TagSelector } from '@/components/ui/tag-selector';
 import { ColumnFilter } from '@/components/ui/column-filter';
 import { SongRelationshipsDialog } from './SongRelationshipsDialog';
 import { EditSongDialog } from './EditSongDialog';
-import { GenreSelector, getGenreColor } from '@/components/ui/genre-selector';
+import { getMainGenreColor } from '@/lib/genreData';
 import { storage, Song, Tag } from '@/lib/storage';
 import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
@@ -303,9 +303,16 @@ export function SongLibrary() {
 
   // Get unique values for filter options
   const getFilterOptions = () => {
-    // Collect all genres from songs (supporting both genres array and legacy genre string)
+    // Collect all genres from songs (supporting mainGenre, subgenres, and legacy genre)
     const allGenres = new Set<string>();
     songs.forEach(s => {
+      if (s.mainGenre) {
+        allGenres.add(s.mainGenre);
+      }
+      if (s.subgenres) {
+        s.subgenres.forEach(g => allGenres.add(g));
+      }
+      // Legacy support
       if (s.genres) {
         s.genres.forEach(g => allGenres.add(g));
       } else if (s.genre) {
@@ -333,11 +340,15 @@ export function SongLibrary() {
   const filteredSongs = useMemo(() => {
     const searchFiltered = songs.filter(song => {
       const lowerQuery = searchQuery.toLowerCase();
-      const matchesGenre = song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
+      const matchesMainGenre = song.mainGenre?.toLowerCase().includes(lowerQuery);
+      const matchesSubgenres = song.subgenres?.some(g => g.toLowerCase().includes(lowerQuery));
+      const matchesLegacyGenre = song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
                            song.genre?.toLowerCase().includes(lowerQuery);
       return song.title.toLowerCase().includes(lowerQuery) ||
         song.artist.toLowerCase().includes(lowerQuery) ||
-        matchesGenre ||
+        matchesMainGenre ||
+        matchesSubgenres ||
+        matchesLegacyGenre ||
         song.musical_key?.toLowerCase().includes(lowerQuery);
     });
 
@@ -347,9 +358,14 @@ export function SongLibrary() {
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
       if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
 
-      // Multi-select filters - genre now checks against genres array
+      // Multi-select filters - genre checks mainGenre, subgenres, and legacy
       if (filters.genre.length > 0) {
-        const songGenres = song.genres || (song.genre ? [song.genre] : []);
+        const songGenres = [
+          song.mainGenre, 
+          ...(song.subgenres || []),
+          ...(song.genres || []),
+          song.genre
+        ].filter(Boolean) as string[];
         if (!songGenres.some(g => filters.genre.includes(g))) return false;
       }
       if (filters.key.length > 0 && (!song.musical_key || !filters.key.includes(song.musical_key))) return false;
@@ -893,24 +909,69 @@ export function SongLibrary() {
                     {columnVisibility.genre && (
                       <div className="flex items-center gap-1 min-w-0 flex-wrap">
                         {(() => {
-                          const genres = song.genres || (song.genre ? [song.genre] : []);
-                          if (genres.length === 0) {
-                            return <span className="text-muted-foreground">-</span>;
+                          // Use new mainGenre + subgenres, fallback to legacy
+                          const mainGenre = song.mainGenre;
+                          const subgenres = song.subgenres || [];
+                          const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
+                          
+                          if (!mainGenre && subgenres.length === 0) {
+                            // Check legacy fields
+                            const legacyGenres = song.genres || (song.genre ? [song.genre] : []);
+                            if (legacyGenres.length === 0) {
+                              return <span className="text-muted-foreground">-</span>;
+                            }
+                            // Display legacy genres
+                            return legacyGenres.map(genre => (
+                              <Badge
+                                key={genre}
+                                variant="secondary"
+                                className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                                style={{ 
+                                  backgroundColor: `${getMainGenreColor(genre)}20`, 
+                                  borderColor: getMainGenreColor(genre),
+                                  color: getMainGenreColor(genre)
+                                }}
+                              >
+                                {genre}
+                              </Badge>
+                            ));
                           }
-                          return genres.map(genre => (
-                            <Badge
-                              key={genre}
-                              variant="secondary"
-                              className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-                              style={{ 
-                                backgroundColor: `${getGenreColor(genre)}20`, 
-                                borderColor: getGenreColor(genre),
-                                color: getGenreColor(genre)
-                              }}
-                            >
-                              {genre}
-                            </Badge>
-                          ));
+                          
+                          return (
+                            <>
+                              {mainGenre && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                                  style={{ 
+                                    backgroundColor: `${color}20`, 
+                                    borderColor: color,
+                                    color: color
+                                  }}
+                                >
+                                  {mainGenre}
+                                </Badge>
+                              )}
+                              {subgenres.slice(0, 2).map(sub => (
+                                <Badge
+                                  key={sub}
+                                  variant="outline"
+                                  className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                                  style={{ 
+                                    borderColor: `${color}60`,
+                                    color: color
+                                  }}
+                                >
+                                  {sub}
+                                </Badge>
+                              ))}
+                              {subgenres.length > 2 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{subgenres.length - 2}
+                                </span>
+                              )}
+                            </>
+                          );
                         })()}
                       </div>
                     )}
