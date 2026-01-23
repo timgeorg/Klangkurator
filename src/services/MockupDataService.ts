@@ -413,18 +413,48 @@ export class MockupDataService implements DataService {
       });
     }
 
-    // Add comprehensive sample tags
+    // Add DJ-focused mixing element tags
     const sampleTags = [
+      // Musical Elements
+      { name: 'Piano', color: '#8b5cf6' },
+      { name: 'Strings', color: '#a855f7' },
+      { name: 'Synth Lead', color: '#06b6d4' },
+      { name: 'Acid', color: '#22c55e' },
+      { name: 'Arp', color: '#14b8a6' },
+      
+      // Vocal Types
+      { name: 'Sing-Along', color: '#f97316' },
+      { name: 'Vocal Chops', color: '#fb923c' },
+      { name: 'Female Vocal', color: '#ec4899' },
+      { name: 'Male Vocal', color: '#3b82f6' },
+      { name: 'Spoken Word', color: '#64748b' },
+      
+      // Drop Types
+      { name: 'Minimal Drop', color: '#ef4444' },
+      { name: 'Big Room Drop', color: '#dc2626' },
+      { name: 'Breakdown Build', color: '#f59e0b' },
+      { name: 'Rolling', color: '#84cc16' },
+      
+      // Energy & Mood
       { name: 'Peak Time', color: '#ef4444' },
-      { name: 'Warm Up', color: '#f97316' },
-      { name: 'Vocal', color: '#8b5cf6' },
-      { name: 'Instrumental', color: '#06b6d4' },
+      { name: 'Warm Up', color: '#fbbf24' },
+      { name: 'Closer', color: '#6366f1' },
+      { name: 'Emotional', color: '#d946ef' },
+      { name: 'Dark', color: '#1e293b' },
+      { name: 'Uplifting', color: '#facc15' },
+      
+      // Mix Utility
+      { name: 'Long Intro', color: '#0891b2' },
+      { name: 'Long Outro', color: '#0e7490' },
+      { name: 'Acapella Section', color: '#7c3aed' },
+      { name: 'Drums Only', color: '#78716c' },
+      { name: 'Clean Mix Point', color: '#10b981' },
+      
+      // Context
       { name: 'Festival', color: '#eab308' },
-      { name: 'Underground', color: '#64748b' },
-      { name: 'Classic', color: '#10b981' },
-      { name: 'Commercial', color: '#f59e0b' },
-      { name: 'Hard Style', color: '#dc2626' },
-      { name: 'Chill', color: '#14b8a6' }
+      { name: 'Underground', color: '#475569' },
+      { name: 'Commercial', color: '#f472b6' },
+      { name: 'Crowd Pleaser', color: '#fb7185' }
     ];
 
     console.log('MockupDataService: Upserting sample tags...');
