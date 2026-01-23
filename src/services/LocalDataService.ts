@@ -50,11 +50,16 @@ export class LocalDataService implements DataService {
       console.log(`LocalDataService: Added sample song ${index + 1}:`, song.title);
     });
 
-    // Add basic tags for local users
+    // Add DJ-focused mixing element tags for local users
     const basicTags = [
-      { name: 'Favorites', color: '#ef4444' },
-      { name: 'New', color: '#10b981' },
-      { name: 'Practice', color: '#8b5cf6' }
+      { name: 'Piano', color: '#8b5cf6' },
+      { name: 'Sing-Along', color: '#f97316' },
+      { name: 'Minimal Drop', color: '#ef4444' },
+      { name: 'Peak Time', color: '#dc2626' },
+      { name: 'Warm Up', color: '#fbbf24' },
+      { name: 'Vocal Chops', color: '#fb923c' },
+      { name: 'Long Intro', color: '#0891b2' },
+      { name: 'Crowd Pleaser', color: '#fb7185' }
     ];
 
     console.log('LocalDataService: Adding basic tags...');
