@@ -7,8 +7,11 @@ export interface Song {
   bpm?: number;
   musical_key?: string;
   duration?: number; // in seconds
-  genres?: string[]; // Multiple genres support
-  /** @deprecated Use genres instead */
+  mainGenre?: string; // Primary genre (e.g., House, Techno)
+  subgenres?: string[]; // Detailed subgenres (e.g., Minimal, Deep Tech)
+  /** @deprecated Use mainGenre and subgenres instead */
+  genres?: string[];
+  /** @deprecated Use mainGenre instead */
   genre?: string;
   year?: number;
   file_path: string;

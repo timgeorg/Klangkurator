@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { GenreSelector } from '@/components/ui/genre-selector';
+import { MainGenreSelector } from '@/components/ui/main-genre-selector';
+import { SubgenreSelector } from '@/components/ui/subgenre-selector';
 import { Song, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Music, Save, X, FileText, Link2 } from 'lucide-react';
@@ -38,7 +39,8 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
     album: '',
     bpm: '',
     musical_key: '',
-    genres: [] as string[],
+    mainGenre: undefined as string | undefined,
+    subgenres: [] as string[],
     year: '',
     energy: 0,
     danceability: 0,
@@ -56,15 +58,17 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
   useEffect(() => {
     if (song) {
       setCurrentSong(song);
-      // Support both new genres array and legacy genre string
-      const genres = song.genres || (song.genre ? [song.genre] : []);
+      // Support new mainGenre/subgenres and legacy genres array
+      const mainGenre = song.mainGenre || (song.genres?.[0]) || song.genre;
+      const subgenres = song.subgenres || [];
       setFormData({
         title: song.title || '',
         artist: song.artist || '',
         album: song.album || '',
         bpm: song.bpm?.toString() || '',
         musical_key: song.musical_key || '',
-        genres: genres,
+        mainGenre: mainGenre,
+        subgenres: subgenres,
         year: song.year?.toString() || '',
         energy: song.energy || 0,
         danceability: song.danceability || 0,
@@ -92,8 +96,11 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         album: formData.album.trim() || undefined,
         bpm: formData.bpm ? parseInt(formData.bpm) : undefined,
         musical_key: formData.musical_key || undefined,
-        genres: formData.genres.length > 0 ? formData.genres : undefined,
-        genre: formData.genres.length > 0 ? formData.genres[0] : undefined, // Legacy support
+        mainGenre: formData.mainGenre || undefined,
+        subgenres: formData.subgenres.length > 0 ? formData.subgenres : undefined,
+        // Legacy support
+        genres: formData.mainGenre ? [formData.mainGenre, ...formData.subgenres] : undefined,
+        genre: formData.mainGenre || undefined,
         year: formData.year ? parseInt(formData.year) : undefined,
         energy: formData.energy,
         danceability: formData.danceability,
@@ -231,13 +238,30 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
               </div>
               
               <div className="space-y-2">
-                <Label>Genres</Label>
-                <GenreSelector
-                  selectedGenres={formData.genres}
-                  onGenresChange={(genres) => setFormData(prev => ({ ...prev, genres }))}
+                <Label>Main Genre</Label>
+                <MainGenreSelector
+                  selectedGenre={formData.mainGenre}
+                  onGenreChange={(genre) => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      mainGenre: genre,
+                      // Clear subgenres when main genre changes
+                      subgenres: genre !== prev.mainGenre ? [] : prev.subgenres
+                    }));
+                  }}
                   size="md"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Subgenres</Label>
+              <SubgenreSelector
+                mainGenre={formData.mainGenre}
+                selectedSubgenres={formData.subgenres}
+                onSubgenresChange={(subgenres) => setFormData(prev => ({ ...prev, subgenres }))}
+                size="md"
+              />
             </div>
           </div>
 

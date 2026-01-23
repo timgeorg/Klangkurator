@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Dialog, 
   DialogContent, 
@@ -23,7 +24,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { storage, Tag } from '@/lib/storage';
+import { 
+  getGenreConfig, 
+  saveGenreConfig, 
+  GenreConfig,
+  DEFAULT_GENRES
+} from '@/lib/genreData';
 import { toast } from '@/hooks/use-toast';
 import { 
   Settings as SettingsIcon, 
@@ -32,11 +44,12 @@ import {
   Plus, 
   Pencil, 
   Trash2,
-  Palette
+  ChevronDown,
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
-import { PREDEFINED_GENRES, getGenreColor } from '@/components/ui/genre-selector';
 
-// Color palette for tags
+// Color palette for tags and genres
 const TAG_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
   '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
@@ -151,47 +164,42 @@ function EditTagDialog({ tag, open, onOpenChange, onSave, isNew }: EditTagDialog
   );
 }
 
-interface CustomGenre {
-  name: string;
-  color: string;
-}
-
 export default function Settings() {
   const [tags, setTags] = useState<Tag[]>([]);
-  const [customGenres, setCustomGenres] = useState<CustomGenre[]>([]);
+  const [genreConfig, setGenreConfig] = useState<GenreConfig[]>([]);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [isNewTag, setIsNewTag] = useState(false);
   const [deleteTagId, setDeleteTagId] = useState<string | null>(null);
   
   // Genre editing state
+  const [expandedGenres, setExpandedGenres] = useState<Set<string>>(new Set());
   const [isGenreDialogOpen, setIsGenreDialogOpen] = useState(false);
-  const [editingGenre, setEditingGenre] = useState<CustomGenre | null>(null);
+  const [editingGenre, setEditingGenre] = useState<GenreConfig | null>(null);
   const [isNewGenre, setIsNewGenre] = useState(false);
   const [genreName, setGenreName] = useState('');
   const [genreColor, setGenreColor] = useState('#6366f1');
   const [deleteGenreName, setDeleteGenreName] = useState<string | null>(null);
+  
+  // Subgenre editing state
+  const [isSubgenreDialogOpen, setIsSubgenreDialogOpen] = useState(false);
+  const [editingSubgenre, setEditingSubgenre] = useState<{ mainGenre: string; subgenre: string } | null>(null);
+  const [isNewSubgenre, setIsNewSubgenre] = useState(false);
+  const [subgenreName, setSubgenreName] = useState('');
+  const [subgenreMainGenre, setSubgenreMainGenre] = useState('');
+  const [deleteSubgenre, setDeleteSubgenre] = useState<{ mainGenre: string; subgenre: string } | null>(null);
 
   useEffect(() => {
     loadTags();
-    loadCustomGenres();
+    loadGenreConfig();
   }, []);
 
   const loadTags = () => {
     setTags(storage.getTags());
   };
 
-  const loadCustomGenres = () => {
-    // Load custom genres from localStorage
-    const stored = localStorage.getItem('dj_database_custom_genres');
-    if (stored) {
-      setCustomGenres(JSON.parse(stored));
-    }
-  };
-
-  const saveCustomGenres = (genres: CustomGenre[]) => {
-    localStorage.setItem('dj_database_custom_genres', JSON.stringify(genres));
-    setCustomGenres(genres);
+  const loadGenreConfig = () => {
+    setGenreConfig(getGenreConfig());
   };
 
   const handleEditTag = (tag: Tag) => {
@@ -218,6 +226,18 @@ export default function Settings() {
   };
 
   // Genre handlers
+  const toggleGenreExpanded = (genreName: string) => {
+    setExpandedGenres(prev => {
+      const next = new Set(prev);
+      if (next.has(genreName)) {
+        next.delete(genreName);
+      } else {
+        next.add(genreName);
+      }
+      return next;
+    });
+  };
+
   const handleNewGenre = () => {
     setEditingGenre(null);
     setIsNewGenre(true);
@@ -226,7 +246,7 @@ export default function Settings() {
     setIsGenreDialogOpen(true);
   };
 
-  const handleEditGenre = (genre: CustomGenre) => {
+  const handleEditGenre = (genre: GenreConfig) => {
     setEditingGenre(genre);
     setIsNewGenre(false);
     setGenreName(genre.name);
@@ -240,27 +260,102 @@ export default function Settings() {
       return;
     }
 
+    const newConfig = [...genreConfig];
+    
     if (isNewGenre) {
-      // Check if already exists in predefined or custom
-      if (PREDEFINED_GENRES.includes(genreName.trim()) || customGenres.some(g => g.name.toLowerCase() === genreName.trim().toLowerCase())) {
+      if (newConfig.some(g => g.name.toLowerCase() === genreName.trim().toLowerCase())) {
         toast({ title: 'Genre exists', description: 'This genre already exists.', variant: 'destructive' });
         return;
       }
-      saveCustomGenres([...customGenres, { name: genreName.trim(), color: genreColor }]);
+      newConfig.push({ name: genreName.trim(), color: genreColor, subgenres: [] });
       toast({ title: 'Genre created', description: `"${genreName}" has been added.` });
     } else if (editingGenre) {
-      saveCustomGenres(customGenres.map(g => 
-        g.name === editingGenre.name ? { name: genreName.trim(), color: genreColor } : g
-      ));
-      toast({ title: 'Genre updated', description: `"${genreName}" has been saved.` });
+      const index = newConfig.findIndex(g => g.name === editingGenre.name);
+      if (index !== -1) {
+        newConfig[index] = { ...newConfig[index], name: genreName.trim(), color: genreColor };
+        toast({ title: 'Genre updated', description: `"${genreName}" has been saved.` });
+      }
     }
+    
+    saveGenreConfig(newConfig);
+    setGenreConfig(newConfig);
     setIsGenreDialogOpen(false);
   };
 
   const handleDeleteGenre = (name: string) => {
-    saveCustomGenres(customGenres.filter(g => g.name !== name));
+    const newConfig = genreConfig.filter(g => g.name !== name);
+    saveGenreConfig(newConfig);
+    setGenreConfig(newConfig);
     setDeleteGenreName(null);
-    toast({ title: 'Genre deleted', description: 'The custom genre has been removed.' });
+    toast({ title: 'Genre deleted', description: 'The genre and its subgenres have been removed.' });
+  };
+
+  const handleResetGenres = () => {
+    saveGenreConfig(DEFAULT_GENRES);
+    setGenreConfig(DEFAULT_GENRES);
+    toast({ title: 'Genres reset', description: 'Genres have been reset to defaults.' });
+  };
+
+  // Subgenre handlers
+  const handleNewSubgenre = (mainGenre: string) => {
+    setEditingSubgenre(null);
+    setIsNewSubgenre(true);
+    setSubgenreName('');
+    setSubgenreMainGenre(mainGenre);
+    setIsSubgenreDialogOpen(true);
+  };
+
+  const handleEditSubgenre = (mainGenre: string, subgenre: string) => {
+    setEditingSubgenre({ mainGenre, subgenre });
+    setIsNewSubgenre(false);
+    setSubgenreName(subgenre);
+    setSubgenreMainGenre(mainGenre);
+    setIsSubgenreDialogOpen(true);
+  };
+
+  const handleSaveSubgenre = () => {
+    if (!subgenreName.trim()) {
+      toast({ title: 'Name required', description: 'Please enter a subgenre name.', variant: 'destructive' });
+      return;
+    }
+
+    const newConfig = [...genreConfig];
+    const genreIndex = newConfig.findIndex(g => g.name === subgenreMainGenre);
+    
+    if (genreIndex === -1) return;
+
+    if (isNewSubgenre) {
+      if (newConfig[genreIndex].subgenres.some(s => s.toLowerCase() === subgenreName.trim().toLowerCase())) {
+        toast({ title: 'Subgenre exists', description: 'This subgenre already exists.', variant: 'destructive' });
+        return;
+      }
+      newConfig[genreIndex].subgenres.push(subgenreName.trim());
+      toast({ title: 'Subgenre created', description: `"${subgenreName}" has been added to ${subgenreMainGenre}.` });
+    } else if (editingSubgenre) {
+      const subIndex = newConfig[genreIndex].subgenres.indexOf(editingSubgenre.subgenre);
+      if (subIndex !== -1) {
+        newConfig[genreIndex].subgenres[subIndex] = subgenreName.trim();
+        toast({ title: 'Subgenre updated', description: `"${subgenreName}" has been saved.` });
+      }
+    }
+    
+    saveGenreConfig(newConfig);
+    setGenreConfig(newConfig);
+    setIsSubgenreDialogOpen(false);
+  };
+
+  const handleDeleteSubgenre = (mainGenre: string, subgenre: string) => {
+    const newConfig = [...genreConfig];
+    const genreIndex = newConfig.findIndex(g => g.name === mainGenre);
+    
+    if (genreIndex !== -1) {
+      newConfig[genreIndex].subgenres = newConfig[genreIndex].subgenres.filter(s => s !== subgenre);
+      saveGenreConfig(newConfig);
+      setGenreConfig(newConfig);
+    }
+    
+    setDeleteSubgenre(null);
+    toast({ title: 'Subgenre deleted', description: 'The subgenre has been removed.' });
   };
 
   return (
@@ -341,84 +436,132 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Music2 className="w-5 h-5 text-primary" />
-                <CardTitle>Genres</CardTitle>
+                <CardTitle>Genres & Subgenres</CardTitle>
               </div>
-              <Button size="sm" onClick={handleNewGenre}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Genre
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleResetGenres}>
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  Reset
+                </Button>
+                <Button size="sm" onClick={handleNewGenre}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Genre
+                </Button>
+              </div>
             </div>
             <CardDescription>
-              View predefined genres and add custom ones. Custom genres can be edited or removed.
+              Manage main genres and their subgenres. Each song can have one main genre and multiple subgenres.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Predefined Genres */}
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Predefined Genres</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {PREDEFINED_GENRES.map((genre) => (
-                  <Badge
-                    key={genre}
-                    variant="secondary"
-                    style={{ 
-                      backgroundColor: `${getGenreColor(genre)}20`, 
-                      borderColor: getGenreColor(genre),
-                      color: getGenreColor(genre) 
-                    }}
-                    className="px-2 py-0.5"
+          <CardContent>
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-2">
+                {genreConfig.map((genre) => (
+                  <Collapsible 
+                    key={genre.name}
+                    open={expandedGenres.has(genre.name)}
+                    onOpenChange={() => toggleGenreExpanded(genre.name)}
                   >
-                    {genre}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Custom Genres */}
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Custom Genres</Label>
-              {customGenres.length === 0 ? (
-                <p className="text-muted-foreground text-sm mt-2">No custom genres. Click "Add Genre" to create one.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {customGenres.map((genre) => (
-                    <div
-                      key={genre.name}
-                      className="group flex items-center gap-1 rounded-lg border border-border p-1 pr-2 hover:bg-muted/50 transition-colors"
-                    >
-                      <Badge
-                        style={{ 
-                          backgroundColor: `${genre.color}20`, 
-                          borderColor: genre.color,
-                          color: genre.color 
-                        }}
-                        className="px-2 py-0.5"
-                      >
-                        {genre.name}
-                      </Badge>
+                    <div className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-6 h-6 p-0">
+                          {expandedGenres.has(genre.name) ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      
+                      <div 
+                        className="w-4 h-4 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: genre.color }}
+                      />
+                      
+                      <span className="font-medium flex-1">{genre.name}</span>
+                      
+                      <span className="text-xs text-muted-foreground">
+                        {genre.subgenres.length} subgenres
+                      </span>
+                      
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleEditGenre(genre)}
+                        className="w-6 h-6 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditGenre(genre);
+                        }}
                       >
                         <Pencil className="w-3 h-3" />
                       </Button>
+                      
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                        onClick={() => setDeleteGenreName(genre.name)}
+                        className="w-6 h-6 p-0 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteGenreName(genre.name);
+                        }}
                       >
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    
+                    <CollapsibleContent>
+                      <div className="ml-8 mt-2 mb-4 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {genre.subgenres.map((subgenre) => (
+                            <div
+                              key={subgenre}
+                              className="group flex items-center gap-1 rounded-md border border-border/60 p-1 pr-2 hover:bg-muted/30 transition-colors"
+                            >
+                              <Badge
+                                variant="outline"
+                                className="px-2 py-0 text-xs"
+                                style={{ 
+                                  borderColor: `${genre.color}60`,
+                                  color: genre.color 
+                                }}
+                              >
+                                {subgenre}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-5 h-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleEditSubgenre(genre.name, subgenre)}
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-5 h-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                                onClick={() => setDeleteSubgenre({ mainGenre: genre.name, subgenre })}
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-xs"
+                          onClick={() => handleNewSubgenre(genre.name)}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Subgenre
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>
@@ -459,7 +602,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle>{isNewGenre ? 'Create New Genre' : 'Edit Genre'}</DialogTitle>
             <DialogDescription>
-              {isNewGenre ? 'Add a custom genre for your music library.' : 'Update the genre name and color.'}
+              {isNewGenre ? 'Add a main genre category.' : 'Update the genre name and color.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -469,7 +612,7 @@ export default function Settings() {
                 id="genre-name"
                 value={genreName}
                 onChange={(e) => setGenreName(e.target.value)}
-                placeholder="e.g., Afro House, Organic House"
+                placeholder="e.g., House, Techno, Trance"
               />
             </div>
             <div className="space-y-2">
@@ -516,13 +659,42 @@ export default function Settings() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Subgenre Dialog */}
+      <Dialog open={isSubgenreDialogOpen} onOpenChange={setIsSubgenreDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isNewSubgenre ? 'Create New Subgenre' : 'Edit Subgenre'}</DialogTitle>
+            <DialogDescription>
+              {isNewSubgenre 
+                ? `Add a subgenre to ${subgenreMainGenre}.` 
+                : 'Update the subgenre name.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="subgenre-name">Name</Label>
+              <Input
+                id="subgenre-name"
+                value={subgenreName}
+                onChange={(e) => setSubgenreName(e.target.value)}
+                placeholder="e.g., Deep, Minimal, Melodic"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSubgenreDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveSubgenre}>{isNewSubgenre ? 'Create Subgenre' : 'Save Changes'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Genre Confirmation */}
       <AlertDialog open={!!deleteGenreName} onOpenChange={() => setDeleteGenreName(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Genre?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the custom genre. Songs using this genre will keep it, but it won't appear in the selector.
+              This will remove the genre and all its subgenres. Songs using this genre will need to be updated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -530,6 +702,27 @@ export default function Settings() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteGenreName && handleDeleteGenre(deleteGenreName)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Subgenre Confirmation */}
+      <AlertDialog open={!!deleteSubgenre} onOpenChange={() => setDeleteSubgenre(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Subgenre?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the subgenre from {deleteSubgenre?.mainGenre}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteSubgenre && handleDeleteSubgenre(deleteSubgenre.mainGenre, deleteSubgenre.subgenre)}
             >
               Delete
             </AlertDialogAction>
