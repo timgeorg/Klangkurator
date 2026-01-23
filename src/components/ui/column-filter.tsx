@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -30,7 +30,17 @@ export function ColumnFilter({
   max 
 }: ColumnFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tempRange, setTempRange] = useState({ min: value?.min || min || 0, max: value?.max || max || 200 });
+  const [tempRange, setTempRange] = useState({ min: '', max: '' });
+
+  // Reset tempRange when popover opens - use empty strings to indicate "no filter"
+  useEffect(() => {
+    if (isOpen && type === 'range') {
+      setTempRange({
+        min: value?.min !== undefined ? String(value.min) : '',
+        max: value?.max !== undefined ? String(value.max) : ''
+      });
+    }
+  }, [isOpen, type, value]);
 
   const hasActiveFilter = () => {
     if (type === 'text') return value && value.length > 0;
@@ -45,6 +55,7 @@ export function ColumnFilter({
       onChange([]);
     } else if (type === 'range') {
       onChange({});
+      setTempRange({ min: '', max: '' });
     } else {
       onChange(null);
     }
@@ -60,7 +71,15 @@ export function ColumnFilter({
   };
 
   const handleRangeApply = () => {
-    onChange({ min: tempRange.min, max: tempRange.max });
+    const newRange: { min?: number; max?: number } = {};
+    // Only set min/max if the user actually entered a value
+    if (tempRange.min !== '' && !isNaN(Number(tempRange.min))) {
+      newRange.min = Number(tempRange.min);
+    }
+    if (tempRange.max !== '' && !isNaN(Number(tempRange.max))) {
+      newRange.max = Number(tempRange.max);
+    }
+    onChange(newRange);
     setIsOpen(false);
   };
 
@@ -198,10 +217,9 @@ export function ColumnFilter({
                   <Input
                     type="number"
                     value={tempRange.min}
-                    onChange={(e) => setTempRange(prev => ({ ...prev, min: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setTempRange(prev => ({ ...prev, min: e.target.value }))}
+                    placeholder={min !== undefined ? String(min) : 'No min'}
                     className="text-sm"
-                    min={min}
-                    max={max}
                   />
                 </div>
                 <div>
@@ -209,10 +227,9 @@ export function ColumnFilter({
                   <Input
                     type="number"
                     value={tempRange.max}
-                    onChange={(e) => setTempRange(prev => ({ ...prev, max: parseInt(e.target.value) || 200 }))}
+                    onChange={(e) => setTempRange(prev => ({ ...prev, max: e.target.value }))}
+                    placeholder={max !== undefined ? String(max) : 'No max'}
                     className="text-sm"
-                    min={min}
-                    max={max}
                   />
                 </div>
               </div>
