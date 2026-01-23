@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { GenreSelector } from '@/components/ui/genre-selector';
 import { Song, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Music, Save, X, FileText, Link2 } from 'lucide-react';
@@ -29,15 +30,6 @@ const musicalKeys = [
   'B major', 'B minor'
 ];
 
-const genres = [
-  'House', 'Tech House', 'Deep House', 'Progressive House',
-  'Techno', 'Melodic Techno', 'Hard Techno',
-  'Trance', 'Progressive Trance', 'Uplifting Trance',
-  'EDM', 'Future Bass', 'Dubstep', 'Drum & Bass',
-  'Disco', 'Nu-Disco', 'Funk',
-  'Hip Hop', 'R&B', 'Pop', 'Rock', 'Indie',
-  'Other'
-];
 
 export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDialogProps) {
   const [formData, setFormData] = useState({
@@ -46,7 +38,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
     album: '',
     bpm: '',
     musical_key: '',
-    genre: '',
+    genres: [] as string[],
     year: '',
     energy: 0,
     danceability: 0,
@@ -64,13 +56,15 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
   useEffect(() => {
     if (song) {
       setCurrentSong(song);
+      // Support both new genres array and legacy genre string
+      const genres = song.genres || (song.genre ? [song.genre] : []);
       setFormData({
         title: song.title || '',
         artist: song.artist || '',
         album: song.album || '',
         bpm: song.bpm?.toString() || '',
         musical_key: song.musical_key || '',
-        genre: song.genre || '',
+        genres: genres,
         year: song.year?.toString() || '',
         energy: song.energy || 0,
         danceability: song.danceability || 0,
@@ -98,7 +92,8 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         album: formData.album.trim() || undefined,
         bpm: formData.bpm ? parseInt(formData.bpm) : undefined,
         musical_key: formData.musical_key || undefined,
-        genre: formData.genre || undefined,
+        genres: formData.genres.length > 0 ? formData.genres : undefined,
+        genre: formData.genres.length > 0 ? formData.genres[0] : undefined, // Legacy support
         year: formData.year ? parseInt(formData.year) : undefined,
         energy: formData.energy,
         danceability: formData.danceability,
@@ -236,20 +231,12 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="genre">Genre</Label>
-                <Select
-                  value={formData.genre}
-                  onValueChange={(value) => handleInputChange('genre', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select genre" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {genres.map(genre => (
-                      <SelectItem key={genre} value={genre}>{genre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Genres</Label>
+                <GenreSelector
+                  selectedGenres={formData.genres}
+                  onGenresChange={(genres) => setFormData(prev => ({ ...prev, genres }))}
+                  size="md"
+                />
               </div>
             </div>
           </div>
