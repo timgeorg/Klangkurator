@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Rating } from '@/components/ui/rating';
 import { Waveform } from '@/components/ui/waveform';
 import { TagSelector } from '@/components/ui/tag-selector';
 import { ColumnFilter } from '@/components/ui/column-filter';
@@ -16,19 +15,12 @@ import {
   Search, 
   Plus, 
   Music2, 
-  Clock, 
-  Hash, 
-  Zap, 
   FolderOpen, 
-  Star,
   Play,
   Volume2,
   ArrowUpDown,
-  Filter,
   Pencil,
   Columns,
-  Eye,
-  EyeOff
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -56,11 +48,18 @@ interface FilterState {
 }
 
 export function SongLibrary() {
+  // Core data state
   const [songs, setSongs] = useState<Song[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [songTags, setSongTags] = useState<Record<string, Tag[]>>({});
+  
+  // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [songTags, setSongTags] = useState<{[songId: string]: Tag[]}>({});
-  const [editingNotes, setEditingNotes] = useState<{[songId: string]: string}>({});
+  const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
+  const [userResized, setUserResized] = useState<Record<string, boolean>>({});
+  
+  // Column widths configuration
   const [columnWidths, setColumnWidths] = useState({
     play: 40,
     preview: 80,
@@ -79,7 +78,6 @@ export function SongLibrary() {
     lyrics: 120,
     notes: 200
   });
-  const [userResized, setUserResized] = useState<{[key: string]: boolean}>({});
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState({
@@ -174,37 +172,42 @@ export function SongLibrary() {
     tags: []
   });
 
+  // Load initial data
   useEffect(() => {
-    // Force clear any existing data and reload
-    console.log('Initializing sample data...');
-    loadSongs();
-    loadSongTags();
+    loadAllData();
   }, []);
 
-  const loadSongs = () => {
-    console.log('Loading songs from storage...');
-    const allSongs = storage.getSongs();
-    console.log('Found songs:', allSongs.length);
-    setSongs(allSongs);
-  };
-
-  const loadSongTags = () => {
-    const allSongs = storage.getSongs();
-    const tagsMap: {[songId: string]: Tag[]} = {};
+  const loadAllData = useCallback(() => {
+    // Load songs
+    const loadedSongs = storage.getSongs();
+    setSongs(loadedSongs);
     
-    allSongs.forEach(song => {
+    // Load all tags
+    const loadedTags = storage.getTags();
+    setAllTags(loadedTags);
+    
+    // Load song-tag mappings
+    const tagsMap: Record<string, Tag[]> = {};
+    loadedSongs.forEach(song => {
       tagsMap[song.id] = storage.getTagsForSong(song.id);
     });
-    
     setSongTags(tagsMap);
-  };
+  }, []);
 
-  const handleTagsChange = (songId: string, tags: Tag[]) => {
+  // Handler when tags change on a song - also refresh allTags in case new tag was created
+  const handleTagsChange = useCallback((songId: string, tags: Tag[]) => {
     setSongTags(prev => ({
       ...prev,
       [songId]: tags
     }));
-  };
+    // Refresh all tags to capture any newly created tags
+    setAllTags(storage.getTags());
+  }, []);
+
+  // Called when a new tag is created - refresh the master tag list
+  const handleTagCreated = useCallback(() => {
+    setAllTags(storage.getTags());
+  }, []);
 
   const handleLoadFiles = async () => {
     try {
@@ -216,9 +219,7 @@ export function SongLibrary() {
           title: "Files loaded successfully",
           description: `Loaded ${files.length} audio files to your library.`,
         });
-        
-        console.log('Loaded files:', files);
-        loadSongs();
+        loadAllData();
       }
     } catch (error: any) {
       toast({
@@ -245,56 +246,32 @@ export function SongLibrary() {
     return 'text-bpm-fast bg-bpm-fast/20';
   };
 
-  const handleSongClick = (song: Song) => {
-    console.log('Clicked song:', song.title, song.id);
+  const handleSongClick = useCallback((song: Song) => {
     setSelectedSongForRelationships(song);
     
     // Load relationships for this song
     const allRelationships = storage.getSongRelationships();
-    const allSongs = storage.getSongs();
-    
-    console.log('All relationships in storage:', allRelationships.length);
-    console.log('Relationships details:', allRelationships);
-    console.log('All songs in storage:', allSongs.length);
+    const allSongsData = storage.getSongs();
     
     const asSource = allRelationships
-      .filter(rel => {
-        const matches = rel.source_song_id === song.id;
-        console.log('Checking as source:', {
-          relationshipSourceId: rel.source_song_id,
-          currentSongId: song.id,
-          matches
-        });
-        return matches;
-      })
+      .filter(rel => rel.source_song_id === song.id)
       .map(rel => ({
         ...rel,
-        targetSong: allSongs.find(s => s.id === rel.target_song_id)!
+        targetSong: allSongsData.find(s => s.id === rel.target_song_id)!
       }))
       .filter(rel => rel.targetSong);
     
     const asTarget = allRelationships
-      .filter(rel => {
-        const matches = rel.target_song_id === song.id;
-        console.log('Checking as target:', {
-          relationshipTargetId: rel.target_song_id,
-          currentSongId: song.id,
-          matches
-        });
-        return matches;
-      })
+      .filter(rel => rel.target_song_id === song.id)
       .map(rel => ({
         ...rel,
-        sourceSong: allSongs.find(s => s.id === rel.source_song_id)!
+        sourceSong: allSongsData.find(s => s.id === rel.source_song_id)!
       }))
       .filter(rel => rel.sourceSong);
     
-    console.log('Relationships as source:', asSource.length);
-    console.log('Relationships as target:', asTarget.length);
-    
     setSongRelationships({ asSource, asTarget });
     setRelationshipsDialogOpen(true);
-  };
+  }, []);
 
   const handleEditSong = (song: Song, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -302,13 +279,12 @@ export function SongLibrary() {
     setEditDialogOpen(true);
   };
 
-  const handleSongSaved = (updatedSong: Song) => {
-    loadSongs();
-    loadSongTags();
-  };
+  const handleSongSaved = useCallback(() => {
+    loadAllData();
+  }, [loadAllData]);
 
-  // Get unique values for filter options
-  const getFilterOptions = () => {
+  // Memoized filter options derived from current state
+  const filterOptions = useMemo(() => {
     // Collect main genres separately from subgenres
     const mainGenresSet = new Set<string>();
     const subgenresSet = new Set<string>();
@@ -335,16 +311,15 @@ export function SongLibrary() {
       value: k!,
       color: k!.includes('minor') ? 'hsl(var(--key-minor))' : 'hsl(var(--key-major))'
     }));
-    const allTags = storage.getTags().map(tag => ({
+    // Use allTags state instead of reading from storage directly
+    const tagOptions = allTags.map(tag => ({
       label: tag.name,
       value: tag.id,
       color: tag.color
     }));
 
-    return { mainGenres, subgenres, keys, tags: allTags };
-  };
-
-  const filterOptions = getFilterOptions();
+    return { mainGenres, subgenres, keys, tags: tagOptions };
+  }, [songs, allTags]);
 
   // Apply filters with memoization to prevent infinite loops
   const filteredSongs = useMemo(() => {
@@ -431,7 +406,8 @@ export function SongLibrary() {
     const notes = editingNotes[songId];
     if (notes !== undefined) {
       storage.updateSong(songId, { mixing_notes: notes });
-      loadSongs(); // Refresh the songs list
+      // Refresh songs to show updated notes
+      setSongs(storage.getSongs());
       setEditingNotes(prev => {
         const updated = { ...prev };
         delete updated[songId];
@@ -1086,6 +1062,7 @@ export function SongLibrary() {
                           songId={song.id}
                           selectedTags={songTags[song.id] || []}
                           onTagsChange={(tags) => handleTagsChange(song.id, tags)}
+                          onTagCreated={handleTagCreated}
                           size="sm"
                         />
                       </div>
