@@ -45,8 +45,7 @@ import {
   Pencil, 
   Trash2,
   ChevronDown,
-  ChevronRight,
-  RotateCcw
+  ChevronRight
 } from 'lucide-react';
 
 // Color palette for tags and genres
@@ -290,11 +289,6 @@ export default function Settings() {
     toast({ title: 'Genre deleted', description: 'The genre and its subgenres have been removed.' });
   };
 
-  const handleResetGenres = () => {
-    saveGenreConfig(DEFAULT_GENRES);
-    setGenreConfig(DEFAULT_GENRES);
-    toast({ title: 'Genres reset', description: 'Genres have been reset to defaults.' });
-  };
 
   // Subgenre handlers
   const handleNewSubgenre = (mainGenre: string) => {
@@ -438,16 +432,10 @@ export default function Settings() {
                 <Music2 className="w-5 h-5 text-primary" />
                 <CardTitle>Genres & Subgenres</CardTitle>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={handleResetGenres}>
-                  <RotateCcw className="w-4 h-4 mr-1" />
-                  Reset
-                </Button>
-                <Button size="sm" onClick={handleNewGenre}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Genre
-                </Button>
-              </div>
+              <Button size="sm" onClick={handleNewGenre}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add Genre
+              </Button>
             </div>
             <CardDescription>
               Manage main genres and their subgenres. Each song can have one main genre and multiple subgenres.
