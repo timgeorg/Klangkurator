@@ -12,6 +12,7 @@ interface TagSelectorProps {
   songId: string;
   selectedTags: Tag[];
   onTagsChange: (tags: Tag[]) => void;
+  onTagCreated?: () => void; // Optional callback when a new tag is created
   size?: 'sm' | 'md';
 }
 
@@ -21,7 +22,7 @@ const TAG_COLORS = [
   '#ec4899', '#f43f5e'
 ];
 
-export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }: TagSelectorProps) {
+export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, size = 'sm' }: TagSelectorProps) {
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
@@ -35,7 +36,7 @@ export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }:
     setAllTags(tags);
   };
 
-  const createTag = (name: string) => {
+  const createTag = (name: string): Tag | null => {
     const trimmedName = name.trim();
     if (!trimmedName) return null;
 
@@ -56,6 +57,8 @@ export function TagSelector({ songId, selectedTags, onTagsChange, size = 'sm' }:
     });
     
     setAllTags(prev => [...prev, newTag]);
+    // Notify parent that a new tag was created
+    onTagCreated?.();
     return newTag;
   };
 
