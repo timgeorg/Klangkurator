@@ -45,6 +45,7 @@ interface FilterState {
   artist: string;
   album: string;
   genre: string[];
+  subgenres: string[];
   bpm: { min?: number; max?: number };
   key: string[];
   energy: { min?: number; max?: number };
@@ -69,6 +70,7 @@ export function SongLibrary() {
     bpm: 80,
     key: 50,
     genre: 100,
+    subgenres: 160,
     energy: 80,
     danceability: 60,
     social: 60,
@@ -89,6 +91,7 @@ export function SongLibrary() {
     bpm: true,
     key: true,
     genre: true,
+    subgenres: true,
     energy: true,
     danceability: true,
     social: true,
@@ -106,7 +109,8 @@ export function SongLibrary() {
     album: 'Album',
     bpm: 'BPM',
     key: 'Key',
-    genre: 'Genre',
+    genre: 'Main Genre',
+    subgenres: 'Subgenres',
     energy: 'Energy',
     danceability: 'Danceability',
     social: 'Social',
@@ -131,6 +135,7 @@ export function SongLibrary() {
     if (columnVisibility.bpm) columns.push(`${columnWidths.bpm}px`);
     if (columnVisibility.key) columns.push(`${columnWidths.key}px`);
     if (columnVisibility.genre) columns.push(`${columnWidths.genre}px`);
+    if (columnVisibility.subgenres) columns.push(`${columnWidths.subgenres}px`);
     if (columnVisibility.energy) columns.push(`${columnWidths.energy}px`);
     if (columnVisibility.danceability) columns.push(`${columnWidths.danceability}px`);
     if (columnVisibility.social) columns.push(`${columnWidths.social}px`);
@@ -159,6 +164,7 @@ export function SongLibrary() {
     artist: '',
     album: '',
     genre: [],
+    subgenres: [],
     bpm: {},
     key: [],
     energy: {},
@@ -303,23 +309,27 @@ export function SongLibrary() {
 
   // Get unique values for filter options
   const getFilterOptions = () => {
-    // Collect all genres from songs (supporting mainGenre, subgenres, and legacy genre)
-    const allGenres = new Set<string>();
+    // Collect main genres separately from subgenres
+    const mainGenresSet = new Set<string>();
+    const subgenresSet = new Set<string>();
+    
     songs.forEach(s => {
       if (s.mainGenre) {
-        allGenres.add(s.mainGenre);
+        mainGenresSet.add(s.mainGenre);
       }
       if (s.subgenres) {
-        s.subgenres.forEach(g => allGenres.add(g));
+        s.subgenres.forEach(g => subgenresSet.add(g));
       }
-      // Legacy support
+      // Legacy support - treat as main genres
       if (s.genres) {
-        s.genres.forEach(g => allGenres.add(g));
+        s.genres.forEach(g => mainGenresSet.add(g));
       } else if (s.genre) {
-        allGenres.add(s.genre);
+        mainGenresSet.add(s.genre);
       }
     });
-    const genres = [...allGenres].map(g => ({ label: g, value: g }));
+    
+    const mainGenres = [...mainGenresSet].map(g => ({ label: g, value: g }));
+    const subgenres = [...subgenresSet].map(g => ({ label: g, value: g }));
     const keys = [...new Set(songs.map(s => s.musical_key).filter(Boolean))].map(k => ({ 
       label: k!, 
       value: k!,
@@ -331,7 +341,7 @@ export function SongLibrary() {
       color: tag.color
     }));
 
-    return { genres, keys, tags: allTags };
+    return { mainGenres, subgenres, keys, tags: allTags };
   };
 
   const filterOptions = getFilterOptions();
@@ -358,16 +368,22 @@ export function SongLibrary() {
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
       if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
 
-      // Multi-select filters - genre checks mainGenre, subgenres, and legacy
+      // Multi-select filters - genre checks mainGenre and legacy
       if (filters.genre.length > 0) {
-        const songGenres = [
+        const songMainGenres = [
           song.mainGenre, 
-          ...(song.subgenres || []),
           ...(song.genres || []),
           song.genre
         ].filter(Boolean) as string[];
-        if (!songGenres.some(g => filters.genre.includes(g))) return false;
+        if (!songMainGenres.some(g => filters.genre.includes(g))) return false;
       }
+      
+      // Subgenres filter
+      if (filters.subgenres.length > 0) {
+        const songSubgenres = song.subgenres || [];
+        if (!songSubgenres.some(g => filters.subgenres.includes(g))) return false;
+      }
+      
       if (filters.key.length > 0 && (!song.musical_key || !filters.key.includes(song.musical_key))) return false;
 
       // Range filters
@@ -679,15 +695,32 @@ export function SongLibrary() {
                   <div className="flex items-center gap-1 relative group">
                     Genre
                     <ColumnFilter
-                      title="Genre"
+                      title="Main Genre"
                       type="multiselect"
                       value={filters.genre}
                       onChange={(value) => updateFilter('genre', value)}
-                      options={filterOptions.genres}
+                      options={filterOptions.mainGenres}
                     />
                     <div
                       className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
                       onMouseDown={(e) => startColumnResize('genre', e)}
+                      title="Drag to resize column"
+                    />
+                  </div>
+                )}
+                {columnVisibility.subgenres && (
+                  <div className="flex items-center gap-1 relative group">
+                    Subgenres
+                    <ColumnFilter
+                      title="Subgenres"
+                      type="multiselect"
+                      value={filters.subgenres}
+                      onChange={(value) => updateFilter('subgenres', value)}
+                      options={filterOptions.subgenres}
+                    />
+                    <div
+                      className="absolute -right-1 top-0 h-full w-1 cursor-col-resize bg-transparent group-hover:bg-border"
+                      onMouseDown={(e) => startColumnResize('subgenres', e)}
                       title="Drag to resize column"
                     />
                   </div>
@@ -905,54 +938,66 @@ export function SongLibrary() {
                       </div>
                     )}
                     
-                    {/* Genre */}
+                    {/* Genre (Main Genre only) */}
                     {columnVisibility.genre && (
                       <div className="flex items-center gap-1 min-w-0 flex-wrap">
                         {(() => {
-                          // Use new mainGenre + subgenres, fallback to legacy
                           const mainGenre = song.mainGenre;
-                          const subgenres = song.subgenres || [];
                           const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
                           
-                          if (!mainGenre && subgenres.length === 0) {
+                          if (!mainGenre) {
                             // Check legacy fields
-                            const legacyGenres = song.genres || (song.genre ? [song.genre] : []);
-                            if (legacyGenres.length === 0) {
+                            const legacyGenre = song.genres?.[0] || song.genre;
+                            if (!legacyGenre) {
                               return <span className="text-muted-foreground">-</span>;
                             }
-                            // Display legacy genres
-                            return legacyGenres.map(genre => (
+                            return (
                               <Badge
-                                key={genre}
                                 variant="secondary"
                                 className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
                                 style={{ 
-                                  backgroundColor: `${getMainGenreColor(genre)}20`, 
-                                  borderColor: getMainGenreColor(genre),
-                                  color: getMainGenreColor(genre)
+                                  backgroundColor: `${getMainGenreColor(legacyGenre)}20`, 
+                                  borderColor: getMainGenreColor(legacyGenre),
+                                  color: getMainGenreColor(legacyGenre)
                                 }}
                               >
-                                {genre}
+                                {legacyGenre}
                               </Badge>
-                            ));
+                            );
+                          }
+                          
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                              style={{ 
+                                backgroundColor: `${color}20`, 
+                                borderColor: color,
+                                color: color
+                              }}
+                            >
+                              {mainGenre}
+                            </Badge>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    
+                    {/* Subgenres */}
+                    {columnVisibility.subgenres && (
+                      <div className="flex items-center gap-1 min-w-0 flex-wrap">
+                        {(() => {
+                          const subgenres = song.subgenres || [];
+                          const mainGenre = song.mainGenre;
+                          const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
+                          
+                          if (subgenres.length === 0) {
+                            return <span className="text-muted-foreground">-</span>;
                           }
                           
                           return (
                             <>
-                              {mainGenre && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-                                  style={{ 
-                                    backgroundColor: `${color}20`, 
-                                    borderColor: color,
-                                    color: color
-                                  }}
-                                >
-                                  {mainGenre}
-                                </Badge>
-                              )}
-                              {subgenres.slice(0, 2).map(sub => (
+                              {subgenres.slice(0, 3).map(sub => (
                                 <Badge
                                   key={sub}
                                   variant="outline"
@@ -965,9 +1010,9 @@ export function SongLibrary() {
                                   {sub}
                                 </Badge>
                               ))}
-                              {subgenres.length > 2 && (
+                              {subgenres.length > 3 && (
                                 <span className="text-[10px] text-muted-foreground">
-                                  +{subgenres.length - 2}
+                                  +{subgenres.length - 3}
                                 </span>
                               )}
                             </>
