@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Song, SongRelationship, SongPlaylistMembership, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
-import { Link2, Plus, Trash2, Save, X, Music, ListMusic } from 'lucide-react';
+import { Link2, Plus, Trash2, Save, X, Music, ListMusic, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface EditRelationshipsDialogProps {
   song: Song | null;
@@ -58,7 +62,8 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
   const [newRelationType, setNewRelationType] = useState<string>('');
   const [newTargetSongId, setNewTargetSongId] = useState<string>('');
   const [newNotes, setNewNotes] = useState('');
-
+  const [songSearchOpen, setSongSearchOpen] = useState(false);
+  const [songSearchQuery, setSongSearchQuery] = useState('');
   // Load existing relationships and playlist memberships
   useEffect(() => {
     if (song && open) {
@@ -109,6 +114,7 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
     setNewRelationType('');
     setNewTargetSongId('');
     setNewNotes('');
+    setSongSearchQuery('');
   };
 
   const handleAddRelationship = () => {
@@ -191,8 +197,25 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
   };
 
   // Filter out songs that already have a relationship
-  const availableSongs = allSongs.filter(s => 
-    !existingRelationships.some(r => r.otherSong.id === s.id)
+  const availableSongs = useMemo(() => 
+    allSongs.filter(s => !existingRelationships.some(r => r.otherSong.id === s.id)),
+    [allSongs, existingRelationships]
+  );
+
+  // Filter available songs by search query
+  const filteredSongs = useMemo(() => {
+    if (!songSearchQuery.trim()) return availableSongs;
+    const query = songSearchQuery.toLowerCase();
+    return availableSongs.filter(s => 
+      s.title.toLowerCase().includes(query) || 
+      s.artist.toLowerCase().includes(query)
+    );
+  }, [availableSongs, songSearchQuery]);
+
+  // Get selected song details
+  const selectedSong = useMemo(() => 
+    availableSongs.find(s => s.id === newTargetSongId),
+    [availableSongs, newTargetSongId]
   );
 
   if (!song) return null;
@@ -320,18 +343,61 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
 
                   <div className="space-y-2">
                     <Label>Related Song</Label>
-                    <Select value={newTargetSongId} onValueChange={setNewTargetSongId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select song" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableSongs.map(s => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.title} - {s.artist}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={songSearchOpen} onOpenChange={setSongSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={songSearchOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          {selectedSong ? (
+                            <span className="truncate">
+                              {selectedSong.title} - {selectedSong.artist}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Search songs...</span>
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Search by title or artist..." 
+                            value={songSearchQuery}
+                            onValueChange={setSongSearchQuery}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No songs found.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredSongs.slice(0, 50).map(s => (
+                                <CommandItem
+                                  key={s.id}
+                                  value={s.id}
+                                  onSelect={(value) => {
+                                    setNewTargetSongId(value);
+                                    setSongSearchOpen(false);
+                                    setSongSearchQuery('');
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      newTargetSongId === s.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="truncate font-medium">{s.title}</span>
+                                    <span className="truncate text-xs text-muted-foreground">{s.artist}</span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 
