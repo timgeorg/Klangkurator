@@ -114,7 +114,7 @@ export function ColumnFilter({
           <Filter className="w-3 h-3" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3" align="start">
+      <PopoverContent className="w-72 p-3" align="start">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">{title}</h4>
@@ -179,7 +179,7 @@ export function ColumnFilter({
           )}
 
           {type === 'multiselect' && (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {options.map((option) => {
                 const isSelected = Array.isArray(value) && value.includes(option.value);
                 return (
