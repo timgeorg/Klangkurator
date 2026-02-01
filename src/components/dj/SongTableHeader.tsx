@@ -7,6 +7,7 @@ interface FilterState {
   title: string;
   artist: string;
   album: string;
+  rootFolder: string[];
   genre: string[];
   subgenres: string[];
   bpm: { min?: number; max?: number };
@@ -23,6 +24,7 @@ interface FilterOptions {
   subgenres: Array<{ label: string; value: string; color?: string }>;
   keys: Array<{ label: string; value: string; color?: string }>;
   tags: Array<{ label: string; value: string; color?: string }>;
+  rootFolders: Array<{ label: string; value: string }>;
 }
 
 interface SongTableHeaderProps {
@@ -37,6 +39,7 @@ const FILTER_CONFIG: Record<string, { type: 'text' | 'range' | 'multiselect'; op
   title: { type: 'text', placeholder: 'Filter titles...' },
   artist: { type: 'text', placeholder: 'Filter artists...' },
   album: { type: 'text', placeholder: 'Filter albums...' },
+  rootFolder: { type: 'multiselect', optionsKey: 'rootFolders' },
   bpm: { type: 'range', min: 60, max: 200 },
   key: { type: 'multiselect', optionsKey: 'keys' },
   genre: { type: 'multiselect', optionsKey: 'mainGenres' },
@@ -53,6 +56,7 @@ const FILTER_KEY_MAP: Record<string, keyof FilterState> = {
   title: 'title',
   artist: 'artist',
   album: 'album',
+  rootFolder: 'rootFolder',
   bpm: 'bpm',
   key: 'key',
   genre: 'genre',

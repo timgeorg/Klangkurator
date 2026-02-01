@@ -20,6 +20,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   title: { id: 'title', label: 'Title', minWidth: 100, maxWidth: 400, defaultWidth: 200, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  rootFolder: { id: 'rootFolder', label: 'Root Folder', minWidth: 80, maxWidth: 250, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
   bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   key: { id: 'key', label: 'Key', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
   genre: { id: 'genre', label: 'Main Genre', minWidth: 80, maxWidth: 200, defaultWidth: 100, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
@@ -35,8 +36,8 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
 
 // Default column order
 const DEFAULT_COLUMN_ORDER = [
-  'play', 'preview', 'title', 'artist', 'album', 'bpm', 'key', 
-  'genre', 'subgenres', 'energy', 'danceability', 'social', 
+  'play', 'preview', 'title', 'artist', 'album', 'rootFolder', 'bpm', 'key', 
+  'genre', 'subgenres', 'energy', 'danceability', 'social',
   'duration', 'tags', 'lyrics', 'notes'
 ];
 

@@ -18,6 +18,7 @@ interface FilterState {
   title: string;
   artist: string;
   album: string;
+  rootFolder: string[];
   genre: string[];
   subgenres: string[];
   bpm: { min?: number; max?: number };
@@ -33,6 +34,7 @@ const INITIAL_FILTERS: FilterState = {
   title: '',
   artist: '',
   album: '',
+  rootFolder: [],
   genre: [],
   subgenres: [],
   bpm: {},
@@ -42,6 +44,20 @@ const INITIAL_FILTERS: FilterState = {
   social: {},
   duration: {},
   tags: []
+};
+
+// Utility to extract root folder from file path
+const getRootFolder = (filePath: string): string => {
+  if (!filePath) return '';
+  // Handle both Windows and Unix paths
+  const parts = filePath.replace(/\\/g, '/').split('/');
+  // Return the first folder after the drive/root, or the folder containing the file
+  if (parts.length >= 2) {
+    // Skip empty parts and find meaningful folder
+    const nonEmptyParts = parts.filter(p => p && !p.includes(':'));
+    return nonEmptyParts[0] || '';
+  }
+  return '';
 };
 
 export function SongLibrary() {
@@ -212,12 +228,16 @@ export function SongLibrary() {
   const filterOptions = useMemo(() => {
     const mainGenresSet = new Set<string>();
     const subgenresSet = new Set<string>();
+    const rootFoldersSet = new Set<string>();
     
     songs.forEach(s => {
       if (s.mainGenre) mainGenresSet.add(s.mainGenre);
       if (s.subgenres) s.subgenres.forEach(g => subgenresSet.add(g));
       if (s.genres) s.genres.forEach(g => mainGenresSet.add(g));
       else if (s.genre) mainGenresSet.add(s.genre);
+      
+      const folder = getRootFolder(s.file_path);
+      if (folder) rootFoldersSet.add(folder);
     });
     
     return {
@@ -233,6 +253,7 @@ export function SongLibrary() {
         value: tag.id,
         color: tag.color
       })),
+      rootFolders: [...rootFoldersSet].sort().map(f => ({ label: f, value: f })),
     };
   }, [songs, allTags]);
 
@@ -258,6 +279,12 @@ export function SongLibrary() {
       if (filters.title && !song.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
       if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
+
+      // Root folder filter
+      if (filters.rootFolder.length > 0) {
+        const songFolder = getRootFolder(song.file_path);
+        if (!filters.rootFolder.includes(songFolder)) return false;
+      }
 
       if (filters.genre.length > 0) {
         const songMainGenres = [song.mainGenre, ...(song.genres || []), song.genre].filter(Boolean) as string[];
