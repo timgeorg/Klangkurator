@@ -40,6 +40,17 @@ const getBpmColor = (bpm?: number) => {
   return 'text-bpm-fast bg-bpm-fast/20';
 };
 
+// Extract root folder from file path
+const getRootFolder = (filePath: string): string => {
+  if (!filePath) return '';
+  const parts = filePath.replace(/\\/g, '/').split('/');
+  if (parts.length >= 2) {
+    const nonEmptyParts = parts.filter(p => p && !p.includes(':'));
+    return nonEmptyParts[0] || '';
+  }
+  return '';
+};
+
 export function SongTableRow({
   song,
   index,
@@ -106,6 +117,14 @@ export function SongTableRow({
         return (
           <div className="flex items-center text-muted-foreground truncate">
             {song.album || '-'}
+          </div>
+        );
+        
+      case 'rootFolder':
+        const folder = getRootFolder(song.file_path);
+        return (
+          <div className="flex items-center text-muted-foreground truncate" title={song.file_path}>
+            {folder || '-'}
           </div>
         );
         
