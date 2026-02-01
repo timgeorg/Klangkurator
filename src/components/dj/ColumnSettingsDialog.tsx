@@ -63,7 +63,7 @@ export function ColumnSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Column Settings</span>
@@ -84,7 +84,7 @@ export function ColumnSettingsDialog({
             Drag to reorder columns. Toggle visibility with the switch.
           </p>
           
-          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
             {columnOrder.map((columnId, index) => {
               const def = COLUMN_DEFINITIONS[columnId];
               const isVisible = columnVisibility[columnId];
