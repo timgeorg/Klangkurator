@@ -15,22 +15,22 @@ export interface ColumnDef {
 
 // All available columns with their configuration
 export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
-  play: { id: 'play', label: 'Play/Edit', minWidth: 40, maxWidth: 100, defaultWidth: 40, resizable: true, filterable: false, sortable: false },
+  play: { id: 'play', label: 'Play/Edit', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: false, sortable: false },
   preview: { id: 'preview', label: 'Preview', minWidth: 60, maxWidth: 200, defaultWidth: 80, resizable: true, filterable: false, sortable: false },
   title: { id: 'title', label: 'Title', minWidth: 100, maxWidth: 400, defaultWidth: 200, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  rootFolder: { id: 'rootFolder', label: 'Root Folder', minWidth: 80, maxWidth: 250, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
-  bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  rootFolder: { id: 'rootFolder', label: 'Root Folder', minWidth: 80, maxWidth: 250, defaultWidth: 100, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
+  bpm: { id: 'bpm', label: 'BPM', minWidth: 55, maxWidth: 120, defaultWidth: 55, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   key: { id: 'key', label: 'Key', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
   genre: { id: 'genre', label: 'Main Genre', minWidth: 80, maxWidth: 200, defaultWidth: 100, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
-  subgenres: { id: 'subgenres', label: 'Subgenres', minWidth: 100, maxWidth: 300, defaultWidth: 160, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
-  energy: { id: 'energy', label: 'Energy', minWidth: 60, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  danceability: { id: 'danceability', label: 'Danceability', minWidth: 60, maxWidth: 120, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  social: { id: 'social', label: 'Social', minWidth: 60, maxWidth: 120, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  duration: { id: 'duration', label: 'Duration', minWidth: 60, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 160, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
-  lyrics: { id: 'lyrics', label: 'Lyrics', minWidth: 80, maxWidth: 300, defaultWidth: 120, resizable: true, filterable: false, sortable: false },
+  subgenres: { id: 'subgenres', label: 'Subgenres', minWidth: 100, maxWidth: 300, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
+  energy: { id: 'energy', label: 'Energy', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  danceability: { id: 'danceability', label: 'Dance', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  social: { id: 'social', label: 'Social', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  duration: { id: 'duration', label: 'Duration', minWidth: 65, maxWidth: 120, defaultWidth: 65, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
+  lyrics: { id: 'lyrics', label: 'Lyrics', minWidth: 80, maxWidth: 300, defaultWidth: 100, resizable: true, filterable: false, sortable: false },
   notes: { id: 'notes', label: 'Notes', minWidth: 100, maxWidth: 500, defaultWidth: 200, resizable: true, filterable: false, sortable: false },
 };
 
