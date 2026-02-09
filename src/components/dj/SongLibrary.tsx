@@ -420,6 +420,7 @@ export function SongLibrary() {
         song={selectedSongForRelationships}
         open={relationshipsDialogOpen}
         onOpenChange={setRelationshipsDialogOpen}
+        onSave={loadAllData}
         relationships={songRelationships}
       />
 

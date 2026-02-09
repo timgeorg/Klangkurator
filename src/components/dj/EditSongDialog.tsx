@@ -12,7 +12,7 @@ import { Song, storage } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Music, Save, X, FileText, Link2 } from 'lucide-react';
 import { LyricsDialog } from './LyricsDialog';
-import { EditRelationshipsDialog } from './EditRelationshipsDialog';
+import { SongRelationshipsDialog } from './SongRelationshipsDialog';
 
 interface EditSongDialogProps {
   song: Song | null;
@@ -400,7 +400,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         onSave={handleLyricsSave}
       />
 
-      <EditRelationshipsDialog
+      <SongRelationshipsDialog
         song={currentSong}
         open={relationshipsDialogOpen}
         onOpenChange={setRelationshipsDialogOpen}
