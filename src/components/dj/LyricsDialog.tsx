@@ -23,13 +23,13 @@ export function LyricsDialog({ song, open, onOpenChange, onSave }: LyricsDialogP
     }
   }, [song]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!song) return;
 
     setSaving(true);
 
     try {
-      const updatedSong = storage.updateSong(song.id, {
+      const updatedSong = await storage.updateSong(song.id, {
         lyrics: lyrics.trim() || undefined
       });
 

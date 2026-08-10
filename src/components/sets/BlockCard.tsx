@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Block, Song, storage } from '@/lib/storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,12 @@ interface BlockCardProps {
 }
 
 export function BlockCard({ block, onEdit, onDelete }: BlockCardProps) {
-  const allSongs = storage.getSongs();
+  const [allSongs, setAllSongs] = useState<Song[]>([]);
+
+  useEffect(() => {
+    storage.getSongs().then(setAllSongs);
+  }, []);
+
   const songs = block.songs
     .sort((a, b) => a.position - b.position)
     .map(bs => allSongs.find(s => s.id === bs.song_id))

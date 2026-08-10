@@ -205,7 +205,7 @@ export class FileLoader {
       const estimatedBPM = this.estimateBPM(file.name);
       const detectedKey = this.detectKey(file.name);
       
-      const song = storage.addSong({
+      const song = await storage.addSong({
         title: filenameMetadata.title || file.name,
         artist: filenameMetadata.artist || 'Unknown Artist',
         album: filenameMetadata.album,

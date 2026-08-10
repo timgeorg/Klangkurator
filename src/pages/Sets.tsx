@@ -33,9 +33,13 @@ export default function Sets() {
   const [editingSet, setEditingSet] = useState<DJSet | null>(null);
   const [deleteSet, setDeleteSet] = useState<DJSet | null>(null);
 
-  const loadData = () => {
-    setBlocks(storage.getBlocks());
-    setDJSets(storage.getSets());
+  const loadData = async () => {
+    const [loadedBlocks, loadedSets] = await Promise.all([
+      storage.getBlocks(),
+      storage.getSets(),
+    ]);
+    setBlocks(loadedBlocks);
+    setDJSets(loadedSets);
   };
 
   useEffect(() => {
@@ -57,9 +61,9 @@ export default function Sets() {
     setDeleteBlock(block);
   };
 
-  const confirmDeleteBlock = () => {
+  const confirmDeleteBlock = async () => {
     if (deleteBlock) {
-      storage.deleteBlock(deleteBlock.id);
+      await storage.deleteBlock(deleteBlock.id);
       toast({ title: "Block deleted", description: "The block has been removed." });
       loadData();
       setDeleteBlock(null);
@@ -81,9 +85,9 @@ export default function Sets() {
     setDeleteSet(djSet);
   };
 
-  const confirmDeleteSet = () => {
+  const confirmDeleteSet = async () => {
     if (deleteSet) {
-      storage.deleteSet(deleteSet.id);
+      await storage.deleteSet(deleteSet.id);
       toast({ title: "Set deleted", description: "The set has been removed." });
       loadData();
       setDeleteSet(null);

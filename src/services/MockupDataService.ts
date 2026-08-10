@@ -6,24 +6,21 @@ export class MockupDataService implements DataService {
     return 'Development (Mockup Data)';
   }
 
-  clearData(): void {
-    // Clear existing data for fresh start
-    const songs = storage.getSongs();
-    songs.forEach(song => storage.deleteSong(song.id));
+  async clearData(): Promise<void> {
+    const songs = await storage.getSongs();
+    for (const song of songs) await storage.deleteSong(song.id);
     
-    const tags = storage.getTags();
-    tags.forEach(tag => storage.deleteTag(tag.id));
+    const tags = await storage.getTags();
+    for (const tag of tags) await storage.deleteTag(tag.id);
     
-    // Clear relationships
-    const relationships = storage.getSongRelationships();
-    relationships.forEach(rel => storage.deleteSongRelationship(rel.id));
+    const relationships = await storage.getSongRelationships();
+    for (const rel of relationships) await storage.deleteSongRelationship(rel.id);
     
-    // Clear playlists
-    const playlists = storage.getPlaylists();
-    playlists.forEach(playlist => storage.deletePlaylist(playlist.id));
+    const playlists = await storage.getPlaylists();
+    for (const playlist of playlists) await storage.deletePlaylist(playlist.id);
   }
 
-  initializeData(): void {
+  async initializeData(): Promise<void> {
     console.log('MockupDataService: Checking existing data...');
     const existingSongs = storage.getSongs();
     

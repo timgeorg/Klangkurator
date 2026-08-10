@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Klangkurator data (never commit user data)
+.klangkurator/

@@ -67,11 +67,19 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
   // Load existing relationships and playlist memberships
   useEffect(() => {
     if (song && open) {
-      const songs = storage.getSongs();
-      setAllSongs(songs.filter(s => s.id !== song.id));
+      loadDialogData();
+    }
+  }, [song, open]);
 
-      const relationships = storage.getSongRelationships();
-      const existing: ExistingRelationship[] = [];
+  const loadDialogData = async () => {
+    if (!song) return;
+    const [songs, relationships] = await Promise.all([
+      storage.getSongs(),
+      storage.getSongRelationships(),
+    ]);
+
+    setAllSongs(songs.filter(s => s.id !== song.id));
+    const existing: ExistingRelationship[] = [];
 
       relationships.forEach(rel => {
         if (rel.source_song_id === song.id) {
@@ -102,12 +110,12 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
       setExistingRelationships(existing);
       
       // Load playlist memberships
-      const memberships = storage.getPlaylistsForSong(song.id);
+      const memberships = await storage.getPlaylistsForSong(song.id);
       setPlaylistMemberships(memberships);
       
       resetForm();
     }
-  }, [song, open]);
+  };
 
   const resetForm = () => {
     setShowAddForm(false);
@@ -117,7 +125,7 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
     setSongSearchQuery('');
   };
 
-  const handleAddRelationship = () => {
+  const handleAddRelationship = async () => {
     if (!song || !newRelationType || !newTargetSongId) {
       toast({
         title: "Missing information",
@@ -130,7 +138,7 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
     setSaving(true);
 
     try {
-      storage.addSongRelationship({
+      await storage.addSongRelationship({
         source_song_id: song.id,
         target_song_id: newTargetSongId,
         relationship_type: newRelationType as SongRelationship['relationship_type'],
@@ -170,9 +178,9 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
     }
   };
 
-  const handleDeleteRelationship = (relationshipId: string) => {
+  const handleDeleteRelationship = async (relationshipId: string) => {
     try {
-      storage.deleteSongRelationship(relationshipId);
+      await storage.deleteSongRelationship(relationshipId);
       setExistingRelationships(prev => prev.filter(r => r.id !== relationshipId));
       
       toast({

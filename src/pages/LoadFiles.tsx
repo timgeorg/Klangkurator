@@ -1,103 +1,103 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { FileLoader, SUPPORTED_AUDIO_EXTENSIONS } from '@/lib/fileLoader';
-import { storage } from '@/lib/storage';
-import { toast } from '@/hooks/use-toast';
-import { 
-  FolderOpen, 
-  Music, 
-  FileAudio, 
-  CheckCircle, 
-  AlertCircle,
-  Info,
-  Upload,
-  Folder
-} from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import { FolderOpen, Music, FileAudio, CheckCircle, AlertCircle, Info, Folder, ScanLine, XCircle } from "lucide-react";
+
+interface ScanResult {
+  total: number;
+  added: number;
+  skipped: number;
+  errors: string[];
+}
+
+interface Crate {
+  name: string;
+  track_count: number;
+}
 
 export default function LoadFiles() {
+  const [rootPath, setRootPath] = useState("");
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [processedFiles, setProcessedFiles] = useState<string[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    processed: 0,
-    added: 0,
-    skipped: 0
-  });
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [crates, setCrates] = useState<Crate[]>([]);
+  const [currentRoot, setCurrentRoot] = useState<string | null>(null);
 
-  const handleLoadFiles = async () => {
+  // Load current root folder and crates on mount
+  useEffect(() => {
+    loadCurrentState();
+  }, []);
+
+  const loadCurrentState = async () => {
+    try {
+      const [rootRes, cratesRes] = await Promise.all([
+        api.get<{ root_path: string | null }>("/library/root"),
+        api.get<Crate[]>("/library/crates"),
+      ]);
+      setCurrentRoot(rootRes.root_path);
+      if (rootRes.root_path) setRootPath(rootRes.root_path);
+      setCrates(cratesRes);
+    } catch {
+      // Backend not reachable — show as is
+    }
+  };
+
+  const handlePickFolder = async () => {
+    try {
+      const result = await api.post<{ path: string | null }>("/library/pick-folder");
+      if (result.path) {
+        setRootPath(result.path);
+        handleSaveRoot(result.path);
+      }
+    } catch {
+      // Not in desktop mode — user types path manually
+      toast({
+        title: "Manual mode",
+        description: "Enter the folder path manually below.",
+      });
+    }
+  };
+
+  const handleSaveRoot = async (path?: string) => {
+    const toSave = path || rootPath;
+    if (!toSave) return;
+    try {
+      await api.put("/library/root", { root_path: toSave });
+      setCurrentRoot(toSave);
+      toast({ title: "Root folder saved" });
+    } catch (e: any) {
+      toast({
+        title: "Invalid path",
+        description: e.message || "Could not save root folder.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleScan = async () => {
+    if (!rootPath) {
+      toast({ title: "No folder selected", description: "Pick or enter a folder path first." });
+      return;
+    }
     try {
       setLoading(true);
-      setProgress(0);
-      setProcessedFiles([]);
-      setStats({ total: 0, processed: 0, added: 0, skipped: 0 });
-
-      const files = await FileLoader.loadAudioFiles();
-      
-      if (files.length === 0) {
-        toast({
-          title: "No files selected",
-          description: "Please select some audio files to import.",
-        });
-        return;
-      }
-
-      setStats(prev => ({ ...prev, total: files.length }));
-
-      // Simulate processing files (in real pywebview app, this would process actual files)
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        setProgress(((i + 1) / files.length) * 100);
-        
-        // Check if file already exists
-        const existingSongs = storage.getSongs();
-        const exists = existingSongs.some(song => 
-          song.file_path === file.path || 
-          song.title === FileLoader.parseFilename(file.name).title
-        );
-        
-        if (exists) {
-          setStats(prev => ({ ...prev, processed: prev.processed + 1, skipped: prev.skipped + 1 }));
-          setProcessedFiles(prev => [...prev, `${file.name} (skipped - already exists)`]);
-        } else {
-          // In real app, we'd create File objects and process them
-          // For demo, we'll create sample entries
-          const metadata = FileLoader.parseFilename(file.name);
-          storage.addSong({
-            title: metadata.title || file.name,
-            artist: metadata.artist || 'Unknown Artist',
-            album: metadata.album,
-            genre: metadata.genre,
-            year: metadata.year,
-            bpm: FileLoader.estimateBPM(file.name),
-            musical_key: FileLoader.detectKey(file.name),
-            file_path: file.path,
-            danceability: 0,
-            energy: 0,
-            social_acceptance: 0,
-          });
-          
-          setStats(prev => ({ ...prev, processed: prev.processed + 1, added: prev.added + 1 }));
-          setProcessedFiles(prev => [...prev, `${file.name} (added)`]);
-        }
-        
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
+      setScanResult(null);
+      const result = await api.post<ScanResult>("/library/scan", { root_path: rootPath });
+      setScanResult(result);
+      loadCurrentState();
       toast({
-        title: "Import complete!",
-        description: `Added ${stats.added + files.length - stats.skipped} new tracks to your library.`,
+        title: "Scan complete",
+        description: `Found ${result.total} files, added ${result.added} tracks.`,
       });
-
-    } catch (error: any) {
+    } catch (e: any) {
       toast({
-        title: "Error importing files",
-        description: error.message || "Failed to import audio files",
+        title: "Scan failed",
+        description: e.message || "Failed to scan folder.",
         variant: "destructive",
       });
     } finally {
@@ -105,224 +105,143 @@ export default function LoadFiles() {
     }
   };
 
-  const handleLoadDirectory = async () => {
+  const handleAnalyzeAll = async () => {
     try {
       setLoading(true);
-      const files = await FileLoader.loadDirectory();
-      
-      if (files.length === 0) {
-        toast({
-          title: "No audio files found",
-          description: "The selected directory doesn't contain any supported audio files.",
-        });
-        return;
-      }
-
+      const result = await api.post<{ analyzed: number; updated: number; skipped: number; errors: string[] }>("/library/analyze-all");
       toast({
-        title: "Directory scanned",
-        description: `Found ${files.length} audio files. Processing...`,
+        title: "Analysis complete",
+        description: `Analyzed ${result.analyzed} tracks, updated ${result.updated} with BPM/key.`,
       });
-
-      // Process the files similar to handleLoadFiles
-      // Implementation would be similar to above
-      
-    } catch (error: any) {
-      toast({
-        title: "Error scanning directory",
-        description: error.message || "Failed to scan directory",
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: "Analysis failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-          Load Audio Files
-        </h1>
-        <p className="text-muted-foreground">
-          Import your music files into the DJ database for organization and analysis
+        <h2 className="text-2xl font-bold text-orange-500 mb-1">Load Files</h2>
+        <p className="text-sm text-muted-foreground">
+          Select your music root folder and scan it to import tracks with real metadata.
         </p>
       </div>
 
-      {/* Supported Formats */}
-      <Card className="bg-gradient-card border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" />
-            Supported Audio Formats
+      {/* Root folder section */}
+      <Card className="bg-card/50 border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Folder className="h-4 w-4" />
+            Root Folder
           </CardTitle>
+          <CardDescription>
+            The top-level folder containing all your music crates.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {SUPPORTED_AUDIO_EXTENSIONS.map((ext) => (
-              <Badge key={ext} variant="secondary" className="text-xs">
-                {ext.replace('.', '').toUpperCase()}
-              </Badge>
-            ))}
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="/home/tim/Music"
+              value={rootPath}
+              onChange={(e) => setRootPath(e.target.value)}
+              className="flex-1"
+            />
+            <Button variant="outline" onClick={handlePickFolder}>
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Browse
+            </Button>
+            <Button onClick={() => handleSaveRoot()} variant="secondary">
+              Save
+            </Button>
           </div>
-          <p className="text-sm text-muted-foreground mt-3">
-            The system will automatically extract metadata from filenames and ID3 tags where available.
+          {currentRoot && (
+            <p className="text-xs text-muted-foreground">
+              Current: <code className="bg-muted px-1 rounded">{currentRoot}</code>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Scan section */}
+      <Card className="bg-card/50 border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ScanLine className="h-4 w-4" />
+            Scan Library
+          </CardTitle>
+          <CardDescription>
+            Scans the root folder recursively for audio files and imports them with metadata.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button onClick={handleScan} disabled={loading || !rootPath} className="w-full bg-orange-600 hover:bg-orange-700">
+            {loading ? "Scanning..." : "Scan Library"}
+          </Button>
+
+          {scanResult && (
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-3 bg-muted/30 rounded">
+                  <div className="text-2xl font-bold text-orange-500">{scanResult.total}</div>
+                  <div className="text-xs text-muted-foreground">Found</div>
+                </div>
+                <div className="text-center p-3 bg-muted/30 rounded">
+                  <div className="text-2xl font-bold text-green-500">{scanResult.added}</div>
+                  <div className="text-xs text-muted-foreground">Added</div>
+                </div>
+                <div className="text-center p-3 bg-muted/30 rounded">
+                  <div className="text-2xl font-bold text-muted-foreground">{scanResult.skipped}</div>
+                  <div className="text-xs text-muted-foreground">Skipped</div>
+                </div>
+              </div>
+
+              {scanResult.errors.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-red-400 font-medium">Errors:</p>
+                  {scanResult.errors.map((err, i) => (
+                    <p key={i} className="text-xs text-red-400/80 flex items-start gap-1">
+                      <XCircle className="h-3 w-3 mt-0.5 shrink-0" /> {err}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="flex gap-2">
+            <Button onClick={handleAnalyzeAll} disabled={loading} variant="outline" className="flex-1">
+              {loading ? "Analyzing..." : "Analyze BPM/Key"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Runs librosa audio analysis to detect BPM and key for tracks missing them (~3-5s per track).
           </p>
         </CardContent>
       </Card>
 
-      {/* Import Options */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="bg-gradient-card border-border/50 hover:shadow-elevated transition-all duration-300">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileAudio className="w-5 h-5 text-accent" />
-              Select Individual Files
-            </CardTitle>
-            <CardDescription>
-              Choose specific audio files from your computer
-            </CardDescription>
+      {/* Crates section */}
+      {crates.length > 0 && (
+        <Card className="bg-card/50 border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Crates</CardTitle>
+            <CardDescription>Your music folders detected in the library.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              onClick={handleLoadFiles}
-              disabled={loading}
-              className="w-full bg-gradient-primary hover:shadow-glow"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {loading ? 'Processing...' : 'Select Files'}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-card border-border/50 hover:shadow-elevated transition-all duration-300">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Folder className="w-5 h-5 text-secondary" />
-              Scan Directory
-            </CardTitle>
-            <CardDescription>
-              Recursively scan a folder for all audio files
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              onClick={handleLoadDirectory}
-              disabled={loading}
-              variant="outline"
-              className="w-full border-border hover:bg-muted"
-            >
-              <FolderOpen className="w-4 h-4 mr-2" />
-              {loading ? 'Scanning...' : 'Scan Folder'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Progress Section */}
-      {loading && (
-        <Card className="bg-gradient-card border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Music className="w-5 h-5 text-primary animate-pulse" />
-              Processing Files
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-              <Progress value={progress} className="w-full" />
-            </div>
-            
-            <div className="grid grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-primary">{stats.total}</div>
-                <div className="text-xs text-muted-foreground">Total Files</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-accent">{stats.processed}</div>
-                <div className="text-xs text-muted-foreground">Processed</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-energy-high">{stats.added}</div>
-                <div className="text-xs text-muted-foreground">Added</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-muted-foreground">{stats.skipped}</div>
-                <div className="text-xs text-muted-foreground">Skipped</div>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {crates.map((c) => (
+                <Badge key={c.name} variant="secondary" className="bg-orange-900/30 text-orange-300 border-orange-800">
+                  <Music className="h-3 w-3 mr-1" />
+                  {c.name} ({c.track_count})
+                </Badge>
+              ))}
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Results */}
-      {processedFiles.length > 0 && (
-        <Card className="bg-gradient-card border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-energy-high" />
-              Import Results
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {processedFiles.map((file, index) => {
-                const isSkipped = file.includes('(skipped');
-                return (
-                  <div 
-                    key={index}
-                    className="flex items-center gap-2 text-sm p-2 rounded bg-muted/30"
-                  >
-                    {isSkipped ? (
-                      <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    ) : (
-                      <CheckCircle className="w-4 h-4 text-energy-high flex-shrink-0" />
-                    )}
-                    <span className={isSkipped ? 'text-muted-foreground' : 'text-foreground'}>
-                      {file}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tips */}
-      <Card className="bg-gradient-card border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="w-5 h-5 text-secondary" />
-            Import Tips
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">Filename Conventions</h4>
-            <p className="text-xs text-muted-foreground">
-              Use formats like "Artist - Title" or "Artist - Album - Title" for better metadata detection.
-            </p>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">BPM Detection</h4>
-            <p className="text-xs text-muted-foreground">
-              Include BPM in filenames (e.g., "Song Name 128bpm") for automatic tempo detection.
-            </p>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">Key Detection</h4>
-            <p className="text-xs text-muted-foreground">
-              Musical keys in filenames (e.g., "Song Am" or "Song A minor") will be automatically detected.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

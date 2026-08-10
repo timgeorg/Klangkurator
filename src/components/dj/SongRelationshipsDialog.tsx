@@ -56,9 +56,9 @@ interface ExistingRelationship {
 }
 
 // Helper to load relationships for a song
-function loadRelationshipsForSong(song: Song) {
-  const allRelationships = storage.getSongRelationships();
-  const allSongs = storage.getSongs();
+async function loadRelationshipsForSong(song: Song) {
+  const allRelationships = await storage.getSongRelationships();
+  const allSongs = await storage.getSongs();
   
   const asSource = allRelationships
     .filter(rel => rel.source_song_id === song.id)
@@ -79,9 +79,9 @@ function loadRelationshipsForSong(song: Song) {
   return { asSource, asTarget };
 }
 
-function toExistingRelationships(song: Song): ExistingRelationship[] {
-  const allRelationships = storage.getSongRelationships();
-  const allSongs = storage.getSongs();
+async function toExistingRelationships(song: Song): Promise<ExistingRelationship[]> {
+  const allRelationships = await storage.getSongRelationships();
+  const allSongs = await storage.getSongs();
   const existing: ExistingRelationship[] = [];
 
   allRelationships.forEach(rel => {
@@ -135,14 +135,19 @@ export function SongRelationshipsDialog({
   // Load edit data when song changes
   useEffect(() => {
     if (song && open) {
-      const songs = storage.getSongs();
-      setAllSongs(songs.filter(s => s.id !== song.id));
-      setExistingRelationships(toExistingRelationships(song));
-      const memberships = storage.getPlaylistsForSong(song.id);
-      setPlaylistMemberships(memberships);
-      resetForm();
+      loadEditData();
     }
   }, [song?.id, open]);
+
+  const loadEditData = async () => {
+    if (!song) return;
+    const allSongsData = await storage.getSongs();
+    setAllSongs(allSongsData.filter(s => s.id !== song.id));
+    setExistingRelationships(await toExistingRelationships(song));
+    const memberships = await storage.getPlaylistsForSong(song.id);
+    setPlaylistMemberships(memberships);
+    resetForm();
+  };
 
   const resetForm = () => {
     setShowAddForm(false);
@@ -152,22 +157,22 @@ export function SongRelationshipsDialog({
     setSongSearchQuery('');
   };
 
-  const refreshRelationships = useCallback(() => {
+  const refreshRelationships = useCallback(async () => {
     if (!song) return;
-    const newRels = loadRelationshipsForSong(song);
+    const newRels = await loadRelationshipsForSong(song);
     setCurrentRelationships(newRels);
-    setExistingRelationships(toExistingRelationships(song));
+    setExistingRelationships(await toExistingRelationships(song));
     onSave?.();
   }, [song, onSave]);
 
-  const handleAddRelationship = () => {
+  const handleAddRelationship = async () => {
     if (!song || !newRelationType || !newTargetSongId) {
       toast({ title: "Missing information", description: "Please select a relationship type and target song.", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
-      storage.addSongRelationship({
+      await storage.addSongRelationship({
         source_song_id: song.id,
         target_song_id: newTargetSongId,
         relationship_type: newRelationType as SongRelationship['relationship_type'],
@@ -175,7 +180,7 @@ export function SongRelationshipsDialog({
       });
       toast({ title: "Relationship added", description: "The song relationship has been created." });
       resetForm();
-      refreshRelationships();
+      await refreshRelationships();
     } catch (error) {
       toast({ title: "Error adding relationship", description: "Failed to add relationship.", variant: "destructive" });
     } finally {
@@ -183,11 +188,11 @@ export function SongRelationshipsDialog({
     }
   };
 
-  const handleDeleteRelationship = (relationshipId: string) => {
+  const handleDeleteRelationship = async (relationshipId: string) => {
     try {
-      storage.deleteSongRelationship(relationshipId);
+      await storage.deleteSongRelationship(relationshipId);
       toast({ title: "Relationship deleted", description: "The song relationship has been removed." });
-      refreshRelationships();
+      await refreshRelationships();
     } catch (error) {
       toast({ title: "Error deleting relationship", description: "Failed to delete relationship.", variant: "destructive" });
     }

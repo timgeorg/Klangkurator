@@ -78,18 +78,18 @@ function EditTagDialog({ tag, open, onOpenChange, onSave, isNew }: EditTagDialog
     }
   }, [tag, open]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({ title: 'Name required', description: 'Please enter a tag name.', variant: 'destructive' });
       return;
     }
 
     if (isNew) {
-      const newTag = storage.addTag({ name: name.trim(), color });
+      const newTag = await storage.addTag({ name: name.trim(), color });
       onSave(newTag);
       toast({ title: 'Tag created', description: `"${name}" has been added.` });
     } else if (tag) {
-      const updated = storage.updateTag(tag.id, { name: name.trim(), color });
+      const updated = await storage.updateTag(tag.id, { name: name.trim(), color });
       if (updated) {
         onSave(updated);
         toast({ title: 'Tag updated', description: `"${name}" has been saved.` });
@@ -193,8 +193,8 @@ export default function Settings() {
     loadGenreConfig();
   }, []);
 
-  const loadTags = () => {
-    setTags(storage.getTags());
+  const loadTags = async () => {
+    setTags(await storage.getTags());
   };
 
   const loadGenreConfig = () => {
@@ -217,8 +217,8 @@ export default function Settings() {
     loadTags();
   };
 
-  const handleDeleteTag = (tagId: string) => {
-    storage.deleteTag(tagId);
+  const handleDeleteTag = async (tagId: string) => {
+    await storage.deleteTag(tagId);
     loadTags();
     setDeleteTagId(null);
     toast({ title: 'Tag deleted', description: 'The tag has been removed.' });

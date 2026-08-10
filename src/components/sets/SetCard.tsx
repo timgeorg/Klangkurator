@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { DJSet, Block, Song, storage } from '@/lib/storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,13 @@ interface SetCardProps {
 }
 
 export function SetCard({ djSet, onEdit, onDelete }: SetCardProps) {
-  const allSongs = storage.getSongs();
-  const allBlocks = storage.getBlocks();
+  const [allSongs, setAllSongs] = useState<Song[]>([]);
+  const [allBlocks, setAllBlocks] = useState<Block[]>([]);
+
+  useEffect(() => {
+    storage.getSongs().then(setAllSongs);
+    storage.getBlocks().then(setAllBlocks);
+  }, []);
 
   // Count songs and blocks
   const songCount = djSet.items.filter(i => i.type === 'song').length;

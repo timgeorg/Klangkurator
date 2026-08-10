@@ -42,30 +42,34 @@ export function BlockEditor({ block, open, onOpenChange, onSave }: BlockEditorPr
   // Load data when dialog opens
   useEffect(() => {
     if (open) {
-      const songs = storage.getSongs();
-      setAllSongs(songs);
-
-      if (block) {
-        setName(block.name);
-        setDescription(block.description || '');
-        setColor(block.color);
-        
-        // Load block songs with song data
-        const enrichedSongs = block.songs
-          .sort((a, b) => a.position - b.position)
-          .map(bs => ({
-            ...bs,
-            song: songs.find(s => s.id === bs.song_id)
-          }));
-        setBlockSongs(enrichedSongs);
-      } else {
-        setName('');
-        setDescription('');
-        setColor(BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)]);
-        setBlockSongs([]);
-      }
+      loadEditorData();
     }
   }, [block, open]);
+
+  const loadEditorData = async () => {
+    const songs = await storage.getSongs();
+    setAllSongs(songs);
+
+    if (block) {
+      setName(block.name);
+      setDescription(block.description || '');
+      setColor(block.color);
+      
+      // Load block songs with song data
+      const enrichedSongs = block.songs
+        .sort((a, b) => a.position - b.position)
+        .map(bs => ({
+          ...bs,
+          song: songs.find(s => s.id === bs.song_id)
+        }));
+      setBlockSongs(enrichedSongs);
+    } else {
+      setName('');
+      setDescription('');
+      setColor(BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)]);
+      setBlockSongs([]);
+    }
+  };
 
   const handleAddSong = (songId: string) => {
     const song = allSongs.find(s => s.id === songId);
@@ -107,7 +111,7 @@ export function BlockEditor({ block, open, onOpenChange, onSave }: BlockEditorPr
     setBlockSongs(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({
         title: "Name required",
@@ -141,10 +145,10 @@ export function BlockEditor({ block, open, onOpenChange, onSave }: BlockEditorPr
       };
 
       if (block) {
-        storage.updateBlock(block.id, blockData);
+        await storage.updateBlock(block.id, blockData);
         toast({ title: "Block updated", description: "Your block has been saved." });
       } else {
-        storage.addBlock(blockData);
+        await storage.addBlock(blockData);
         toast({ title: "Block created", description: "Your new block has been created." });
       }
 

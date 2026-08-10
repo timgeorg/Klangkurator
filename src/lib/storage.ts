@@ -1,4 +1,11 @@
-// Local storage service for DJ database
+// Unified storage service — LocalStorage (browser dev) or RemoteStorage (backend API).
+// All methods are async so they work with both backends.
+// All 20 consuming components use `storage.*` — a Proxy resolves to the active backend.
+
+import { api } from "./api";
+
+// ── Interfaces (unchanged from original) ──────────────────
+
 export interface Song {
   id: string;
   title: string;
@@ -6,9 +13,9 @@ export interface Song {
   album?: string;
   bpm?: number;
   musical_key?: string;
-  duration?: number; // in seconds
-  mainGenre?: string; // Primary genre (e.g., House, Techno)
-  subgenres?: string[]; // Detailed subgenres (e.g., Minimal, Deep Tech)
+  duration?: number;
+  mainGenre?: string;
+  subgenres?: string[];
   /** @deprecated Use mainGenre and subgenres instead */
   genres?: string[];
   /** @deprecated Use mainGenre instead */
@@ -16,20 +23,17 @@ export interface Song {
   year?: number;
   file_path: string;
   artwork_url?: string;
-  
-  // DJ-specific ratings (0-5 scale)
   danceability: number;
   energy: number;
   social_acceptance: number;
-  
-  // Notes about sound characteristics
   drum_notes?: string;
   element_notes?: string;
   mixing_notes?: string;
-  
-  // Lyrics
   lyrics?: string;
-  
+  phase_tags?: string[];
+  vibe_tags?: string[];
+  transition_notes?: string;
+  root_folder?: string;
   created_at: string;
   updated_at: string;
 }
@@ -55,7 +59,6 @@ export interface SongRelationship {
   created_at: string;
 }
 
-// Utility interface for playlist membership display
 export interface SongPlaylistMembership {
   playlist: Playlist;
   position: number;
@@ -78,11 +81,10 @@ export interface PlaylistSong {
   position: number;
 }
 
-// Block = a sequence of songs with transitions
 export interface BlockSong {
   song_id: string;
   position: number;
-  transition_notes?: string; // Notes about transition TO the next song
+  transition_notes?: string;
 }
 
 export interface Block {
@@ -95,19 +97,30 @@ export interface Block {
   updated_at: string;
 }
 
-// Set = a sequence of songs/blocks with transitions (including alternatives)
+export interface AltTransition {
+  ref_id: string;
+  label?: string;
+}
+
 export interface SetItem {
   id: string;
   type: 'song' | 'block';
+  ref_id: string;                    // new unified reference field
+  /** @legacy frontend uses these before migration */
   song_id?: string;
   block_id?: string;
   position: number;
-  transition_notes?: string; // Primary transition to next item
-  alternative_transitions?: Array<{
-    to_song_id?: string;
-    to_block_id?: string;
-    notes?: string;
-  }>;
+  transition_notes?: string;
+  alternative_transitions?: AltTransition[];
+}
+
+export interface SetPhase {
+  id: string;
+  name: string;
+  position: number;
+  target_duration_min?: number;
+  notes?: string;
+  items: SetItem[];
 }
 
 export interface DJSet {
@@ -115,421 +128,278 @@ export interface DJSet {
   name: string;
   description?: string;
   color: string;
-  items: SetItem[];
+  items: SetItem[];        // legacy flat model
+  phases: SetPhase[];      // new phase-based model
+  event_name?: string;
+  event_date?: string;
+  target_duration_min?: number;
+  crates?: string[];
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
 
-class LocalStorage {
-  private getKey(type: string): string {
-    return `dj_database_${type}`;
-  }
+// ── Storage interface ─────────────────────────────────────
 
-  private getData<T>(key: string): T[] {
-    const data = localStorage.getItem(this.getKey(key));
-    return data ? JSON.parse(data) : [];
-  }
-
-  private setData<T>(key: string, data: T[]): void {
-    localStorage.setItem(this.getKey(key), JSON.stringify(data));
-  }
-
-  // Songs
-  getSongs(): Song[] {
-    return this.getData<Song>('songs');
-  }
-
-  addSong(song: Omit<Song, 'id' | 'created_at' | 'updated_at'>): Song {
-    const songs = this.getSongs();
-    const newSong: Song = {
-      ...song,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    songs.push(newSong);
-    this.setData('songs', songs);
-    return newSong;
-  }
-
-  updateSong(id: string, updates: Partial<Song>): Song | null {
-    const songs = this.getSongs();
-    const index = songs.findIndex(s => s.id === id);
-    if (index === -1) return null;
-    
-    songs[index] = { ...songs[index], ...updates, updated_at: new Date().toISOString() };
-    this.setData('songs', songs);
-    return songs[index];
-  }
-
-  deleteSong(id: string): boolean {
-    const songs = this.getSongs();
-    const filtered = songs.filter(s => s.id !== id);
-    if (filtered.length === songs.length) return false;
-    
-    this.setData('songs', filtered);
-    
-    // Also remove from song_tags and relationships
-    const songTags = this.getSongTags().filter(st => st.song_id !== id);
-    this.setData('song_tags', songTags);
-    
-    const relationships = this.getSongRelationships().filter(
-      r => r.source_song_id !== id && r.target_song_id !== id
-    );
-    this.setData('song_relationships', relationships);
-    
-    return true;
-  }
-
-  // Tags
-  getTags(): Tag[] {
-    return this.getData<Tag>('tags');
-  }
-
-  addTag(tag: Omit<Tag, 'id' | 'created_at'>): Tag {
-    const tags = this.getTags();
-    const newTag: Tag = {
-      ...tag,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-    tags.push(newTag);
-    this.setData('tags', tags);
-    return newTag;
-  }
-
-  updateTag(id: string, updates: Partial<Tag>): Tag | null {
-    const tags = this.getTags();
-    const index = tags.findIndex(t => t.id === id);
-    if (index === -1) return null;
-    
-    tags[index] = { ...tags[index], ...updates };
-    this.setData('tags', tags);
-    return tags[index];
-  }
-
-  deleteTag(id: string): boolean {
-    const tags = this.getTags();
-    const filtered = tags.filter(t => t.id !== id);
-    if (filtered.length === tags.length) return false;
-    
-    this.setData('tags', filtered);
-    
-    // Also remove from song_tags
-    const songTags = this.getSongTags().filter(st => st.tag_id !== id);
-    this.setData('song_tags', songTags);
-    
-    return true;
-  }
-
-  // Song Tags
-  getSongTags(): SongTag[] {
-    return this.getData<SongTag>('song_tags');
-  }
-
-  addSongTag(songId: string, tagId: string): void {
-    const songTags = this.getSongTags();
-    const exists = songTags.some(st => st.song_id === songId && st.tag_id === tagId);
-    if (!exists) {
-      songTags.push({ song_id: songId, tag_id: tagId });
-      this.setData('song_tags', songTags);
-    }
-  }
-
-  removeSongTag(songId: string, tagId: string): void {
-    const songTags = this.getSongTags();
-    const filtered = songTags.filter(st => !(st.song_id === songId && st.tag_id === tagId));
-    this.setData('song_tags', filtered);
-  }
-
-  // Song Relationships
-  getSongRelationships(): SongRelationship[] {
-    return this.getData<SongRelationship>('song_relationships');
-  }
-
-  addSongRelationship(relationship: Omit<SongRelationship, 'id' | 'created_at'>): SongRelationship {
-    const relationships = this.getSongRelationships();
-    const newRelationship: SongRelationship = {
-      ...relationship,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-    relationships.push(newRelationship);
-    this.setData('song_relationships', relationships);
-    return newRelationship;
-  }
-
-  deleteSongRelationship(id: string): boolean {
-    const relationships = this.getSongRelationships();
-    const filtered = relationships.filter(r => r.id !== id);
-    if (filtered.length === relationships.length) return false;
-    
-    this.setData('song_relationships', filtered);
-    return true;
-  }
-
-  // Playlists
-  getPlaylists(): Playlist[] {
-    return this.getData<Playlist>('playlists');
-  }
-
-  addPlaylist(playlist: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>): Playlist {
-    const playlists = this.getPlaylists();
-    const newPlaylist: Playlist = {
-      ...playlist,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    playlists.push(newPlaylist);
-    this.setData('playlists', playlists);
-    return newPlaylist;
-  }
-
-  updatePlaylist(id: string, updates: Partial<Playlist>): Playlist | null {
-    const playlists = this.getPlaylists();
-    const index = playlists.findIndex(p => p.id === id);
-    if (index === -1) return null;
-    
-    playlists[index] = { ...playlists[index], ...updates, updated_at: new Date().toISOString() };
-    this.setData('playlists', playlists);
-    return playlists[index];
-  }
-
-  deletePlaylist(id: string): boolean {
-    const playlists = this.getPlaylists();
-    const filtered = playlists.filter(p => p.id !== id);
-    if (filtered.length === playlists.length) return false;
-    
-    this.setData('playlists', filtered);
-    
-    // Also remove playlist songs
-    const playlistSongs = this.getPlaylistSongs().filter(ps => ps.playlist_id !== id);
-    this.setData('playlist_songs', playlistSongs);
-    
-    return true;
-  }
-
-  // Playlist Songs
-  getPlaylistSongs(): PlaylistSong[] {
-    return this.getData<PlaylistSong>('playlist_songs');
-  }
-
-  addPlaylistSong(playlistId: string, songId: string, position?: number): void {
-    const playlistSongs = this.getPlaylistSongs();
-    const exists = playlistSongs.some(ps => ps.playlist_id === playlistId && ps.song_id === songId);
-    if (!exists) {
-      const maxPosition = Math.max(...playlistSongs
-        .filter(ps => ps.playlist_id === playlistId)
-        .map(ps => ps.position), -1);
-      
-      playlistSongs.push({ 
-        playlist_id: playlistId, 
-        song_id: songId, 
-        position: position ?? maxPosition + 1 
-      });
-      this.setData('playlist_songs', playlistSongs);
-    }
-  }
-
-  removePlaylistSong(playlistId: string, songId: string): void {
-    const playlistSongs = this.getPlaylistSongs();
-    const filtered = playlistSongs.filter(ps => !(ps.playlist_id === playlistId && ps.song_id === songId));
-    this.setData('playlist_songs', filtered);
-  }
-
-  // Blocks
-  getBlocks(): Block[] {
-    return this.getData<Block>('blocks');
-  }
-
-  addBlock(block: Omit<Block, 'id' | 'created_at' | 'updated_at'>): Block {
-    const blocks = this.getBlocks();
-    const newBlock: Block = {
-      ...block,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    blocks.push(newBlock);
-    this.setData('blocks', blocks);
-    return newBlock;
-  }
-
-  updateBlock(id: string, updates: Partial<Block>): Block | null {
-    const blocks = this.getBlocks();
-    const index = blocks.findIndex(b => b.id === id);
-    if (index === -1) return null;
-    
-    blocks[index] = { ...blocks[index], ...updates, updated_at: new Date().toISOString() };
-    this.setData('blocks', blocks);
-    return blocks[index];
-  }
-
-  deleteBlock(id: string): boolean {
-    const blocks = this.getBlocks();
-    const filtered = blocks.filter(b => b.id !== id);
-    if (filtered.length === blocks.length) return false;
-    
-    this.setData('blocks', filtered);
-    return true;
-  }
-
-  getBlockWithSongs(blockId: string): { block: Block; songs: Song[] } | null {
-    const blocks = this.getBlocks();
-    const block = blocks.find(b => b.id === blockId);
-    if (!block) return null;
-
-    const allSongs = this.getSongs();
-    const songs = block.songs
-      .sort((a, b) => a.position - b.position)
-      .map(bs => allSongs.find(s => s.id === bs.song_id))
-      .filter(Boolean) as Song[];
-
-    return { block, songs };
-  }
-
-  // DJ Sets
-  getSets(): DJSet[] {
-    return this.getData<DJSet>('sets');
-  }
-
-  addSet(set: Omit<DJSet, 'id' | 'created_at' | 'updated_at'>): DJSet {
-    const sets = this.getSets();
-    const newSet: DJSet = {
-      ...set,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    sets.push(newSet);
-    this.setData('sets', sets);
-    return newSet;
-  }
-
-  updateSet(id: string, updates: Partial<DJSet>): DJSet | null {
-    const sets = this.getSets();
-    const index = sets.findIndex(s => s.id === id);
-    if (index === -1) return null;
-    
-    sets[index] = { ...sets[index], ...updates, updated_at: new Date().toISOString() };
-    this.setData('sets', sets);
-    return sets[index];
-  }
-
-  deleteSet(id: string): boolean {
-    const sets = this.getSets();
-    const filtered = sets.filter(s => s.id !== id);
-    if (filtered.length === sets.length) return false;
-    
-    this.setData('sets', filtered);
-    return true;
-  }
-
-  // Get transition suggestions for a song based on existing relationships
-  getTransitionSuggestions(songId: string): Array<{ song: Song; notes?: string }> {
-    const relationships = this.getSongRelationships()
-      .filter(r => r.relationship_type === 'transition' && r.source_song_id === songId);
-    const songs = this.getSongs();
-    
-    return relationships.map(rel => {
-      const song = songs.find(s => s.id === rel.target_song_id);
-      return song ? { song, notes: rel.notes } : null;
-    }).filter(Boolean) as Array<{ song: Song; notes?: string }>;
-  }
-
-  // Utility methods
-  searchSongs(query: string): Song[] {
-    const songs = this.getSongs();
-    const lowerQuery = query.toLowerCase();
-    return songs.filter(song =>
-      song.title.toLowerCase().includes(lowerQuery) ||
-      song.artist.toLowerCase().includes(lowerQuery) ||
-      song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
-      song.genre?.toLowerCase().includes(lowerQuery) || // Legacy support
-      song.musical_key?.toLowerCase().includes(lowerQuery) ||
-      song.album?.toLowerCase().includes(lowerQuery)
-    );
-  }
-
-  getTagsForSong(songId: string): Tag[] {
-    const songTags = this.getSongTags().filter(st => st.song_id === songId);
-    const tags = this.getTags();
-    return songTags.map(st => tags.find(t => t.id === st.tag_id)).filter(Boolean) as Tag[];
-  }
-
-  getSongsForTag(tagId: string): Song[] {
-    const songTags = this.getSongTags().filter(st => st.tag_id === tagId);
-    const songs = this.getSongs();
-    return songTags.map(st => songs.find(s => s.id === st.song_id)).filter(Boolean) as Song[];
-  }
-
-  getRelatedSongs(songId: string): Array<{ song: Song; relationship: SongRelationship; direction: 'source' | 'target' }> {
-    const relationships = this.getSongRelationships();
-    const songs = this.getSongs();
-    const related: Array<{ song: Song; relationship: SongRelationship; direction: 'source' | 'target' }> = [];
-
-    relationships.forEach(rel => {
-      if (rel.source_song_id === songId) {
-        const targetSong = songs.find(s => s.id === rel.target_song_id);
-        if (targetSong) {
-          related.push({ song: targetSong, relationship: rel, direction: 'target' });
-        }
-      } else if (rel.target_song_id === songId) {
-        const sourceSong = songs.find(s => s.id === rel.source_song_id);
-        if (sourceSong) {
-          related.push({ song: sourceSong, relationship: rel, direction: 'source' });
-        }
-      }
-    });
-
-    return related;
-  }
-
-  getPlaylistsForSong(songId: string): SongPlaylistMembership[] {
-    const playlistSongs = this.getPlaylistSongs().filter(ps => ps.song_id === songId);
-    const playlists = this.getPlaylists();
-    return playlistSongs.map(ps => {
-      const playlist = playlists.find(p => p.id === ps.playlist_id);
-      return playlist ? { playlist, position: ps.position } : null;
-    }).filter(Boolean) as SongPlaylistMembership[];
-  }
-
-  // Export/Import functionality for backup
-  exportData(): string {
-    const data = {
-      songs: this.getSongs(),
-      tags: this.getTags(),
-      song_tags: this.getSongTags(),
-      song_relationships: this.getSongRelationships(),
-      playlists: this.getPlaylists(),
-      playlist_songs: this.getPlaylistSongs(),
-      blocks: this.getBlocks(),
-      sets: this.getSets(),
-      exported_at: new Date().toISOString(),
-    };
-    return JSON.stringify(data, null, 2);
-  }
-
-  importData(jsonData: string): boolean {
-    try {
-      const data = JSON.parse(jsonData);
-      
-      if (data.songs) this.setData('songs', data.songs);
-      if (data.tags) this.setData('tags', data.tags);
-      if (data.song_tags) this.setData('song_tags', data.song_tags);
-      if (data.song_relationships) this.setData('song_relationships', data.song_relationships);
-      if (data.playlists) this.setData('playlists', data.playlists);
-      if (data.playlist_songs) this.setData('playlist_songs', data.playlist_songs);
-      if (data.blocks) this.setData('blocks', data.blocks);
-      if (data.sets) this.setData('sets', data.sets);
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to import data:', error);
-      return false;
-    }
-  }
+export interface StorageInterface {
+  getSongs(): Promise<Song[]>;
+  getSong(id: string): Promise<Song | null>;
+  addSong(song: Omit<Song, 'id' | 'created_at' | 'updated_at'>): Promise<Song>;
+  updateSong(id: string, updates: Partial<Song>): Promise<Song | null>;
+  deleteSong(id: string): Promise<boolean>;
+  getTags(): Promise<Tag[]>;
+  addTag(tag: Omit<Tag, 'id' | 'created_at'>): Promise<Tag>;
+  updateTag(id: string, updates: Partial<Tag>): Promise<Tag | null>;
+  deleteTag(id: string): Promise<boolean>;
+  getSongTags(): Promise<SongTag[]>;
+  addSongTag(songId: string, tagId: string): Promise<void>;
+  removeSongTag(songId: string, tagId: string): Promise<void>;
+  getSongRelationships(): Promise<SongRelationship[]>;
+  addSongRelationship(rel: Omit<SongRelationship, 'id' | 'created_at'>): Promise<SongRelationship>;
+  deleteSongRelationship(id: string): Promise<boolean>;
+  getPlaylists(): Promise<Playlist[]>;
+  addPlaylist(p: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>): Promise<Playlist>;
+  updatePlaylist(id: string, updates: Partial<Playlist>): Promise<Playlist | null>;
+  deletePlaylist(id: string): Promise<boolean>;
+  getPlaylistSongs(): Promise<PlaylistSong[]>;
+  addPlaylistSong(playlistId: string, songId: string, position?: number): Promise<void>;
+  removePlaylistSong(playlistId: string, songId: string): Promise<void>;
+  getBlocks(): Promise<Block[]>;
+  addBlock(block: Omit<Block, 'id' | 'created_at' | 'updated_at'>): Promise<Block>;
+  updateBlock(id: string, updates: Partial<Block>): Promise<Block | null>;
+  deleteBlock(id: string): Promise<boolean>;
+  getSets(): Promise<DJSet[]>;
+  addSet(set: Omit<DJSet, 'id' | 'created_at' | 'updated_at'>): Promise<DJSet>;
+  updateSet(id: string, updates: Partial<DJSet>): Promise<DJSet | null>;
+  deleteSet(id: string): Promise<boolean>;
+  searchSongs(query: string): Promise<Song[]>;
+  getTagsForSong(songId: string): Promise<Tag[]>;
+  getSongsForTag(tagId: string): Promise<Song[]>;
+  getRelatedSongs(songId: string): Promise<Array<{ song: Song; relationship: SongRelationship; direction: 'source' | 'target' }>>;
+  getTransitionSuggestions(songId: string): Promise<Array<{ song: Song; notes?: string }>>;
+  getPlaylistsForSong(songId: string): Promise<SongPlaylistMembership[]>;
+  getBlockWithSongs(blockId: string): Promise<{ block: Block; songs: Song[] } | null>;
+  exportData(): Promise<string>;
+  importData(jsonData: string): Promise<boolean>;
 }
 
-export const storage = new LocalStorage();
+// ── LocalStorage implementation (browser dev fallback) ──────
+
+class LocalStorageImpl implements StorageInterface {
+  private getKey(t: string) { return `dj_database_${t}`; }
+  private getData<T>(k: string): T[] { const d = localStorage.getItem(this.getKey(k)); return d ? JSON.parse(d) : []; }
+  private setData<T>(k: string, v: T[]) { localStorage.setItem(this.getKey(k), JSON.stringify(v)); }
+
+  async getSongs() { return this.getData<Song>('songs'); }
+  async getSong(id: string) { return this.getData<Song>('songs').find(s => s.id === id) || null; }
+  async addSong(data: Omit<Song, 'id' | 'created_at' | 'updated_at'>) {
+    const s: Song = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    this.setData('songs', [...this.getData<Song>('songs'), s]); return s;
+  }
+  async updateSong(id: string, u: Partial<Song>) {
+    const a = this.getData<Song>('songs'); const i = a.findIndex(s => s.id === id);
+    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() }; this.setData('songs', a); return a[i];
+  }
+  async deleteSong(id: string) {
+    const b = this.getData<Song>('songs').length;
+    this.setData('songs', this.getData<Song>('songs').filter(s => s.id !== id));
+    if (this.getData<Song>('songs').length === b) return false;
+    this.setData('song_tags', this.getData<SongTag>('song_tags').filter(x => x.song_id !== id));
+    this.setData('song_relationships', this.getData<SongRelationship>('song_relationships').filter(r => r.source_song_id !== id && r.target_song_id !== id));
+    this.setData('playlist_songs', this.getData<PlaylistSong>('playlist_songs').filter(x => x.song_id !== id));
+    return true;
+  }
+  async getTags() { return this.getData<Tag>('tags'); }
+  async addTag(data: Omit<Tag, 'id' | 'created_at'>) {
+    const t: Tag = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+    this.setData('tags', [...this.getData<Tag>('tags'), t]); return t;
+  }
+  async updateTag(id: string, u: Partial<Tag>) {
+    const a = this.getData<Tag>('tags'); const i = a.findIndex(t => t.id === id);
+    if (i < 0) return null; a[i] = { ...a[i], ...u }; this.setData('tags', a); return a[i];
+  }
+  async deleteTag(id: string) {
+    const b = this.getData<Tag>('tags').length;
+    this.setData('tags', this.getData<Tag>('tags').filter(t => t.id !== id));
+    if (this.getData<Tag>('tags').length === b) return false;
+    this.setData('song_tags', this.getData<SongTag>('song_tags').filter(x => x.tag_id !== id)); return true;
+  }
+  async getSongTags() { return this.getData<SongTag>('song_tags'); }
+  async addSongTag(songId: string, tagId: string) {
+    const a = this.getSongTags();
+    if (!(await a).some(x => x.song_id === songId && x.tag_id === tagId)) this.setData('song_tags', [...await a, { song_id: songId, tag_id: tagId }]);
+  }
+  async removeSongTag(songId: string, tagId: string) { this.setData('song_tags', this.getData<SongTag>('song_tags').filter(x => !(x.song_id === songId && x.tag_id === tagId))); }
+  async getSongRelationships() { return this.getData<SongRelationship>('song_relationships'); }
+  async addSongRelationship(data: Omit<SongRelationship, 'id' | 'created_at'>) {
+    const r: SongRelationship = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+    this.setData('song_relationships', [...this.getData<SongRelationship>('song_relationships'), r]); return r;
+  }
+  async deleteSongRelationship(id: string) {
+    const b = this.getData<SongRelationship>('song_relationships').length;
+    this.setData('song_relationships', this.getData<SongRelationship>('song_relationships').filter(r => r.id !== id));
+    return this.getData<SongRelationship>('song_relationships').length < b;
+  }
+  async getPlaylists() { return this.getData<Playlist>('playlists'); }
+  async addPlaylist(data: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>) {
+    const p: Playlist = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    this.setData('playlists', [...this.getData<Playlist>('playlists'), p]); return p;
+  }
+  async updatePlaylist(id: string, u: Partial<Playlist>) {
+    const a = this.getData<Playlist>('playlists'); const i = a.findIndex(p => p.id === id);
+    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() }; this.setData('playlists', a); return a[i];
+  }
+  async deletePlaylist(id: string) {
+    const b = this.getData<Playlist>('playlists').length;
+    this.setData('playlists', this.getData<Playlist>('playlists').filter(p => p.id !== id));
+    if (this.getData<Playlist>('playlists').length === b) return false;
+    this.setData('playlist_songs', this.getData<PlaylistSong>('playlist_songs').filter(x => x.playlist_id !== id)); return true;
+  }
+  async getPlaylistSongs() { return this.getData<PlaylistSong>('playlist_songs'); }
+  async addPlaylistSong(pid: string, sid: string, pos?: number) {
+    const a = this.getPlaylistSongs();
+    if (!(await a).some(p => p.playlist_id === pid && p.song_id === sid)) {
+      const mp = Math.max(...(await a).filter(p => p.playlist_id === pid).map(p => p.position), -1);
+      this.setData('playlist_songs', [...await a, { playlist_id: pid, song_id: sid, position: pos ?? mp + 1 }]);
+    }
+  }
+  async removePlaylistSong(pid: string, sid: string) { this.setData('playlist_songs', this.getData<PlaylistSong>('playlist_songs').filter(x => !(x.playlist_id === pid && x.song_id === sid))); }
+  async getBlocks() { return this.getData<Block>('blocks'); }
+  async addBlock(data: Omit<Block, 'id' | 'created_at' | 'updated_at'>) {
+    const b: Block = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    this.setData('blocks', [...this.getData<Block>('blocks'), b]); return b;
+  }
+  async updateBlock(id: string, u: Partial<Block>) {
+    const a = this.getData<Block>('blocks'); const i = a.findIndex(b => b.id === id);
+    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() }; this.setData('blocks', a); return a[i];
+  }
+  async deleteBlock(id: string) {
+    const b = this.getData<Block>('blocks').length;
+    this.setData('blocks', this.getData<Block>('blocks').filter(b => b.id !== id));
+    return this.getData<Block>('blocks').length < b;
+  }
+  async getSets() { return this.getData<DJSet>('sets'); }
+  async addSet(data: Omit<DJSet, 'id' | 'created_at' | 'updated_at'>) {
+    const s: DJSet = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    this.setData('sets', [...this.getData<DJSet>('sets'), s]); return s;
+  }
+  async updateSet(id: string, u: Partial<DJSet>) {
+    const a = this.getData<DJSet>('sets'); const i = a.findIndex(s => s.id === id);
+    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() }; this.setData('sets', a); return a[i];
+  }
+  async deleteSet(id: string) {
+    const b = this.getData<DJSet>('sets').length;
+    this.setData('sets', this.getData<DJSet>('sets').filter(s => s.id !== id));
+    return this.getData<DJSet>('sets').length < b;
+  }
+  async searchSongs(q: string) {
+    const songs = await this.getSongs(); const lq = q.toLowerCase();
+    return songs.filter(s => s.title.toLowerCase().includes(lq) || s.artist.toLowerCase().includes(lq) || s.genres?.some(g => g.toLowerCase().includes(lq)) || s.genre?.toLowerCase().includes(lq) || s.musical_key?.toLowerCase().includes(lq) || s.album?.toLowerCase().includes(lq));
+  }
+  async getTagsForSong(sid: string) {
+    const st = await this.getSongTags(); const ids = st.filter(x => x.song_id === sid).map(x => x.tag_id);
+    return (await this.getTags()).filter(t => ids.includes(t.id));
+  }
+  async getSongsForTag(tid: string) {
+    const st = await this.getSongTags(); const ids = st.filter(x => x.tag_id === tid).map(x => x.song_id);
+    return (await this.getSongs()).filter(s => ids.includes(s.id));
+  }
+  async getRelatedSongs(id: string) {
+    const [rels, songs] = [await this.getSongRelationships(), await this.getSongs()];
+    const r: Array<{ song: Song; relationship: SongRelationship; direction: 'source' | 'target' }> = [];
+    rels.forEach(rel => {
+      if (rel.source_song_id === id) { const t = songs.find(s => s.id === rel.target_song_id); if (t) r.push({ song: t, relationship: rel, direction: 'target' }); }
+      else if (rel.target_song_id === id) { const s = songs.find(s => s.id === rel.source_song_id); if (s) r.push({ song: s, relationship: rel, direction: 'source' }); }
+    }); return r;
+  }
+  async getTransitionSuggestions(id: string) {
+    const [rels, songs] = [await this.getSongRelationships(), await this.getSongs()];
+    return rels.filter(r => r.relationship_type === 'transition' && r.source_song_id === id)
+      .map(rel => { const s = songs.find(s => s.id === rel.target_song_id); return s ? { song: s, notes: rel.notes } : null; })
+      .filter(Boolean) as Array<{ song: Song; notes?: string }>;
+  }
+  async getPlaylistsForSong(id: string) {
+    const [ps, pls] = [await this.getPlaylistSongs(), await this.getPlaylists()];
+    return ps.filter(p => p.song_id === id).map(p => { const pl = pls.find(pl => pl.id === p.playlist_id); return pl ? { playlist: pl, position: p.position } : null; })
+      .filter(Boolean) as SongPlaylistMembership[];
+  }
+  async getBlockWithSongs(id: string) {
+    const b = (await this.getBlocks()).find(b => b.id === id); if (!b) return null;
+    const s = await this.getSongs();
+    return { block: b, songs: b.songs.sort((x, y) => x.position - y.position).map(bs => s.find(s => s.id === bs.song_id)).filter(Boolean) as Song[] };
+  }
+  async exportData() {
+    const [s, t, st, r, p, ps, b, st2] = [await this.getSongs(), await this.getTags(), await this.getSongTags(), await this.getSongRelationships(), await this.getPlaylists(), await this.getPlaylistSongs(), await this.getBlocks(), await this.getSets()];
+    return JSON.stringify({ songs: s, tags: t, song_tags: st, song_relationships: r, playlists: p, playlist_songs: ps, blocks: b, sets: st2 }, null, 2);
+  }
+  async importData(j: string) { try { const d = JSON.parse(j); if (d.songs) this.setData('songs', d.songs); if (d.tags) this.setData('tags', d.tags); if (d.song_tags) this.setData('song_tags', d.song_tags); if (d.song_relationships) this.setData('song_relationships', d.song_relationships); if (d.playlists) this.setData('playlists', d.playlists); if (d.playlist_songs) this.setData('playlist_songs', d.playlist_songs); if (d.blocks) this.setData('blocks', d.blocks); if (d.sets) this.setData('sets', d.sets); return true; } catch { return false; } }
+}
+
+// ── RemoteStorage implementation (backend API) ─────────────
+
+class RemoteStorageImpl implements StorageInterface {
+  async getSongs() { return api.get<Song[]>('/songs'); }
+  async getSong(id: string) { return api.get<Song>(`/songs/${id}`); }
+  async addSong(data: Omit<Song, 'id' | 'created_at' | 'updated_at'>) { return api.post<Song>('/songs', data); }
+  async updateSong(id: string, u: Partial<Song>) { return api.put<Song>(`/songs/${id}`, u); }
+  async deleteSong(id: string) { await api.delete(`/songs/${id}`); return true; }
+  async getTags() { return api.get<Tag[]>('/tags'); }
+  async addTag(data: Omit<Tag, 'id' | 'created_at'>) { return api.post<Tag>('/tags', data); }
+  async updateTag(id: string, u: Partial<Tag>) { return api.put<Tag>(`/tags/${id}`, u); }
+  async deleteTag(id: string) { await api.delete(`/tags/${id}`); return true; }
+  async getSongTags() { return api.get<SongTag[]>('/song-tags'); }
+  async addSongTag(sid: string, tid: string) { await api.post(`/songs/${sid}/tags`, { tag_id: tid }); }
+  async removeSongTag(sid: string, tid: string) { await api.delete(`/songs/${sid}/tags/${tid}`); }
+  async getSongRelationships() { return api.get<SongRelationship[]>('/relationships'); }
+  async addSongRelationship(data: Omit<SongRelationship, 'id' | 'created_at'>) { return api.post<SongRelationship>('/relationships', data); }
+  async deleteSongRelationship(id: string) { await api.delete(`/relationships/${id}`); return true; }
+  async getPlaylists() { return api.get<Playlist[]>('/playlists'); }
+  async addPlaylist(data: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>) { return api.post<Playlist>('/playlists', data); }
+  async updatePlaylist(id: string, u: Partial<Playlist>) { return api.put<Playlist>(`/playlists/${id}`, u); }
+  async deletePlaylist(id: string) { await api.delete(`/playlists/${id}`); return true; }
+  async getPlaylistSongs() { return api.get<PlaylistSong[]>('/playlist-songs'); }
+  async addPlaylistSong(pid: string, sid: string, pos?: number) { await api.post(`/playlists/${pid}/songs`, { song_id: sid, position: pos }); }
+  async removePlaylistSong(pid: string, sid: string) { await api.delete(`/playlists/${pid}/songs/${sid}`); }
+  async getBlocks() { return api.get<Block[]>('/blocks'); }
+  async addBlock(data: Omit<Block, 'id' | 'created_at' | 'updated_at'>) { return api.post<Block>('/blocks', data); }
+  async updateBlock(id: string, u: Partial<Block>) { return api.put<Block>(`/blocks/${id}`, u); }
+  async deleteBlock(id: string) { await api.delete(`/blocks/${id}`); return true; }
+  async getSets() { return api.get<DJSet[]>('/sets'); }
+  async addSet(data: Omit<DJSet, 'id' | 'created_at' | 'updated_at'>) { return api.post<DJSet>('/sets', data); }
+  async updateSet(id: string, u: Partial<DJSet>) { return api.put<DJSet>(`/sets/${id}`, u); }
+  async deleteSet(id: string) { await api.delete(`/sets/${id}`); return true; }
+  async searchSongs(q: string) { return api.get<Song[]>(`/songs?search=${encodeURIComponent(q)}`); }
+  async getTagsForSong(sid: string) { return api.get<Tag[]>(`/songs/${sid}/tags`); }
+  async getSongsForTag(tid: string) { return api.get<Song[]>(`/tags/${tid}/songs`); }
+  async getRelatedSongs(id: string) { return api.get(`/songs/${id}/related`); }
+  async getTransitionSuggestions(id: string) { return api.get(`/songs/${id}/transition-suggestions`); }
+  async getPlaylistsForSong(id: string) { return api.get(`/songs/${id}/playlists`); }
+  async getBlockWithSongs(id: string) {
+    const b = await api.get<Block>(`/blocks/${id}`); if (!b) return null;
+    const s = await this.getSongs();
+    return { block: b, songs: b.songs.sort((x, y) => x.position - y.position).map(bs => s.find(s => s.id === bs.song_id)).filter(Boolean) as Song[] };
+  }
+  async exportData() {
+    const [s, t, st, r, p, ps, b, st2] = await Promise.all([this.getSongs(), this.getTags(), this.getSongTags(), this.getSongRelationships(), this.getPlaylists(), this.getPlaylistSongs(), this.getBlocks(), this.getSets()]);
+    return JSON.stringify({ songs: s, tags: t, song_tags: st, song_relationships: r, playlists: p, playlist_songs: ps, blocks: b, sets: st2 }, null, 2);
+  }
+  async importData(j: string) { const d = JSON.parse(j); await api.post('/import', d); return true; }
+}
+
+// ── Selector ───────────────────────────────────────────────
+
+let _instance: StorageInterface | null = null;
+
+function resolve(): StorageInterface {
+  if (!_instance) {
+    _instance = new RemoteStorageImpl();
+  }
+  return _instance;
+}
+
+export function switchToLocal() { _instance = new LocalStorageImpl(); }
+
+// Backward-compatible export — components call `storage.method()` and it just works.
+export const storage = new Proxy({} as StorageInterface, {
+  get(_, prop) { const s = resolve(); return (s as any)[prop]; },
+});

@@ -91,17 +91,18 @@ export function SongLibrary() {
     loadAllData();
   }, []);
 
-  const loadAllData = useCallback(() => {
-    const loadedSongs = storage.getSongs();
+  const loadAllData = useCallback(async () => {
+    const [loadedSongs, loadedTags] = await Promise.all([
+      storage.getSongs(),
+      storage.getTags(),
+    ]);
     setSongs(loadedSongs);
-    
-    const loadedTags = storage.getTags();
     setAllTags(loadedTags);
-    
+
     const tagsMap: Record<string, Tag[]> = {};
-    loadedSongs.forEach(song => {
-      tagsMap[song.id] = storage.getTagsForSong(song.id);
-    });
+    for (const song of loadedSongs) {
+      tagsMap[song.id] = await storage.getTagsForSong(song.id);
+    }
     setSongTags(tagsMap);
   }, []);
 
@@ -116,13 +117,13 @@ export function SongLibrary() {
   }, [songTags, songs]);
 
   // Handlers
-  const handleTagsChange = useCallback((songId: string, tags: Tag[]) => {
+  const handleTagsChange = useCallback(async (songId: string, tags: Tag[]) => {
     setSongTags(prev => ({ ...prev, [songId]: tags }));
-    setAllTags(storage.getTags());
+    setAllTags(await storage.getTags());
   }, []);
 
-  const handleTagCreated = useCallback(() => {
-    setAllTags(storage.getTags());
+  const handleTagCreated = useCallback(async () => {
+    setAllTags(await storage.getTags());
   }, []);
 
   const handleLoadFiles = async () => {
@@ -148,11 +149,13 @@ export function SongLibrary() {
     }
   };
 
-  const handleSongClick = useCallback((song: Song) => {
+  const handleSongClick = useCallback(async (song: Song) => {
     setSelectedSongForRelationships(song);
-    
-    const allRelationships = storage.getSongRelationships();
-    const allSongsData = storage.getSongs();
+
+    const [allRelationships, allSongsData] = await Promise.all([
+      storage.getSongRelationships(),
+      storage.getSongs(),
+    ]);
     
     const asSource = allRelationships
       .filter(rel => rel.source_song_id === song.id)
@@ -193,11 +196,11 @@ export function SongLibrary() {
     setEditingNotes(prev => ({ ...prev, [songId]: notes }));
   }, []);
 
-  const handleNotesBlur = useCallback((songId: string) => {
+  const handleNotesBlur = useCallback(async (songId: string) => {
     const notes = editingNotes[songId];
     if (notes !== undefined) {
-      storage.updateSong(songId, { mixing_notes: notes });
-      setSongs(storage.getSongs());
+      await storage.updateSong(songId, { mixing_notes: notes });
+      setSongs(await storage.getSongs());
       setEditingNotes(prev => {
         const updated = { ...prev };
         delete updated[songId];

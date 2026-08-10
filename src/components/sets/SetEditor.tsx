@@ -55,33 +55,39 @@ export function SetEditor({ djSet, open, onOpenChange, onSave }: SetEditorProps)
   // Load data when dialog opens
   useEffect(() => {
     if (open) {
-      const songs = storage.getSongs();
-      const blocks = storage.getBlocks();
-      setAllSongs(songs);
-      setAllBlocks(blocks);
-
-      if (djSet) {
-        setName(djSet.name);
-        setDescription(djSet.description || '');
-        setColor(djSet.color);
-        
-        // Enrich items with song/block data
-        const enrichedItems = djSet.items
-          .sort((a, b) => a.position - b.position)
-          .map(item => ({
-            ...item,
-            song: item.type === 'song' ? songs.find(s => s.id === item.song_id) : undefined,
-            block: item.type === 'block' ? blocks.find(b => b.id === item.block_id) : undefined,
-          }));
-        setItems(enrichedItems);
-      } else {
-        setName('');
-        setDescription('');
-        setColor(SET_COLORS[Math.floor(Math.random() * SET_COLORS.length)]);
-        setItems([]);
-      }
+      loadEditorData();
     }
   }, [djSet, open]);
+
+  const loadEditorData = async () => {
+    const [songs, blocks] = await Promise.all([
+      storage.getSongs(),
+      storage.getBlocks(),
+    ]);
+    setAllSongs(songs);
+    setAllBlocks(blocks);
+
+    if (djSet) {
+      setName(djSet.name);
+      setDescription(djSet.description || '');
+      setColor(djSet.color);
+      
+      // Enrich items with song/block data
+      const enrichedItems = djSet.items
+        .sort((a, b) => a.position - b.position)
+        .map(item => ({
+          ...item,
+          song: item.type === 'song' ? songs.find(s => s.id === item.song_id || s.id === item.ref_id) : undefined,
+          block: item.type === 'block' ? blocks.find(b => b.id === item.block_id || b.id === item.ref_id) : undefined,
+        }));
+      setItems(enrichedItems);
+    } else {
+      setName('');
+      setDescription('');
+      setColor(SET_COLORS[Math.floor(Math.random() * SET_COLORS.length)]);
+      setItems([]);
+    }
+  };
 
   const handleAddItem = (id: string, type: 'song' | 'block') => {
     const newItem: EnrichedSetItem = {
@@ -140,7 +146,7 @@ export function SetEditor({ djSet, open, onOpenChange, onSave }: SetEditorProps)
     setItems(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({
         title: "Name required",
@@ -160,6 +166,7 @@ export function SetEditor({ djSet, open, onOpenChange, onSave }: SetEditorProps)
         items: items.map(({ id, type, song_id, block_id, position, transition_notes, alternative_transitions }) => ({
           id,
           type,
+          ref_id: song_id || block_id || '',
           song_id,
           block_id,
           position,
@@ -169,10 +176,10 @@ export function SetEditor({ djSet, open, onOpenChange, onSave }: SetEditorProps)
       };
 
       if (djSet) {
-        storage.updateSet(djSet.id, setData);
+        await storage.updateSet(djSet.id, setData);
         toast({ title: "Set updated", description: "Your set has been saved." });
       } else {
-        storage.addSet(setData);
+        await storage.addSet(setData);
         toast({ title: "Set created", description: "Your new set has been created." });
       }
 

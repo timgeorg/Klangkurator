@@ -31,12 +31,12 @@ export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, 
     loadTags();
   }, []);
 
-  const loadTags = () => {
-    const tags = storage.getTags();
+  const loadTags = async () => {
+    const tags = await storage.getTags();
     setAllTags(tags);
   };
 
-  const createTag = (name: string): Tag | null => {
+  const createTag = async (name: string): Promise<Tag | null> => {
     const trimmedName = name.trim();
     if (!trimmedName) return null;
 
@@ -51,7 +51,7 @@ export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, 
 
     // Create new tag with random color
     const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-    const newTag = storage.addTag({
+    const newTag = await storage.addTag({
       name: trimmedName,
       color: randomColor
     });
@@ -62,25 +62,25 @@ export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, 
     return newTag;
   };
 
-  const addTag = (tag: Tag) => {
+  const addTag = async (tag: Tag) => {
     if (!selectedTags.find(t => t.id === tag.id)) {
       const newSelectedTags = [...selectedTags, tag];
       onTagsChange(newSelectedTags);
-      storage.addSongTag(songId, tag.id);
+      await storage.addSongTag(songId, tag.id);
     }
     setSearchValue('');
   };
 
-  const removeTag = (tagId: string) => {
+  const removeTag = async (tagId: string) => {
     const newSelectedTags = selectedTags.filter(t => t.id !== tagId);
     onTagsChange(newSelectedTags);
-    storage.removeSongTag(songId, tagId);
+    await storage.removeSongTag(songId, tagId);
   };
 
-  const handleCreateAndAdd = () => {
-    const tag = createTag(searchValue);
+  const handleCreateAndAdd = async () => {
+    const tag = await createTag(searchValue);
     if (tag) {
-      addTag(tag);
+      await addTag(tag);
       setIsOpen(false);
     }
   };

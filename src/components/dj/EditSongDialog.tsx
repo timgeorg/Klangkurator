@@ -84,7 +84,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
     setCurrentSong(updatedSong);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!song) return;
 
     setSaving(true);
@@ -110,7 +110,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         mixing_notes: formData.mixing_notes.trim() || undefined
       };
 
-      const updatedSong = storage.updateSong(song.id, updates);
+      const updatedSong = await storage.updateSong(song.id, updates);
       
       if (updatedSong) {
         toast({
