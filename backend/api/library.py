@@ -1,5 +1,7 @@
 """API package — library scan + crate listing endpoints."""
 
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -7,6 +9,8 @@ from pydantic import BaseModel
 
 from backend.config import SUPPORTED_AUDIO_EXTENSIONS
 from backend.scanner.metadata import extract_metadata
+from backend.scanner.waveform import compute_peaks
+from backend.scanner.artwork import extract_artwork
 from backend.scanner.audio_analysis import analyze_track, analyze_all_missing_bpm
 from backend.storage import get_library_store
 
@@ -73,6 +77,10 @@ def scan_library(body: ScanRequest):
             skipped += 1
             continue
 
+        # PF-13: peaks are computed at scan time and persisted on the song
+        # (may be None — the lazy /api/audio/waveform endpoint backfills).
+        peaks = compute_peaks(file_path_str)
+
         song_data = {
             "title": title,
             "artist": artist,
@@ -84,13 +92,23 @@ def scan_library(body: ScanRequest):
             "genre": meta.get("genre"),
             "file_path": file_path_str,
             "root_folder": root_folder,
+            "waveform_peaks": peaks,
             "artwork_url": None,
             "danceability": 0,
             "energy": 0,
             "social_acceptance": 0,
         }
 
-        store.add_song(song_data)
+        song = store.add_song(song_data)
+
+        # PF-14: extract artwork after add_song — add_song overwrites any
+        # client-supplied id (id is generated inside the store), so the real
+        # id only exists on the returned dict. Artwork is a separate update
+        # so a failed extraction never blocks the import.
+        art = extract_artwork(file_path_str, song["id"])
+        if art:
+            store.update_song(song["id"], {"artwork_url": art})
+
         added += 1
 
     return {
@@ -117,6 +135,68 @@ def list_crates():
         for name, count in sorted(crate_counts.items())
     ]
     return crates
+
+
+# ── Directory browsing (folder-picker support) ────────────
+
+
+@router.get("/browse")
+def browse_directory(path: str | None = None):
+    """List subdirectories of `path` for the client-side folder dialog.
+
+    - `path` omitted or "~" → the user's home directory
+    - Only directories are returned (no files)
+    - Hidden entries (dot-prefixed) are skipped
+    - Access outside the user's home directory is rejected
+    """
+    home = Path.home().resolve()
+    raw = (path or "").strip()
+
+    if raw in ("", "~", "/"):
+        target = home
+    else:
+        target = Path(raw).expanduser()
+        if not target.is_absolute():
+            target = home / target
+        target = target.resolve()
+
+        # Sandboxed to the home directory — this endpoint exists so a browser
+        # tab can pick a music folder on the same machine; nothing beyond
+        # ~ should be reachable through it.
+        if target != home and home not in target.parents:
+            raise HTTPException(
+                403,
+                f"Access denied: {target} is outside your home directory ({home})",
+            )
+
+    if not target.is_dir():
+        raise HTTPException(400, f"Not a directory: {target}")
+
+    try:
+        dirs = sorted(
+            (d for d in target.iterdir()
+             if d.is_dir() and not d.name.startswith(".")),
+            key=lambda d: d.name.lower(),
+        )
+    except PermissionError as e:
+        raise HTTPException(403, f"Permission denied: {target}") from e
+
+    return {
+        "path": str(target),
+        "parent": str(target.parent) if target != home else None,
+        "directories": [
+            {"name": d.name, "path": str(d), "has_children": _has_subdirs(d)}
+            for d in dirs
+        ],
+    }
+
+
+def _has_subdirs(d: Path) -> bool:
+    """Cheap check so the dialog can hide expand arrows on leaf folders."""
+    try:
+        return any(c.is_dir() and not c.name.startswith(".") for c in d.iterdir())
+    except OSError:
+        return False
 
 
 @router.get("/root")
@@ -157,8 +237,11 @@ def pick_folder():
     return PickFolderResponse(path=None)
 
 
-# ── Audio analysis ──────────────────────────────────────
-
+# ── Audio analysis — background job + status polling ────
+# Single in-process job (single-user app): POST /analyze-all starts one
+# daemon thread and returns immediately; the frontend polls
+# GET /analyze-status for progress. No persistence across restarts.
+# (AnalyzeResponse is kept for backward compatibility / OpenAPI schema.)
 
 class AnalyzeResponse(BaseModel):
     analyzed: int
@@ -167,13 +250,141 @@ class AnalyzeResponse(BaseModel):
     errors: list[str]
 
 
-@router.post("/analyze-all", response_model=AnalyzeResponse)
-def analyze_all_songs():
-    """Analyze all songs missing BPM/key and fill them in.
-    Uses librosa — runs locally, ~3-5s per track on CPU.
-    """
+_analyze_state: dict = {
+    "running": False,
+    "done": 0,
+    "total": 0,
+    "current_title": "",
+    "started_at": None,
+    "finished": False,
+    "result": None,
+    "error": None,
+}
+_analyze_lock = threading.Lock()
+
+
+class ArtworkScanResponse(BaseModel):
+    processed: int
+    extracted: int
+    skipped: int
+    errors: list[str]
+
+
+@router.post("/scan-artwork", response_model=ArtworkScanResponse)
+def scan_artwork():
+    """Backfill artwork for legacy songs scanned before PF-14 (INV-5)."""
     store = get_library_store()
-    return analyze_all_missing_bpm(store)
+    processed = extracted = skipped = 0
+    errors: list[str] = []
+
+    for song in store.get_songs():
+        if song.get("artwork_url"):
+            skipped += 1
+            continue
+
+        file_path = song.get("file_path")
+        if not file_path or not Path(file_path).is_file():
+            skipped += 1
+            continue
+
+        processed += 1
+        art = extract_artwork(file_path, song["id"])
+        if art:
+            store.update_song(song["id"], {"artwork_url": art})
+            extracted += 1
+        else:
+            errors.append(song.get("title") or file_path)
+
+    return ArtworkScanResponse(
+        processed=processed, extracted=extracted,
+        skipped=skipped, errors=errors,
+    )
+
+
+@router.post("/analyze-all")
+def analyze_all_songs():
+    """Start a background analysis of all songs missing BPM/key.
+
+    Returns immediately — poll GET /analyze-status for progress.
+    Uses librosa — runs locally, ~3-5s per track on CPU.
+
+    Notes:
+        The job thread mutates the library store while the rest of the
+        API keeps serving requests. This is acceptable for a single-user
+        app (matches the existing design where scan/analyze already
+        mutate from request handlers).
+    """
+    global _analyze_state
+
+    store = get_library_store()
+
+    with _analyze_lock:
+        if _analyze_state["running"]:
+            raise HTTPException(409, "Analysis already running")
+
+        # Compute total synchronously: songs missing BPM whose file exists.
+        songs = store.get_songs()
+        to_analyze = [
+            s for s in songs
+            if s.get("bpm") is None
+            and s.get("file_path")
+            and Path(s["file_path"]).exists()
+        ]
+        total = len(to_analyze)
+
+        if total == 0:
+            # Nothing to analyze — return the summary directly, no thread
+            # (analyze_all_missing_bpm returns the all-zero summary).
+            return analyze_all_missing_bpm(store)
+
+        _analyze_state = {
+            "running": True,
+            "done": 0,
+            "total": total,
+            "current_title": "",
+            "started_at": _now_iso(),
+            "finished": False,
+            "result": None,
+            "error": None,
+        }
+
+    def _run_analysis():
+        global _analyze_state
+        try:
+            summary = analyze_all_missing_bpm(
+                store,
+                progress_cb=_update_progress,
+            )
+            _analyze_state["result"] = summary
+        except Exception as e:  # noqa: BLE001 — job must never crash silently
+            _analyze_state["error"] = str(e)
+        finally:
+            _analyze_state["running"] = False
+            _analyze_state["finished"] = True
+
+    thread = threading.Thread(target=_run_analysis, daemon=True)
+    thread.start()
+
+    return {"started": True, "total": total}
+
+
+def _update_progress(done: int, total: int, current_title: str) -> None:
+    """Progress callback — update the module-level job state."""
+    _analyze_state["done"] = done
+    _analyze_state["total"] = total
+    _analyze_state["current_title"] = current_title
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@router.get("/analyze-status")
+def analyze_status():
+    """Poll the current (or last) analysis job: progress + result/error."""
+    state = dict(_analyze_state)
+    state["result"] = dict(state["result"]) if state["result"] else None
+    return state
 
 
 @router.post("/analyze/{song_id}")

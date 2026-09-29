@@ -19,10 +19,17 @@ app = FastAPI(
     description="DJ music organization and set planning tool",
 )
 
-# CORS: allow Vite dev server and any localhost origin
+# CORS: local-only app. Scope to localhost origins (dev server + served UI).
+# A wildcard with credentials would let any website probe files the player
+# endpoint can serve — see the audio endpoint's trust boundary notes.
+_LOCALHOST_ORIGINS = [
+    "http://localhost:8080", "http://127.0.0.1:8080",  # Vite dev server
+    "http://localhost:8000", "http://127.0.0.1:8000",  # served UI
+    "http://localhost:4173", "http://127.0.0.1:4173",  # vite preview
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Local-only app — any localhost origin is fine
+    allow_origins=_LOCALHOST_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -30,6 +30,7 @@ class SongBase(BaseModel):
     vibe_tags: list[str] = Field(default_factory=list)
     transition_notes: str | None = None
     root_folder: str | None = None
+    waveform_peaks: list[float] | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -65,6 +66,7 @@ class SongUpdate(BaseModel):
     vibe_tags: list[str] | None = None
     transition_notes: str | None = None
     root_folder: str | None = None
+    waveform_peaks: list[float] | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 

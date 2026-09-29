@@ -9,10 +9,13 @@ Usage:
     result = analyze_track("/path/to/track.mp3")
     # → {"bpm": 124.0, "musical_key": "A minor", "duration": 312.4}
 
-For batch analysis:
+For batch analysis with progress reporting:
     from backend.scanner.audio_analysis import analyze_all_missing_bpm
 
-    analyze_all_missing_bpm(library_store)
+    def report(done, total, current_title):
+        print(f"{done}/{total} — {current_title}")
+
+    analyze_all_missing_bpm(library_store, progress_cb=report)
 """
 
 import logging
@@ -138,12 +141,21 @@ def _detect_key(y, sr: int, librosa=None, np=None) -> str | None:
         return KEY_MAP_MINOR[best_key]
 
 
-def analyze_all_missing_bpm(library_store, limit: int | None = None) -> dict:
+def analyze_all_missing_bpm(
+    library_store,
+    limit: int | None = None,
+    progress_cb=None,
+) -> dict:
     """Analyze all songs that are missing BPM and update them.
 
     Args:
         library_store: LibraryStore instance.
         limit: Max number of songs to analyze (None = all).
+        progress_cb: Optional callable(done, total, current_title).
+            Called with the 1-based index of the track that is about to
+            start (before analysis), and again with the same index after
+            it completes — so the final call has done == total (all
+            tracks finished).
 
     Returns:
         dict with: analyzed, updated, skipped, errors
@@ -159,7 +171,15 @@ def analyze_all_missing_bpm(library_store, limit: int | None = None) -> dict:
     skipped = 0
     errors = []
 
-    for song in to_analyze:
+    total = len(to_analyze)
+
+    for idx, song in enumerate(to_analyze, start=1):
+        done = idx  # 1-based index of the track that is about to start
+        title = song.get("title", "Unknown")
+
+        if progress_cb is not None:
+            progress_cb(done, total, title)
+
         file_path = song.get("file_path")
         if not file_path or not Path(file_path).exists():
             skipped += 1
@@ -170,6 +190,8 @@ def analyze_all_missing_bpm(library_store, limit: int | None = None) -> dict:
         except Exception as e:
             errors.append(f"{song.get('title', 'Unknown')}: {e}")
             skipped += 1
+            if progress_cb is not None:
+                progress_cb(done, total, title)
             continue
 
         updates = {}
@@ -185,6 +207,9 @@ def analyze_all_missing_bpm(library_store, limit: int | None = None) -> dict:
             updated += 1
 
         analyzed += 1
+
+        if progress_cb is not None:
+            progress_cb(done, total, title)
 
     return {
         "analyzed": analyzed,

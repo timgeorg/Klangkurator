@@ -81,10 +81,14 @@ def _extract_tags(audio, duration: float | None, path: Path) -> dict:
 def _get_tag(tags, *keys) -> str | None:
     """Try multiple tag keys and return the first string value found."""
     for key in keys:
-        val = tags.get(key)
+        try:
+            val = tags.get(key)
+        except (ValueError, KeyError):
+            # mutagen's VComment.get raises ValueError for unknown keys
+            continue
         if val is None:
             continue
-        # Handle mutagen ID3 frames (list of Frame objects)
+        # VComment/MP4/ID3 values are frequently lists — take the first entry
         if isinstance(val, list):
             if len(val) > 0:
                 val = val[0]
@@ -97,12 +101,9 @@ def _get_tag(tags, *keys) -> str | None:
                 text = text[0] if text else None
             if text:
                 return str(text).strip() or None
-        # VComment tags are simple strings
-        elif isinstance(val, str) and val.strip():
-            return val.strip()
-        # MP4 tags: numeric values stored as list of ints
-        elif isinstance(val, (int, float)):
-            return str(val)
+        # VComment entries are plain strings; MP4 freeform may be other types
+        elif isinstance(val, (str, int, float)) and str(val).strip():
+            return str(val).strip()
     return None
 
 
