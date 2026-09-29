@@ -5,10 +5,10 @@ tags:
 ---
 # Index — docs/requirements
 
-- [[00_INDEX.md]] — requirements index linking to all domain files.
+- [[00_INDEX.md]] — alternate uppercase index linking to all domain files (legacy, kept for link compatibility).
 - [[01_VISION_AND_PRINCIPLES.md]] — product vision, design principles, target user.
 - [[02_SYSTEM_CONTEXT.md]] — runtime architecture, data service abstraction, PyWebView plan, design system.
-- [[10_LIBRARY_AND_FILE_LOADING.md]] — root folder selection, crate mapping, file scanning, metadata extraction.
+- [[10_LIBRARY_AND_FILE_LOADING.md]] — root folder as the unit of import, native picker, auto-scan, crate mapping, file scanning, empty-library redirect.
 - [[11_SONG_MODEL.md]] — song entity: identity, musical properties, ratings, notes, phase/vibe tags.
 - [[12_TAGS_AND_GENRES.md]] — centralized tags, genre hierarchy, color management.
 - [[13_LIBRARY_VIEW.md]] — table layout, columns, filtering, inline editing.
@@ -21,7 +21,7 @@ tags:
 - [[22_DATA_MODEL_BLOCKS_AND_SETS_JSON.md]] — blocks.json and sets.json schemas.
 - [[90_NFRS.md]] — non-functional requirements (performance, portability, backup).
 - [[91_INVARIANTS.md]] — constraints and data-integrity invariants.
-- [[92_PLANNED_FEATURES.md]] — future work: Rekordbox integration, transition mining, AI-assisted curation.
+- [[92_PLANNED_FEATURES.md]] — future work: library UX backlog (duration format, waveform, cover column, column DnD, media player, detail view), Rekordbox integration, transition mining, AI-assisted curation.
 - [[93_OUT_OF_SCOPE.md]] — explicit non-goals (no Rekordbox replacement, no cloud AI).
 - [[99_CHANGELOG.md]] — requirement changes by date.
 - [[30_REKORDBOX_INTEGRATION.md]] — Rekordbox read/write: cue points, playlists, USB export (planned).

@@ -1,7 +1,7 @@
 # Library View
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-09-24
 Source: Requirements.md sections 4, 8
 
 ## Overview
@@ -9,6 +9,14 @@ Source: Requirements.md sections 4, 8
 The library is the central hub. Sidebar contains: **Library**, **Playlists**,
 **Sets**, **Settings**. Search/Tags/Relationships pages were removed — the
 table handles all of it.
+
+## Empty-Library Redirect
+
+- Opening the Library view with **zero songs** auto-redirects to the Load
+  Files page (the import entry point) — an empty table is a dead end, so
+  the app routes the user to where loading actually happens
+- Load Files shows the already-configured root folder (if any) and the
+  picker/scan actions; no redirect once the library has ≥ 1 song
 
 ## Table Layout
 
@@ -35,7 +43,7 @@ table handles all of it.
 | Energy | rating (0–5) | Dots |
 | Dance | rating (0–5) | Dots |
 | Social | rating (0–5) | Dots |
-| Duration | time | mm:ss |
+| Duration | time | mm:ss (minutes unpadded) |
 | Tags | badges | Side-by-side, auto-grow |
 | Lyrics | preview | First ~30 chars, click to open full |
 | Notes | text | Flex-fills remaining width, inline-editable |

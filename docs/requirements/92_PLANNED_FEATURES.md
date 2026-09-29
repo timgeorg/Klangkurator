@@ -1,8 +1,8 @@
 # Planned Features (Not Yet Specced)
 
 Status: Active
-Last Updated: 2026-08-09
-Source: Requirements.md section 15; new ideas from set planning session
+Last Updated: 2026-09-24
+Source: Requirements.md section 15; new ideas from set planning session; Tim's 2026-09-24 backlog list
 
 ## Confirmed Future Work
 
@@ -19,6 +19,17 @@ Source: Requirements.md section 15; new ideas from set planning session
 | PF-9 | Smart playlists | is_smart_playlist + search_criteria fields exist in schema, logic not built |
 | PF-10 | Full audio metadata extraction via `mutagen` | Phase 2 — requires PyWebView/Python |
 | PF-11 | Nested crate folders as tree view | Currently flattened with `/` separator; tree view is future |
+
+## Library UX Backlog (Tim, 2026-09-24)
+
+| ID | Feature | Notes |
+|---|---|---|
+| PF-12 | Track duration displayed as plain seconds | REVERTED — final requirement: `mm:ss`, no leading zeroes on minutes (e.g. `5:37`, `12:04`) — plain-seconds variant was reverted after user feedback |
+| PF-13 | Waveform preview shows the actual track's waveform | Simple abstraction is enough — coarse peaks from the audio file, static render |
+| PF-14 | New column: album cover | Show the track's album art in the library view; needs artwork extraction in the scan pipeline |
+| PF-15 | Column reorder via drag and drop | Swap columns in the table by dragging headers, persisted like visibility/widths |
+| PF-16 | Media player | Actually play songs from the library — transport controls, current-track indicator |
+| PF-17 | Song detail view | Click a track → dedicated view with full metadata, notes, tags, relationships, waveform |
 
 ## Set Planning Future Work
 

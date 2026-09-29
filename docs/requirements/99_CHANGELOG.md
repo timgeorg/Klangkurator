@@ -1,7 +1,47 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-09-24
+
+## 2026-09-24 (v2)
+
+### Audio analysis progress (10)
+
+Analysis of BPM/key can take minutes for a full crate. Added REQ-10-AP:
+the "Analyze BPM/Key" job must show live progress (`Analyzing (3/47)…`,
+current track, progress bar) via a polled `GET /api/library/analyze-status`
+endpoint. Single background job; completion summary unchanged.
+
+### Backlog additions (92)
+
+Six features requested by Tim, recorded in `92_PLANNED_FEATURES.md`
+(PF-12 … PF-17): duration display format, real waveform preview, album
+cover column, column drag-and-drop reorder, media player, song detail view.
+
+- **Duration format revision** — PF-12's plain seconds replaced by mm:ss
+  (minutes unpadded) after user feedback; all duration paths unified.
+
+## 2026-09-24
+
+### Root folder is the unit of import (10, 02, 93)
+
+Closed the gap between the requirement and the running app, found while
+using the app for the first time with a real backend:
+
+- **Loose file import is out** — "load audio files by themselves" was a
+  Phase-1 leftover (File API `<input type=file>` in `fileLoader.ts`) and
+  contradicted the crate concept. Explicitly added as OOS-11.
+- **Native OS folder picker mandatory** — manual path typing demoted to a
+  collapsed "Advanced" fallback; `<input webkitdirectory>` / File System
+  Access API dropped as a primary flow
+- **Root folder selection auto-scans** — picking a folder sets the root
+  and immediately imports; no separate "Save" + "Scan" sequence
+- **Subfolder-less root is valid** — audio files directly in the root
+  import with the root's own name as the crate
+- **Backend folder browsing** — `GET /api/library/browse` lists
+  directories under the user's home for the browser-mode picker
+- **Library empty → Load Files** — the Library view redirects to the
+  import page when it has zero songs to show
 
 ## 2026-08-09
 

@@ -1,7 +1,7 @@
 # Out Of Scope
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-09-24
 
 ## Explicit Non-Goals
 
@@ -13,6 +13,7 @@ Last Updated: 2026-08-09
 | OOS-4 | Real-time audio playback / DJ mixing | This is a library and curation tool, not a DJ controller — no decks, no crossfader. Rekordbox handles playback |
 | OOS-5 | Replacing Rekordbox | Klangkurator complements Rekordbox, it does not replace it. Rekordbox stays the core of playing (cue points, USB export, CDJ/XDJ performance) |
 | OOS-5 | Waveform analysis / beat detection | BPM is entered manually or extracted from file metadata, not computed from audio |
+| OOS-11 | Loose single-file import ("load audio files by themselves") | The root folder is the unit of import; a library is built from folders, never from individually picked files — file-level picking in the UI is explicitly not an import mode |
 | OOS-6 | Music streaming integration (Spotify, SoundCloud, Apple Music) | The tool manages local files; streaming is a different product |
 | OOS-7 | Mobile app | Desktop-first; mobile DJ prep is a different use case |
 | OOS-8 | Multi-user collaboration | Single-user; sets can be exported/imported for sharing but not edited collaboratively |

@@ -188,7 +188,49 @@ Standard playlists with ordered song positions; smart-playlist scaffolding (`is_
 
 ---
 
-## 15. Open / Future Work
+## 15. Playlist Sync & Library Reconciliation (Workflow)
+
+Connects the DJ database to the user's **SoundCloud playlists** so the library
+stays in sync with what they've collected online.
+
+### 15.1 Core workflow
+The intended end-to-end flow (as of 2026-09):
+
+1. **Register a SoundCloud playlist** in Klangkurator (paste the playlist URL).
+2. **Reconcile** — Klangkurator compares the online playlist against the local
+   library and reports, per track, whether it is **already present** or **missing**.
+   - Source: the Sonotheca `playlist_status.py` logic (SC API `resolve` +
+     `tracks?ids=` batch; see `Repositories/Sonotheca/`).
+3. **Import present tracks** into the library (or link them) so they become
+   first-class Song entities.
+4. **Downloadable missing tracks** → download via Sonotheca
+   (`download_single.py` per track, or `playlist_downloader.py` per playlist).
+5. Tracks that cannot be downloaded (DRM/premium/no alternative) are left as
+   **pending / known-missing** and marked in the UI.
+
+### 15.2 What the DJ does once tracks are imported
+For every track in the library (whether from a playlist or not), Klangkurator
+supports:
+- **Tags** — DJ-centric many-to-many tags.
+- **Annotations / notes** — drum notes, element notes, mixing notes (free text).
+- **Search** — find tracks by title, artist, tag, note content, genre, BPM, key.
+- Ratings, relationships, blocks/sets, etc. (the rest of this spec).
+
+### 15.3 Reconciliation state
+Each registered playlist track keeps a sync state so the user always sees what
+they have vs. don't:
+- `present` — matched to a local/imported song.
+- `missing` — not in the local library.
+- `blocked` — online-track not downloadable (DRM/premium/no alternative upload).
+- `pending_download` — downloadable but not yet fetched.
+
+The exact download/availability mechanics live in the **Sonotheca** repo
+(`Repositories/Sonotheca/`); Klangkurator *consumes* those results (CSV/JSON) or
+calls the same logic.
+
+---
+
+## 16. Open / Future Work
 
 - Visual Fabric.js canvas editor for Sets (drag blocks, draw connections).
 - BPM & key compatibility hints when building blocks/sets.

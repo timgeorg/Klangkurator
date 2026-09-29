@@ -1,7 +1,7 @@
 # System Context
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-09-24
 Source: Requirements.md sections 2, 13
 
 ## Runtime Architecture
@@ -21,7 +21,9 @@ Source: Requirements.md sections 2, 13
   1. Frontend and backend are independently testable during development
   2. The same frontend can later run in a browser or on mobile without rewrite
 - PyWebView's native file dialog is used for folder selection when available;
-  browser File System Access API is the fallback
+  in browser mode the backend's native dialog / directory-browsing endpoint
+  is used instead — never a loose file-input dialog (the root folder is the
+  unit of import, see [10_LIBRARY_AND_FILE_LOADING])
 
 ### Phase 3 (future): Browser / Mobile Companion
 - Same FastAPI backend, accessible from any browser
