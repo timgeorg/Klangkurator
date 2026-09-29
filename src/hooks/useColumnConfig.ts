@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 // Column definition type
 export interface ColumnDef {
@@ -16,6 +16,7 @@ export interface ColumnDef {
 // All available columns with their configuration
 export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   play: { id: 'play', label: 'Play/Edit', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: false, sortable: false },
+  cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 48, resizable: true, filterable: false, sortable: false },
   preview: { id: 'preview', label: 'Preview', minWidth: 60, maxWidth: 200, defaultWidth: 80, resizable: true, filterable: false, sortable: false },
   title: { id: 'title', label: 'Title', minWidth: 100, maxWidth: 400, defaultWidth: 200, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
@@ -36,7 +37,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
 
 // Default column order
 const DEFAULT_COLUMN_ORDER = [
-  'play', 'preview', 'title', 'artist', 'album', 'rootFolder', 'bpm', 'key', 
+  'play', 'cover', 'preview', 'title', 'artist', 'album', 'rootFolder', 'bpm', 'key', 
   'genre', 'subgenres', 'energy', 'danceability', 'social',
   'duration', 'tags', 'lyrics', 'notes'
 ];
@@ -57,11 +58,86 @@ export interface ColumnConfig {
   widths: Record<string, number>;
 }
 
+// PF-15: the whole column config persists as one JSON blob under a single key
+const COLUMN_CONFIG_STORAGE_KEY = 'klangkurator.columnConfig.v1';
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isValidColumnOrder = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every(id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(COLUMN_DEFINITIONS, id));
+
+// Returns the persisted blob only when complete and valid; null → fall back to defaults
+const loadPersistedColumnConfig = (): ColumnConfig | null => {
+  try {
+    const raw = localStorage.getItem(COLUMN_CONFIG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isPlainObject(parsed)) return null;
+
+    const { order, visibility, widths } = parsed;
+    if (!isValidColumnOrder(order) || !isPlainObject(visibility) || !isPlainObject(widths)) {
+      return null;
+    }
+    // Migration: persisted orders from before PF-14 have no 'cover' column.
+    // Insert after 'play' (or first) so existing users don't lose it.
+    const migratedOrder = order.includes('cover')
+      ? order
+      : (() => {
+          const idx = order.indexOf('play');
+          const next = [...order];
+          next.splice(idx >= 0 ? idx + 1 : 0, 0, 'cover');
+          return next;
+        })();
+    const vis = visibility as Record<string, boolean>;
+    const wid = widths as Record<string, number>;
+    return {
+      order: migratedOrder,
+      visibility: { ...vis, cover: vis.cover ?? true },
+      widths: { ...wid, cover: wid.cover ?? 48 },
+    };
+  } catch {
+    return null;
+  }
+};
+
 export function useColumnConfig() {
-  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COLUMN_ORDER);
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(DEFAULT_VISIBILITY);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
+  const [columnOrder, setColumnOrder] = useState<string[]>(
+    () => loadPersistedColumnConfig()?.order ?? DEFAULT_COLUMN_ORDER
+  );
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
+    () => loadPersistedColumnConfig()?.visibility ?? DEFAULT_VISIBILITY
+  );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => loadPersistedColumnConfig()?.widths ?? DEFAULT_WIDTHS
+  );
   const [userResized, setUserResized] = useState<Record<string, boolean>>({});
+
+  // Persistence bookkeeping: last written blob (dedupe) + skip flag for resets
+  const lastSavedBlob = useRef<string | null>(null);
+  const skipNextSave = useRef(false);
+
+  // Persist order/visibility/widths to localStorage whenever they change
+  useEffect(() => {
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    const blob = JSON.stringify({
+      order: columnOrder,
+      visibility: columnVisibility,
+      widths: columnWidths,
+    });
+    if (blob === lastSavedBlob.current) return;
+    try {
+      localStorage.setItem(COLUMN_CONFIG_STORAGE_KEY, blob);
+      lastSavedBlob.current = blob;
+    } catch {
+      // Quota/serialization errors: keep in-memory state, skip persistence
+    }
+  }, [columnOrder, columnVisibility, columnWidths]);
 
   // Get visible columns in order
   const visibleColumns = useMemo(() => {
@@ -161,12 +237,20 @@ export function useColumnConfig() {
     return COLUMN_DEFINITIONS[columnId];
   }, []);
 
-  // Reset to defaults
+  // Reset to defaults (also drops the persisted blob)
   const resetToDefaults = useCallback(() => {
-    setColumnOrder(DEFAULT_COLUMN_ORDER);
-    setColumnVisibility(DEFAULT_VISIBILITY);
-    setColumnWidths(DEFAULT_WIDTHS);
+    // Fresh copies so state refs change → the save effect runs once and
+    // consumes skipNextSave, keeping the storage key removed.
+    setColumnOrder([...DEFAULT_COLUMN_ORDER]);
+    setColumnVisibility({ ...DEFAULT_VISIBILITY });
+    setColumnWidths({ ...DEFAULT_WIDTHS });
     setUserResized({});
+    skipNextSave.current = true;
+    try {
+      localStorage.removeItem(COLUMN_CONFIG_STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
   }, []);
 
   return {

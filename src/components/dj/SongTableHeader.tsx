@@ -1,7 +1,8 @@
-import React from 'react';
-import { Play, Volume2, ArrowUpDown } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Play, Volume2, ArrowUpDown, Image } from 'lucide-react';
 import { ColumnFilter } from '@/components/ui/column-filter';
 import { UseColumnConfigReturn, COLUMN_DEFINITIONS } from '@/hooks/useColumnConfig';
+import { cn } from '@/lib/utils';
 
 interface FilterState {
   title: string;
@@ -68,17 +69,81 @@ const FILTER_KEY_MAP: Record<string, keyof FilterState> = {
   tags: 'tags',
 };
 
+// Drop indicator: which column is hovered and on which half
+interface DropIndicator {
+  columnId: string;
+  side: 'left' | 'right';
+}
+
 export function SongTableHeader({
   columnConfig,
   filters,
   filterOptions,
   onFilterChange,
 }: SongTableHeaderProps) {
-  const { visibleColumns, gridTemplate, startResize } = columnConfig;
+  const { visibleColumns, gridTemplate, startResize, columnOrder, moveColumn } = columnConfig;
+
+  // PF-15: insert-before drag & drop reordering
+  const dragColumnRef = useRef<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
 
   const handleResizeStart = (columnId: string, e: React.MouseEvent) => {
     e.preventDefault();
     startResize(columnId, e.clientX);
+  };
+
+  const clearDragState = () => {
+    dragColumnRef.current = null;
+    setDraggingId(null);
+    setDropIndicator(null);
+  };
+
+  const getDropSide = (e: React.DragEvent<HTMLDivElement>): 'left' | 'right' => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return e.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
+  };
+
+  const handleDragStart = (columnId: string) => (e: React.DragEvent<HTMLDivElement>) => {
+    dragColumnRef.current = columnId;
+    setDraggingId(columnId);
+    e.dataTransfer.effectAllowed = 'move';
+    // setData is required for Firefox to start the drag at all
+    e.dataTransfer.setData('text/plain', columnId);
+  };
+
+  const handleDragOver = (columnId: string) => (e: React.DragEvent<HTMLDivElement>) => {
+    const fromId = dragColumnRef.current;
+    if (!fromId || fromId === columnId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const side = getDropSide(e);
+    setDropIndicator(prev =>
+      prev && prev.columnId === columnId && prev.side === side ? prev : { columnId, side }
+    );
+  };
+
+  const handleDrop = (columnId: string) => (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const fromId = dragColumnRef.current;
+    const side = getDropSide(e);
+    clearDragState();
+    if (!fromId || fromId === columnId) return;
+
+    // Indexes are computed against columnOrder (what moveColumn splices),
+    // not visibleColumns: hidden columns would shift the positions otherwise.
+    const fromIndex = columnOrder.indexOf(fromId);
+    const hoverIndex = columnOrder.indexOf(columnId);
+    if (fromIndex === -1 || hoverIndex === -1) return;
+
+    // Insert-before semantics: left half → land before hovered, right half → after.
+    const desiredIndex = side === 'left' ? hoverIndex : hoverIndex + 1;
+    // moveColumn splices OUT first: moving right (fromIndex < desiredIndex)
+    // shifts the insertion slot left by one, so compensate.
+    const toIndex = fromIndex < desiredIndex ? desiredIndex - 1 : desiredIndex;
+    if (toIndex === fromIndex) return;
+
+    moveColumn(fromIndex, toIndex);
   };
 
   const renderColumnHeader = (columnId: string) => {
@@ -91,6 +156,16 @@ export function SongTableHeader({
       return (
         <div className="flex items-center justify-center relative group">
           <Play className="w-3 h-3" />
+          <ResizeHandle onMouseDown={(e) => handleResizeStart(columnId, e)} />
+        </div>
+      );
+    }
+    
+    if (columnId === 'cover') {
+      return (
+        <div className="flex items-center gap-1 relative group">
+          <Image className="w-3 h-3" />
+          Cover
           <ResizeHandle onMouseDown={(e) => handleResizeStart(columnId, e)} />
         </div>
       );
@@ -136,11 +211,31 @@ export function SongTableHeader({
         className="grid gap-2 px-3 py-2 text-xs font-medium text-muted-foreground"
         style={{ gridTemplateColumns: gridTemplate }}
       >
-        {visibleColumns.map((columnId) => (
-          <React.Fragment key={columnId}>
-            {renderColumnHeader(columnId)}
-          </React.Fragment>
-        ))}
+        {visibleColumns.map((columnId) => {
+          const isPlayColumn = columnId === 'play';
+          return (
+            <div
+              key={columnId}
+              draggable={!isPlayColumn}
+              onDragStart={isPlayColumn ? undefined : handleDragStart(columnId)}
+              onDragEnd={isPlayColumn ? undefined : clearDragState}
+              onDragOver={isPlayColumn ? undefined : handleDragOver(columnId)}
+              onDrop={isPlayColumn ? undefined : handleDrop(columnId)}
+              // display:grid keeps the inner content stretched to the full
+              // cell (same geometry as when it was the grid child itself),
+              // so the absolutely-positioned ResizeHandle stays full-height.
+              className={cn(
+                'grid min-w-0',
+                !isPlayColumn && 'cursor-grab',
+                draggingId === columnId && 'cursor-grabbing',
+                dropIndicator?.columnId === columnId && dropIndicator.side === 'left' && 'border-l-2 border-orange-500',
+                dropIndicator?.columnId === columnId && dropIndicator.side === 'right' && 'border-r-2 border-orange-500'
+              )}
+            >
+              {renderColumnHeader(columnId)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

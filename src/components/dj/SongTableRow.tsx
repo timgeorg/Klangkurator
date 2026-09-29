@@ -3,9 +3,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Waveform } from '@/components/ui/waveform';
 import { TagSelector } from '@/components/ui/tag-selector';
-import { Play, Pencil } from 'lucide-react';
+import { Play, Pencil, Music2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Song, Tag } from '@/lib/storage';
+import { usePlayer } from '@/lib/PlayerContext';
 import { getMainGenreColor } from '@/lib/genreData';
 import { UseColumnConfigReturn } from '@/hooks/useColumnConfig';
 
@@ -16,6 +17,7 @@ interface SongTableRowProps {
   columnConfig: UseColumnConfigReturn;
   editingNotes?: string;
   onSongClick: (song: Song) => void;
+  onPlaySong: (song: Song) => void;
   onEditSong: (song: Song, e: React.MouseEvent) => void;
   onTagsChange: (songId: string, tags: Tag[]) => void;
   onTagCreated: () => void;
@@ -26,11 +28,15 @@ interface SongTableRowProps {
 }
 
 // Utility functions
-const formatDuration = (seconds?: number) => {
+// PF-12 (revised): duration renders as mm:ss — minutes WITHOUT leading zeroes
+// (e.g. "5:37", "12:04"); seconds zero-padded to 2 digits; "--:--" for missing/0.
+// Round the TOTAL first so float durations never produce a "0:60" second.
+export const formatDuration = (seconds?: number) => {
   if (!seconds) return '--:--';
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 const getBpmColor = (bpm?: number) => {
@@ -58,6 +64,7 @@ export function SongTableRow({
   columnConfig,
   editingNotes,
   onSongClick,
+  onPlaySong,
   onEditSong,
   onTagsChange,
   onTagCreated,
@@ -67,13 +74,19 @@ export function SongTableRow({
   getCurrentNotes,
 }: SongTableRowProps) {
   const { visibleColumns, gridTemplate, columnVisibility } = columnConfig;
+  // Row highlight: this track is loaded AND actually audible (paused ≠ playing)
+  const player = usePlayer();
+  const isPlayingRow = player.current?.id === song.id && player.isPlaying;
 
   const renderCell = (columnId: string) => {
     switch (columnId) {
       case 'play':
         return (
           <div className="flex items-center justify-center gap-1">
-            <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); onPlaySong(song); }}
+              title="Play song"
+            >
               <Play className="w-3 h-3" />
             </Button>
             <Button 
@@ -88,10 +101,28 @@ export function SongTableRow({
           </div>
         );
         
+      case 'cover':
+        return (
+          <div className="flex items-center">
+            {song.artwork_url ? (
+              <img
+                src={song.artwork_url}
+                alt=""
+                className="w-8 h-8 rounded object-cover bg-muted"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
+                <Music2 className="w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        );
+        
       case 'preview':
         return (
           <div className="flex items-center">
-            <Waveform className="w-16 h-6" variant="compact" />
+            <Waveform className="w-16 h-6" variant="compact" peaks={song.waveform_peaks} />
           </div>
         );
         
@@ -100,7 +131,7 @@ export function SongTableRow({
           <div 
             className="flex items-center font-medium text-foreground truncate hover:text-primary cursor-pointer transition-colors"
             onClick={() => onSongClick(song)}
-            title="Click to view relationships"
+            title="Click to view track details"
           >
             {song.title}
           </div>
@@ -212,8 +243,11 @@ export function SongTableRow({
         );
         
       case 'notes':
+        // max-w caps the cell so the trailing 1fr track keeps contributing its
+        // configured max-content (≤ notes maxWidth), not the raw note length —
+        // required now that the table wrapper is w-max (horizontal scroll).
         return (
-          <div className="flex items-center min-w-0">
+          <div className="flex items-center min-w-0 max-w-[500px]">
             {editingNotes !== undefined ? (
               <textarea
                 value={editingNotes}
@@ -245,7 +279,8 @@ export function SongTableRow({
     <div 
       className={cn(
         "grid gap-2 px-3 py-2 text-xs border-b border-table-border hover:bg-table-row-hover transition-colors cursor-pointer group",
-        index % 2 === 0 ? "bg-table-row" : "bg-background"
+        index % 2 === 0 ? "bg-table-row" : "bg-background",
+        isPlayingRow && "bg-orange-950/20"
       )}
       style={{ gridTemplateColumns: gridTemplate }}
     >

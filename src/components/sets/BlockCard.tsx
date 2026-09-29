@@ -25,9 +25,12 @@ export function BlockCard({ block, onEdit, onDelete }: BlockCardProps) {
 
   // Calculate total duration
   const totalDuration = songs.reduce((sum, s) => sum + (s.duration || 0), 0);
+  // Block totals: same mm:ss convention as track durations (minutes unpadded);
+  // round first so summed float durations can't yield a 60-second minute.
   const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const total = Math.round(seconds);
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

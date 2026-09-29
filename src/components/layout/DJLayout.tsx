@@ -18,8 +18,9 @@ export function DJLayout({ children }: DJLayoutProps) {
             <SidebarTrigger className="text-foreground hover:bg-table-row-hover" />
           </header>
 
-          {/* Main Content */}
-          <main className="flex-1 overflow-hidden">
+          {/* Main Content — unconditional pb-12 reserves the player bar's height
+              (48px) so fixed-bottom PlayerBar never overlaps content */}
+          <main className="flex-1 overflow-hidden pb-12">
             {children}
           </main>
         </div>

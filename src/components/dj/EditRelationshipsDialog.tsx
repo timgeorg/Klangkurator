@@ -81,40 +81,39 @@ export function EditRelationshipsDialog({ song, open, onOpenChange, onSave }: Ed
     setAllSongs(songs.filter(s => s.id !== song.id));
     const existing: ExistingRelationship[] = [];
 
-      relationships.forEach(rel => {
-        if (rel.source_song_id === song.id) {
-          const targetSong = songs.find(s => s.id === rel.target_song_id);
-          if (targetSong) {
-            existing.push({
-              id: rel.id,
-              type: rel.relationship_type,
-              direction: 'source',
-              otherSong: targetSong,
-              notes: rel.notes,
-            });
-          }
-        } else if (rel.target_song_id === song.id) {
-          const sourceSong = songs.find(s => s.id === rel.source_song_id);
-          if (sourceSong) {
-            existing.push({
-              id: rel.id,
-              type: rel.relationship_type,
-              direction: 'target',
-              otherSong: sourceSong,
-              notes: rel.notes,
-            });
-          }
+    relationships.forEach(rel => {
+      if (rel.source_song_id === song.id) {
+        const targetSong = songs.find(s => s.id === rel.target_song_id);
+        if (targetSong) {
+          existing.push({
+            id: rel.id,
+            type: rel.relationship_type,
+            direction: 'source',
+            otherSong: targetSong,
+            notes: rel.notes,
+          });
         }
-      });
+      } else if (rel.target_song_id === song.id) {
+        const sourceSong = songs.find(s => s.id === rel.source_song_id);
+        if (sourceSong) {
+          existing.push({
+            id: rel.id,
+            type: rel.relationship_type,
+            direction: 'target',
+            otherSong: sourceSong,
+            notes: rel.notes,
+          });
+        }
+      }
+    });
 
-      setExistingRelationships(existing);
-      
-      // Load playlist memberships
-      const memberships = await storage.getPlaylistsForSong(song.id);
-      setPlaylistMemberships(memberships);
-      
-      resetForm();
-    }
+    setExistingRelationships(existing);
+
+    // Load playlist memberships
+    const memberships = await storage.getPlaylistsForSong(song.id);
+    setPlaylistMemberships(memberships);
+
+    resetForm();
   };
 
   const resetForm = () => {

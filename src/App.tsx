@@ -3,9 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { PlayerProvider } from "@/lib/PlayerContext";
 import { DJLayout } from "@/components/layout/DJLayout";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
+import SongDetailPage from "./pages/SongDetailPage";
 import Sets from "./pages/Sets";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -19,16 +21,19 @@ function App() {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <DJLayout>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/load-files" element={<LoadFiles />} />
-              <Route path="/sets" element={<Sets />} />
-              <Route path="/settings" element={<Settings />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </DJLayout>
+          <PlayerProvider>
+            <DJLayout>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/load-files" element={<LoadFiles />} />
+                <Route path="/song/:id" element={<SongDetailPage />} />
+                <Route path="/sets" element={<Sets />} />
+                <Route path="/settings" element={<Settings />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </DJLayout>
+          </PlayerProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

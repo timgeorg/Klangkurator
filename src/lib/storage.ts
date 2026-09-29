@@ -34,6 +34,7 @@ export interface Song {
   vibe_tags?: string[];
   transition_notes?: string;
   root_folder?: string;
+  waveform_peaks?: number[];
   created_at: string;
   updated_at: string;
 }

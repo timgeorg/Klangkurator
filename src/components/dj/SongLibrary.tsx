@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { storage, Song, Tag } from '@/lib/storage';
 import { FileLoader } from '@/lib/fileLoader';
 import { toast } from '@/hooks/use-toast';
+import { usePlayer } from '@/lib/PlayerContext';
 import { useColumnConfig } from '@/hooks/useColumnConfig';
 import { SongTableHeader } from './SongTableHeader';
 import { SongTableRow } from './SongTableRow';
-import { SongRelationshipsDialog } from './SongRelationshipsDialog';
 import { EditSongDialog } from './EditSongDialog';
 import { ColumnSettingsDialog } from './ColumnSettingsDialog';
 import { Search, Plus, Music2, FolderOpen, Settings2 } from 'lucide-react';
@@ -61,6 +62,9 @@ const getRootFolder = (filePath: string): string => {
 };
 
 export function SongLibrary() {
+  const navigate = useNavigate();
+  const player = usePlayer();
+
   // Column configuration hook
   const columnConfig = useColumnConfig();
   
@@ -77,14 +81,15 @@ export function SongLibrary() {
   
   // Dialog states
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
-  const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
-  const [selectedSongForRelationships, setSelectedSongForRelationships] = useState<Song | null>(null);
-  const [songRelationships, setSongRelationships] = useState<{
-    asSource: Array<any>;
-    asTarget: Array<any>;
-  }>({ asSource: [], asTarget: [] });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedSongForEdit, setSelectedSongForEdit] = useState<Song | null>(null);
+  // True until the first load completes — gates the empty-library redirect
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // Horizontal-overflow affordance: true when the table content is wider than
+  // the scroll container (right-edge fade is only rendered when set)
+  const [tableOverflows, setTableOverflows] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   // Load initial data
   useEffect(() => {
@@ -104,7 +109,17 @@ export function SongLibrary() {
       tagsMap[song.id] = await storage.getTagsForSong(song.id);
     }
     setSongTags(tagsMap);
+    setInitialLoadDone(true);
   }, []);
+
+  // Empty library → the table is a dead end; route to the import page.
+  // Only when the library itself is empty — not when a search/filter
+  // simply matches nothing.
+  useEffect(() => {
+    if (initialLoadDone && songs.length === 0) {
+      navigate('/load-files', { replace: true });
+    }
+  }, [initialLoadDone, songs.length, navigate]);
 
   // Auto-resize tags column based on content
   useEffect(() => {
@@ -149,33 +164,11 @@ export function SongLibrary() {
     }
   };
 
-  const handleSongClick = useCallback(async (song: Song) => {
-    setSelectedSongForRelationships(song);
-
-    const [allRelationships, allSongsData] = await Promise.all([
-      storage.getSongRelationships(),
-      storage.getSongs(),
-    ]);
-    
-    const asSource = allRelationships
-      .filter(rel => rel.source_song_id === song.id)
-      .map(rel => ({
-        ...rel,
-        targetSong: allSongsData.find(s => s.id === rel.target_song_id)!
-      }))
-      .filter(rel => rel.targetSong);
-    
-    const asTarget = allRelationships
-      .filter(rel => rel.target_song_id === song.id)
-      .map(rel => ({
-        ...rel,
-        sourceSong: allSongsData.find(s => s.id === rel.source_song_id)!
-      }))
-      .filter(rel => rel.sourceSong);
-    
-    setSongRelationships({ asSource, asTarget });
-    setRelationshipsDialogOpen(true);
-  }, []);
+  // PF-17: title click navigates to the song detail page (the relationships
+  // dialog moved there); the pencil button still opens the edit dialog.
+  const handleSongClick = useCallback((song: Song) => {
+    navigate(`/song/${song.id}`);
+  }, [navigate]);
 
   const handleEditSong = useCallback((song: Song, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -320,6 +313,25 @@ export function SongLibrary() {
     });
   }, [songs, searchQuery, filters, songTags]);
 
+  // Detect horizontal overflow of the table (content wider than container).
+  // Re-checks when the row count or the visible-column layout changes, and on
+  // window resize; the ResizeObserver also catches container resizes.
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+
+    const check = () => setTableOverflows(el.scrollWidth > el.clientWidth);
+    check();
+    window.addEventListener('resize', check);
+
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => {
+      window.removeEventListener('resize', check);
+      observer.disconnect();
+    };
+  }, [filteredSongs.length, columnConfig]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -372,43 +384,52 @@ export function SongLibrary() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
-        {filteredSongs.length === 0 ? (
-          <EmptyState 
-            hasSearch={!!searchQuery} 
-            onLoadFiles={handleLoadFiles} 
-            loading={loading} 
-          />
-        ) : (
-          <div className="min-w-full">
-            <SongTableHeader
-              columnConfig={columnConfig}
-              filters={filters}
-              filterOptions={filterOptions}
-              onFilterChange={updateFilter}
+      <div className="relative flex-1 min-h-0">
+        <div ref={tableScrollRef} className="absolute inset-0 overflow-x-auto overflow-y-auto">
+          {filteredSongs.length === 0 ? (
+            <EmptyState 
+              hasSearch={!!searchQuery} 
+              onLoadFiles={handleLoadFiles} 
+              loading={loading} 
             />
-            
-            <div>
-              {filteredSongs.map((song, index) => (
-                <SongTableRow
-                  key={song.id}
-                  song={song}
-                  index={index}
-                  songTags={songTags[song.id] || []}
-                  columnConfig={columnConfig}
-                  editingNotes={editingNotes[song.id]}
-                  onSongClick={handleSongClick}
-                  onEditSong={handleEditSong}
-                  onTagsChange={handleTagsChange}
-                  onTagCreated={handleTagCreated}
-                  onNotesEdit={handleNotesEdit}
-                  onNotesBlur={handleNotesBlur}
-                  onNotesKeyDown={handleNotesKeyDown}
-                  getCurrentNotes={getCurrentNotes}
-                />
-              ))}
+          ) : (
+            <div className="w-max min-w-full">
+              <SongTableHeader
+                columnConfig={columnConfig}
+                filters={filters}
+                filterOptions={filterOptions}
+                onFilterChange={updateFilter}
+              />
+              
+              <div>
+                {filteredSongs.map((song, index) => (
+                  <SongTableRow
+                    key={song.id}
+                    song={song}
+                    index={index}
+                    songTags={songTags[song.id] || []}
+                    columnConfig={columnConfig}
+                    editingNotes={editingNotes[song.id]}
+                    onSongClick={handleSongClick}
+                    onPlaySong={(song) => player.play(song)}
+                    onEditSong={handleEditSong}
+                    onTagsChange={handleTagsChange}
+                    onTagCreated={handleTagCreated}
+                    onNotesEdit={handleNotesEdit}
+                    onNotesBlur={handleNotesBlur}
+                    onNotesKeyDown={handleNotesKeyDown}
+                    getCurrentNotes={getCurrentNotes}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* Right-edge affordance: only when content overflows horizontally.
+            Positioned outside the scroll container so it stays viewport-anchored. */}
+        {tableOverflows && filteredSongs.length > 0 && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background/80 to-transparent" />
         )}
       </div>
 
@@ -419,14 +440,6 @@ export function SongLibrary() {
         columnConfig={columnConfig}
       />
       
-      <SongRelationshipsDialog
-        song={selectedSongForRelationships}
-        open={relationshipsDialogOpen}
-        onOpenChange={setRelationshipsDialogOpen}
-        onSave={loadAllData}
-        relationships={songRelationships}
-      />
-
       <EditSongDialog
         song={selectedSongForEdit}
         open={editDialogOpen}
