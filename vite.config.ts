@@ -8,7 +8,8 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      "/api": "http://localhost:8000",
+      // KLANGKURATOR_API points the dev server at another backend (e.g. a sandbox copy).
+      "/api": process.env.KLANGKURATOR_API ?? "http://localhost:8000",
     },
   },
   resolve: {

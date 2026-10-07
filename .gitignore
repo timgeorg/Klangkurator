@@ -31,3 +31,10 @@ __pycache__/
 
 # Klangkurator data (never commit user data)
 .klangkurator/
+
+# impeccable session artifacts (reference images, captures, measurements)
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/build/
+.impeccable/decision-*.json
+.impeccable/config.local.json

@@ -1,0 +1,212 @@
+/*
+ * Klangkurator design tokens.
+ *
+ * Two themes from one set of roles:
+ *   ink   (dark, default)  .dark on <html>, or [data-theme="ink"]
+ *   paper (light)          :root, or [data-theme="paper"]
+ * The rail (sidebar) is ink in both themes.
+ *
+ * Semantic colors are HSL triplets without hsl(), so Tailwind can add opacity:
+ *   background: hsl(var(--background));  bg-primary/20 in Tailwind.
+ * Primitives (--k-*) are plain hex for canvas, SVG and non-Tailwind consumers.
+ *
+ * Rules that make the system hold:
+ *   - Orange (--signal) means "this one": the mark, primary actions, focus,
+ *     the playing/current item and its orange cut. Never a category color.
+ *   - Orange as text on paper uses --signal-text (deeper), never --signal.
+ *   - Text on orange is ink (--primary-foreground), never white (3.0:1).
+ */
+
+:root {
+  /* primitives */
+  --k-ink-950: #0A0A0B;  /* rail, deepest panel */
+  --k-ink-900: #111112;  /* app ground (ink theme) */
+  --k-ink-850: #161617;  /* raised panel */
+  --k-ink-800: #1C1C1D;  /* popover, input fill */
+  --k-ink-750: #232324;  /* hover fill */
+  --k-ink-700: #2E2E30;  /* hairline */
+  --k-ink-600: #3A3A3C;  /* strong hairline */
+  --k-ink-500: #66655F;  /* control border */
+  --k-ink-400: #8A8781;  /* faint text */
+  --k-ink-300: #9C9891;  /* muted text */
+  --k-paper-50: #FBF8F3;  /* popover (paper theme) */
+  --k-paper-100: #F7F3EC;  /* card */
+  --k-paper-200: #F1ECE4;  /* paper ground */
+  --k-paper-300: #E8E2D8;  /* alt fill, hover */
+  --k-paper-400: #D8D0C3;  /* hairline */
+  --k-paper-500: #BDB4A6;  /* strong hairline */
+  --k-paper-600: #8E877C;  /* control border */
+  --k-paper-700: #645F57;  /* muted text */
+  --k-paper-800: #3B3833;  /* body text, soft */
+  --k-orange-500: #FD6402;  /* signal: mark, primary fill, the cut, focus on ink */
+  --k-orange-700: #A33B00;  /* signal as text on paper */
+  --k-silver-400: #A1A2B3;  /* cool data neutral */
+  --k-lavender-300: #C2B7F2;  /* data accent */
+  --k-lavender-700: #5B4FC4;  /* data accent as text on paper */
+  --k-green-500: #519207;  /* success fill */
+  --k-green-400: #6DB33F;  /* success text on ink */
+  --k-green-700: #3E6F05;  /* success text on paper */
+  --k-red-400: #F26B5E;  /* destructive on ink */
+  --k-red-700: #B42318;  /* destructive on paper */
+  --k-ochre-400: #D9B43A;  /* warning on ink */
+  --k-ochre-700: #7D6200;  /* warning on paper */
+  --k-warmgray-500: #737270;  /* board gray */
+
+  /* type */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Literata Variable", "Literata", "Iowan Old Style", Georgia, serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* shape */
+  --radius: 0.625rem;        /* 10px: cards, panels, dialogs */
+  --radius-control: 0.5rem;  /* 8px: buttons, inputs */
+  --radius-chip: 9999px;     /* pills: tabs, search, chips */
+
+  /* space rhythm (4px base) */
+  --space-rail: 15.5rem;     /* 248px expanded rail */
+  --space-rail-collapsed: 4rem;
+  --space-player: 20rem;     /* 320px now-playing panel */
+  --space-player-bar: 4rem;  /* 64px docked player bar */
+
+  /* motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-cut: 260ms;
+
+  /* depth: offset + soft blur, never a zero-offset glow */
+  --shadow-1: 0 1px 2px rgb(10 10 11 / 0.06), 0 2px 8px rgb(10 10 11 / 0.06);
+  --shadow-2: 0 2px 4px rgb(10 10 11 / 0.08), 0 12px 32px rgb(10 10 11 / 0.14);
+
+  /* texture */
+  --grain-opacity: 0.55;
+
+  /* paper theme (light) */
+  --background: 37 32% 92%;  /* page ground */
+  --foreground: 240 3% 7%;  /* primary text */
+  --card: 38 41% 95%;  /* raised surface (panels, cards) */
+  --card-foreground: 240 3% 7%;
+  --popover: 38 50% 97%;  /* menus, popovers, dialogs */
+  --popover-foreground: 240 3% 7%;
+  --primary: 23 98% 50%;  /* primary action fill (signal) */
+  --primary-foreground: 240 5% 4%;  /* text on primary (6.6:1) */
+  --secondary: 37 26% 88%;  /* secondary fill */
+  --secondary-foreground: 240 3% 7%;
+  --muted: 37 26% 88%;  /* quiet fill */
+  --muted-foreground: 37 7% 37%;  /* secondary text (>=4.9:1) */
+  --accent: 37 26% 88%;  /* hover fill */
+  --accent-foreground: 240 3% 7%;
+  --destructive: 4 76% 40%;  /* destructive */
+  --destructive-foreground: 38 50% 97%;
+  --border: 37 21% 81%;  /* hairlines and dividers */
+  --input: 37 7% 52%;  /* control borders (>=3:1) */
+  --ring: 22 100% 32%;  /* focus ring */
+  --signal: 23 98% 50%;  /* the orange: mark, cut, active state fills */
+  --signal-foreground: 240 5% 4%;  /* text on signal fills */
+  --signal-text: 22 100% 32%;  /* orange used as text or icon */
+  --success: 88 91% 23%;  /* success text/icon */
+  --warning: 47 100% 25%;  /* warning text/icon */
+  --info: 246 50% 54%;  /* info text/icon */
+  --data-1: 23 98% 50%;  /* charts: highlight series */
+  --data-2: 240 3% 7%;  /* charts: base series */
+  --data-3: 40 1% 45%;  /* charts */
+  --data-4: 246 50% 54%;  /* charts */
+  --data-5: 88 91% 23%;  /* charts */
+  --waveform: 36 10% 60%;  /* waveform ink */
+  --waveform-played: 23 98% 50%;  /* played portion */
+  --surface-sunken: 37 26% 88%;  /* wells, code chips, waveform track */
+  /* rail: ink in both themes */
+  --sidebar-background: 240 5% 4%;
+  --sidebar-foreground: 37 12% 79%;
+  --sidebar-primary: 23 98% 50%;
+  --sidebar-primary-foreground: 240 5% 4%;
+  --sidebar-accent: 240 2% 12%;
+  --sidebar-accent-foreground: 37 32% 92%;
+  --sidebar-border: 240 2% 11%;
+  --sidebar-ring: 23 98% 50%;
+  --sidebar-muted: 36 4% 54%;
+  --signal-soft: 24 86% 88%;  /* tinted fill behind signal text on paper */
+  color-scheme: light;
+}
+
+.dark,
+[data-theme="ink"] {
+  --background: 240 3% 7%;
+  --foreground: 37 32% 92%;
+  --card: 240 2% 9%;
+  --card-foreground: 37 32% 92%;
+  --popover: 240 2% 11%;
+  --popover-foreground: 37 32% 92%;
+  --primary: 23 98% 50%;
+  --primary-foreground: 240 5% 4%;
+  --secondary: 240 2% 11%;
+  --secondary-foreground: 37 32% 92%;
+  --muted: 240 2% 11%;
+  --muted-foreground: 38 5% 59%;
+  --accent: 240 1% 14%;
+  --accent-foreground: 37 32% 92%;
+  --destructive: 5 85% 66%;
+  --destructive-foreground: 240 5% 4%;
+  --border: 240 2% 18%;
+  --input: 51 4% 39%;
+  --ring: 23 98% 50%;
+  --signal: 23 98% 50%;
+  --signal-foreground: 240 5% 4%;
+  --signal-text: 23 98% 50%;
+  --success: 96 48% 47%;
+  --warning: 46 68% 54%;
+  --info: 251 69% 83%;
+  --data-1: 23 98% 50%;
+  --data-2: 37 32% 92%;
+  --data-3: 237 11% 67%;
+  --data-4: 251 69% 83%;
+  --data-5: 96 48% 47%;
+  --waveform: 40 3% 36%;
+  --waveform-played: 23 98% 50%;
+  --surface-sunken: 240 5% 4%;
+  --signal-soft: 22 45% 11%;  /* orange-tinted ink behind the active row */
+  --grain-opacity: 0.5;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+[data-theme="paper"] {
+  --background: 37 32% 92%;
+  --foreground: 240 3% 7%;
+  --card: 38 41% 95%;
+  --card-foreground: 240 3% 7%;
+  --popover: 38 50% 97%;
+  --popover-foreground: 240 3% 7%;
+  --primary: 23 98% 50%;
+  --primary-foreground: 240 5% 4%;
+  --secondary: 37 26% 88%;
+  --secondary-foreground: 240 3% 7%;
+  --muted: 37 26% 88%;
+  --muted-foreground: 37 7% 37%;
+  --accent: 37 26% 88%;
+  --accent-foreground: 240 3% 7%;
+  --destructive: 4 76% 40%;
+  --destructive-foreground: 38 50% 97%;
+  --border: 37 21% 81%;
+  --input: 37 7% 52%;
+  --ring: 22 100% 32%;
+  --signal: 23 98% 50%;
+  --signal-foreground: 240 5% 4%;
+  --signal-text: 22 100% 32%;
+  --success: 88 91% 23%;
+  --warning: 47 100% 25%;
+  --info: 246 50% 54%;
+  --data-1: 23 98% 50%;
+  --data-2: 240 3% 7%;
+  --data-3: 40 1% 45%;
+  --data-4: 246 50% 54%;
+  --data-5: 88 91% 23%;
+  --waveform: 36 10% 60%;
+  --waveform-played: 23 98% 50%;
+  --surface-sunken: 37 26% 88%;
+  --signal-soft: 24 86% 88%;
+  --grain-opacity: 0.55;
+  color-scheme: light;
+}
