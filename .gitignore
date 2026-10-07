@@ -38,3 +38,4 @@ __pycache__/
 .impeccable/build/
 .impeccable/decision-*.json
 .impeccable/config.local.json
+.impeccable/questions/
