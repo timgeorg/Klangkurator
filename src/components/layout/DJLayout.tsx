@@ -1,29 +1,45 @@
-import React from 'react';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { DJSidebar } from './DJSidebar';
+import React from "react";
+import { Link } from "react-router-dom";
+
+import { Wordmark } from "@/components/brand";
+import { NowPlaying } from "@/components/dj/NowPlaying";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { usePlayer } from "@/lib/PlayerContext";
+
+import { DJSidebar } from "./DJSidebar";
 
 interface DJLayoutProps {
   children: React.ReactNode;
 }
 
+/**
+ * App shell: the ink rail on the left, the routed page in the middle, the
+ * preview player either as a right-hand panel (wide screens) or a bottom bar.
+ * Pages own their scrolling inside <main>.
+ */
 export function DJLayout({ children }: DJLayoutProps) {
-  return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <DJSidebar />
-        
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <header className="h-12 border-b border-table-border bg-table-header flex items-center px-4 flex-shrink-0">
-            <SidebarTrigger className="text-foreground hover:bg-table-row-hover" />
-          </header>
+  const { current, dock } = usePlayer();
 
-          {/* Main Content — unconditional pb-12 reserves the player bar's height
-              (48px) so fixed-bottom PlayerBar never overlaps content */}
-          <main className="flex-1 overflow-hidden pb-12">
-            {children}
-          </main>
-        </div>
+  return (
+    <SidebarProvider defaultOpen={typeof window === "undefined" || window.innerWidth >= 1024}>
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Skip to content
+      </a>
+      <DJSidebar />
+      <div className="k-shell" data-player={current ? dock : "off"}>
+        <header className="k-shell-top flex h-14 items-center gap-2 border-b border-sidebar-border bg-sidebar px-2 text-sidebar-foreground md:hidden">
+          <SidebarTrigger className="h-10 w-10 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" />
+          <Link to="/" className="rounded-md px-1 text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+            <Wordmark />
+          </Link>
+        </header>
+        <main id="main" tabIndex={-1} className="k-shell-main focus:outline-none">
+          {children}
+        </main>
+        <NowPlaying />
       </div>
     </SidebarProvider>
   );
