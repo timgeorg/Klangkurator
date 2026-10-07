@@ -1,40 +1,29 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { storage, Song, Tag } from '@/lib/storage';
-import { FileLoader } from '@/lib/fileLoader';
-import { toast } from '@/hooks/use-toast';
-import { usePlayer } from '@/lib/PlayerContext';
-import { useColumnConfig } from '@/hooks/useColumnConfig';
-import { SongTableHeader } from './SongTableHeader';
-import { SongTableRow } from './SongTableRow';
-import { EditSongDialog } from './EditSongDialog';
-import { ColumnSettingsDialog } from './ColumnSettingsDialog';
-import { Search, Plus, Music2, FolderOpen, Settings2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { FolderInput, Search, SlidersHorizontal, X } from "lucide-react";
 
-// Filter state type
-interface FilterState {
-  title: string;
-  artist: string;
-  album: string;
-  rootFolder: string[];
-  genre: string[];
-  subgenres: string[];
-  bpm: { min?: number; max?: number };
-  key: string[];
-  energy: { min?: number; max?: number };
-  danceability: { min?: number; max?: number };
-  social: { min?: number; max?: number };
-  duration: { min?: number; max?: number };
-  tags: string[];
-}
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
+import { getMainGenreColor } from "@/lib/genreData";
+import { usePlayer } from "@/lib/PlayerContext";
+import { storage, Song, Tag } from "@/lib/storage";
+import { crateOf, isMinorKey } from "@/lib/trackFormat";
+import { cn } from "@/lib/utils";
+
+import { ColumnSettingsDialog } from "./ColumnSettingsDialog";
+import { EditSongDialog } from "./EditSongDialog";
+import { FILTER_CONFIG, FilterOptions, FilterState, FilterValue, RangeValue, SortState, isFilterActive } from "./libraryTable";
+import { SongTableHeader } from "./SongTableHeader";
+import { SongTableRow } from "./SongTableRow";
 
 const INITIAL_FILTERS: FilterState = {
-  title: '',
-  artist: '',
-  album: '',
+  title: "",
+  artist: "",
+  album: "",
   rootFolder: [],
   genre: [],
   subgenres: [],
@@ -44,96 +33,98 @@ const INITIAL_FILTERS: FilterState = {
   danceability: {},
   social: {},
   duration: {},
-  tags: []
+  tags: [],
 };
 
-// Utility to extract root folder from file path
-const getRootFolder = (filePath: string): string => {
-  if (!filePath) return '';
-  // Handle both Windows and Unix paths
-  const parts = filePath.replace(/\\/g, '/').split('/');
-  // Return the first folder after the drive/root, or the folder containing the file
-  if (parts.length >= 2) {
-    // Skip empty parts and find meaningful folder
-    const nonEmptyParts = parts.filter(p => p && !p.includes(':'));
-    return nonEmptyParts[0] || '';
-  }
-  return '';
+const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null> = {
+  title: (s) => s.title,
+  artist: (s) => s.artist,
+  album: (s) => s.album,
+  rootFolder: (s) => crateOf(s),
+  bpm: (s) => s.bpm,
+  key: (s) => s.musical_key,
+  energy: (s) => s.energy,
+  danceability: (s) => s.danceability,
+  social: (s) => s.social_acceptance,
+  duration: (s) => s.duration,
 };
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function SongLibrary() {
   const navigate = useNavigate();
   const player = usePlayer();
-
-  // Column configuration hook
   const columnConfig = useColumnConfig();
-  
-  // Core data state
+
+  // Core data
   const [songs, setSongs] = useState<Song[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [songTags, setSongTags] = useState<Record<string, Tag[]>>({});
-  
-  // UI state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
+  // True until the first load completes; gates the empty-library redirect
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // UI state (session only: search, filters and sort reset when you leave)
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
+  const editingNotesRef = useRef(editingNotes);
+  editingNotesRef.current = editingNotes;
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
-  
-  // Dialog states
+  const [sort, setSort] = useState<SortState>(null);
+
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedSongForEdit, setSelectedSongForEdit] = useState<Song | null>(null);
-  // True until the first load completes — gates the empty-library redirect
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-  // Horizontal-overflow affordance: true when the table content is wider than
-  // the scroll container (right-edge fade is only rendered when set)
+  // Right-edge fade when the table is wider than its container
   const [tableOverflows, setTableOverflows] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
-  // Load initial data
+  const loadAllData = useCallback(async () => {
+    try {
+      // Three requests in parallel; the song/tag join comes in one call.
+      const [loadedSongs, loadedTags, links] = await Promise.all([
+        storage.getSongs(),
+        storage.getTags(),
+        storage.getSongTags(),
+      ]);
+      const tagById = new Map(loadedTags.map((t) => [t.id, t]));
+      const tagsMap: Record<string, Tag[]> = {};
+      for (const link of links) {
+        const tag = tagById.get(link.tag_id);
+        if (tag) (tagsMap[link.song_id] ??= []).push(tag);
+      }
+      setSongs(loadedSongs);
+      setAllTags(loadedTags);
+      setSongTags(tagsMap);
+      setLoadError(null);
+      setInitialLoadDone(true);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "The library could not be loaded.");
+    }
+  }, []);
+
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, [loadAllData]);
 
-  const loadAllData = useCallback(async () => {
-    const [loadedSongs, loadedTags] = await Promise.all([
-      storage.getSongs(),
-      storage.getTags(),
-    ]);
-    setSongs(loadedSongs);
-    setAllTags(loadedTags);
-
-    const tagsMap: Record<string, Tag[]> = {};
-    for (const song of loadedSongs) {
-      tagsMap[song.id] = await storage.getTagsForSong(song.id);
-    }
-    setSongTags(tagsMap);
-    setInitialLoadDone(true);
-  }, []);
-
-  // Empty library → the table is a dead end; route to the import page.
-  // Only when the library itself is empty — not when a search/filter
-  // simply matches nothing.
+  // Empty library: the table is a dead end, route to the import page.
+  // Only when the library itself is empty, not when a filter matches nothing.
   useEffect(() => {
     if (initialLoadDone && songs.length === 0) {
-      navigate('/load-files', { replace: true });
+      navigate("/load-files", { replace: true });
     }
   }, [initialLoadDone, songs.length, navigate]);
 
-  // Auto-resize tags column based on content
+  // Auto-size the tags column to the widest tag list
+  const { autoResizeColumn } = columnConfig;
   useEffect(() => {
-    const maxCount = songs.reduce((max, s) => {
-      const c = songTags[s.id]?.length || 0;
-      return c > max ? c : max;
-    }, 0);
-    const autoWidth = Math.min(360, 160 + Math.max(0, maxCount - 1) * 70);
-    columnConfig.autoResizeColumn('tags', autoWidth);
-  }, [songTags, songs]);
+    const maxCount = songs.reduce((max, s) => Math.max(max, songTags[s.id]?.length || 0), 0);
+    autoResizeColumn("tags", Math.min(360, 160 + Math.max(0, maxCount - 1) * 70));
+  }, [songTags, songs, autoResizeColumn]);
 
-  // Handlers
   const handleTagsChange = useCallback(async (songId: string, tags: Tag[]) => {
-    setSongTags(prev => ({ ...prev, [songId]: tags }));
+    setSongTags((prev) => ({ ...prev, [songId]: tags }));
     setAllTags(await storage.getTags());
   }, []);
 
@@ -141,158 +132,117 @@ export function SongLibrary() {
     setAllTags(await storage.getTags());
   }, []);
 
-  const handleLoadFiles = async () => {
-    try {
-      setLoading(true);
-      const files = await FileLoader.loadAudioFiles();
-      
-      if (files.length > 0) {
-        toast({
-          title: "Files loaded successfully",
-          description: `Loaded ${files.length} audio files to your library.`,
-        });
-        loadAllData();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error loading files",
-        description: error.message || "Failed to load audio files",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { current, isPlaying, play, toggle } = player;
+  const currentId = current?.id;
+  const handlePlaySong = useCallback(
+    (song: Song) => {
+      if (song.id === currentId) toggle();
+      else play(song);
+    },
+    [currentId, play, toggle],
+  );
 
-  // PF-17: title click navigates to the song detail page (the relationships
-  // dialog moved there); the pencil button still opens the edit dialog.
-  const handleSongClick = useCallback((song: Song) => {
-    navigate(`/song/${song.id}`);
-  }, [navigate]);
-
-  const handleEditSong = useCallback((song: Song, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleEditSong = useCallback((song: Song) => {
     setSelectedSongForEdit(song);
     setEditDialogOpen(true);
   }, []);
 
-  const handleSongSaved = useCallback(() => {
-    loadAllData();
-  }, [loadAllData]);
-
-  const updateFilter = useCallback((key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  const updateFilter = useCallback((key: keyof FilterState, value: FilterValue) => {
+    setFilters((prev) => ({ ...prev, [key]: value ?? INITIAL_FILTERS[key] }));
   }, []);
 
-  // Notes editing handlers
+  // Inline notes (NFR-11): Enter or blur saves, Escape discards, Shift+Enter is a newline
   const handleNotesEdit = useCallback((songId: string, notes: string) => {
-    setEditingNotes(prev => ({ ...prev, [songId]: notes }));
+    setEditingNotes((prev) => ({ ...prev, [songId]: notes }));
   }, []);
+
+  const dropDraft = (songId: string) =>
+    setEditingNotes((prev) => {
+      const next = { ...prev };
+      delete next[songId];
+      return next;
+    });
 
   const handleNotesBlur = useCallback(async (songId: string) => {
-    const notes = editingNotes[songId];
-    if (notes !== undefined) {
-      await storage.updateSong(songId, { mixing_notes: notes });
-      setSongs(await storage.getSongs());
-      setEditingNotes(prev => {
-        const updated = { ...prev };
-        delete updated[songId];
-        return updated;
-      });
-    }
-  }, [editingNotes]);
-
-  const handleNotesKeyDown = useCallback((e: React.KeyboardEvent, songId: string) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleNotesBlur(songId);
-    }
-    if (e.key === 'Escape') {
-      setEditingNotes(prev => {
-        const updated = { ...prev };
-        delete updated[songId];
-        return updated;
-      });
-    }
-  }, [handleNotesBlur]);
-
-  const getCurrentNotes = useCallback((song: Song) => {
-    return song.mixing_notes || song.drum_notes || song.element_notes || '';
+    const notes = editingNotesRef.current[songId];
+    if (notes === undefined) return;
+    await storage.updateSong(songId, { mixing_notes: notes });
+    setSongs(await storage.getSongs());
+    dropDraft(songId);
   }, []);
 
-  // Memoized filter options
-  const filterOptions = useMemo(() => {
-    const mainGenresSet = new Set<string>();
-    const subgenresSet = new Set<string>();
-    const rootFoldersSet = new Set<string>();
-    
-    songs.forEach(s => {
-      if (s.mainGenre) mainGenresSet.add(s.mainGenre);
-      if (s.subgenres) s.subgenres.forEach(g => subgenresSet.add(g));
-      if (s.genres) s.genres.forEach(g => mainGenresSet.add(g));
-      else if (s.genre) mainGenresSet.add(s.genre);
-      
-      const folder = getRootFolder(s.file_path);
-      if (folder) rootFoldersSet.add(folder);
+  const handleNotesKeyDown = useCallback(
+    (e: React.KeyboardEvent, songId: string) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleNotesBlur(songId);
+      }
+      if (e.key === "Escape") dropDraft(songId);
+    },
+    [handleNotesBlur],
+  );
+
+  // Filter options come from the loaded data (NFR-4: memoised)
+  const filterOptions: FilterOptions = useMemo(() => {
+    const mainGenres = new Set<string>();
+    const subgenres = new Set<string>();
+    const crates = new Set<string>();
+    songs.forEach((s) => {
+      if (s.mainGenre) mainGenres.add(s.mainGenre);
+      s.subgenres?.forEach((g) => subgenres.add(g));
+      if (s.genres) s.genres.forEach((g) => mainGenres.add(g));
+      else if (s.genre) mainGenres.add(s.genre);
+      const crate = crateOf(s);
+      if (crate) crates.add(crate);
     });
-    
     return {
-      mainGenres: [...mainGenresSet].map(g => ({ label: g, value: g })),
-      subgenres: [...subgenresSet].map(g => ({ label: g, value: g })),
-      keys: [...new Set(songs.map(s => s.musical_key).filter(Boolean))].map(k => ({ 
-        label: k!, 
-        value: k!,
-        color: k!.includes('minor') ? 'hsl(var(--key-minor))' : 'hsl(var(--key-major))'
-      })),
-      tags: allTags.map(tag => ({
-        label: tag.name,
-        value: tag.id,
-        color: tag.color
-      })),
-      rootFolders: [...rootFoldersSet].sort().map(f => ({ label: f, value: f })),
+      mainGenres: [...mainGenres].sort(collator.compare).map((g) => ({ label: g, value: g, color: getMainGenreColor(g) })),
+      subgenres: [...subgenres].sort(collator.compare).map((g) => ({ label: g, value: g })),
+      keys: [...new Set(songs.map((s) => s.musical_key).filter(Boolean) as string[])]
+        .sort(collator.compare)
+        .map((k) => ({
+          label: k,
+          value: k,
+          color: isMinorKey(k) ? "hsl(var(--info))" : "hsl(var(--foreground))",
+        })),
+      tags: allTags.map((tag) => ({ label: tag.name, value: tag.id, color: tag.color })),
+      rootFolders: [...crates].sort(collator.compare).map((f) => ({ label: f, value: f })),
     };
   }, [songs, allTags]);
 
-  // Filtered songs
-  const filteredSongs = useMemo(() => {
-    const lowerQuery = searchQuery.toLowerCase();
-    
-    return songs.filter(song => {
-      // Global search
-      if (lowerQuery) {
-        const matchesSearch = 
-          song.title.toLowerCase().includes(lowerQuery) ||
-          song.artist.toLowerCase().includes(lowerQuery) ||
-          song.mainGenre?.toLowerCase().includes(lowerQuery) ||
-          song.subgenres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
-          song.genres?.some(g => g.toLowerCase().includes(lowerQuery)) ||
-          song.genre?.toLowerCase().includes(lowerQuery) ||
-          song.musical_key?.toLowerCase().includes(lowerQuery);
-        if (!matchesSearch) return false;
-      }
+  const crateCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    songs.forEach((s) => {
+      const c = crateOf(s);
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => collator.compare(a[0], b[0]));
+  }, [songs]);
 
-      // Column filters
+  const filteredSongs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const rows = songs.filter((song) => {
+      if (q) {
+        const hit =
+          song.title.toLowerCase().includes(q) ||
+          song.artist.toLowerCase().includes(q) ||
+          song.mainGenre?.toLowerCase().includes(q) ||
+          song.subgenres?.some((g) => g.toLowerCase().includes(q)) ||
+          song.genres?.some((g) => g.toLowerCase().includes(q)) ||
+          song.genre?.toLowerCase().includes(q) ||
+          song.musical_key?.toLowerCase().includes(q);
+        if (!hit) return false;
+      }
       if (filters.title && !song.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
       if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
       if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
-
-      // Root folder filter
-      if (filters.rootFolder.length > 0) {
-        const songFolder = getRootFolder(song.file_path);
-        if (!filters.rootFolder.includes(songFolder)) return false;
-      }
-
+      if (filters.rootFolder.length > 0 && !filters.rootFolder.includes(crateOf(song))) return false;
       if (filters.genre.length > 0) {
-        const songMainGenres = [song.mainGenre, ...(song.genres || []), song.genre].filter(Boolean) as string[];
-        if (!songMainGenres.some(g => filters.genre.includes(g))) return false;
+        const g = [song.mainGenre, ...(song.genres || []), song.genre].filter(Boolean) as string[];
+        if (!g.some((x) => filters.genre.includes(x))) return false;
       }
-      
-      if (filters.subgenres.length > 0) {
-        if (!(song.subgenres || []).some(g => filters.subgenres.includes(g))) return false;
-      }
-      
+      if (filters.subgenres.length > 0 && !(song.subgenres || []).some((g) => filters.subgenres.includes(g))) return false;
       if (filters.key.length > 0 && (!song.musical_key || !filters.key.includes(song.musical_key))) return false;
-
       if (filters.bpm.min !== undefined && (!song.bpm || song.bpm < filters.bpm.min)) return false;
       if (filters.bpm.max !== undefined && (!song.bpm || song.bpm > filters.bpm.max)) return false;
       if (filters.energy.min !== undefined && song.energy < filters.energy.min) return false;
@@ -303,183 +253,291 @@ export function SongLibrary() {
       if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
       if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
       if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;
-
       if (filters.tags.length > 0) {
-        const songTagIds = songTags[song.id]?.map(t => t.id) || [];
-        if (!filters.tags.some(tagId => songTagIds.includes(tagId))) return false;
+        const ids = songTags[song.id]?.map((t) => t.id) || [];
+        if (!filters.tags.some((id) => ids.includes(id))) return false;
       }
-
       return true;
     });
-  }, [songs, searchQuery, filters, songTags]);
 
-  // Detect horizontal overflow of the table (content wider than container).
-  // Re-checks when the row count or the visible-column layout changes, and on
-  // window resize; the ResizeObserver also catches container resizes.
+    if (!sort || !SORT_VALUE[sort.column]) return rows;
+    const get = SORT_VALUE[sort.column];
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const va = get(a);
+      const vb = get(b);
+      const missingA = va === undefined || va === null || va === "";
+      const missingB = vb === undefined || vb === null || vb === "";
+      if (missingA || missingB) return missingA === missingB ? 0 : missingA ? 1 : -1; // missing always last
+      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+      return collator.compare(String(va), String(vb)) * dir;
+    });
+  }, [songs, searchQuery, filters, songTags, sort]);
+
+  const activeFilterKeys = (Object.keys(FILTER_CONFIG) as (keyof FilterState)[]).filter((key) =>
+    isFilterActive(FILTER_CONFIG[key].type, filters[key]),
+  );
+  const isFiltering = activeFilterKeys.length > 0 || searchQuery.trim() !== "";
+  const clearAll = () => {
+    setFilters(INITIAL_FILTERS);
+    setSearchQuery("");
+  };
+
+  // Detect horizontal overflow (content wider than the scroll container)
+  const { visibleColumns, gridTemplate } = columnConfig;
   useEffect(() => {
     const el = tableScrollRef.current;
     if (!el) return;
-
-    const check = () => setTableOverflows(el.scrollWidth > el.clientWidth);
+    const check = () => setTableOverflows(el.scrollWidth > el.clientWidth + 1);
     check();
-    window.addEventListener('resize', check);
-
     const observer = new ResizeObserver(check);
     observer.observe(el);
-    return () => {
-      window.removeEventListener('resize', check);
-      observer.disconnect();
-    };
-  }, [filteredSongs.length, columnConfig]);
+    return () => observer.disconnect();
+  }, [filteredSongs.length, gridTemplate, initialLoadDone]);
+
+  const meta = !initialLoadDone
+    ? undefined
+    : isFiltering
+      ? `${filteredSongs.length} of ${songs.length} tracks`
+      : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}`;
+
+  const activeCrate = filters.rootFolder.length === 1 ? filters.rootFolder[0] : null;
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-table-border bg-table-header">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-foreground">Library</h1>
-          <span className="text-sm text-muted-foreground">
-            {songs.length} tracks
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Search tracks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-64 h-8 bg-input border-border text-sm"
-            />
-          </div>
-          
-          <Button 
-            size="sm"
-            variant="outline"
-            className="h-8 border-border hover:bg-table-row-hover text-xs"
-            onClick={() => setColumnSettingsOpen(true)}
-          >
-            <Settings2 className="w-3 h-3 mr-1" />
-            Columns
-          </Button>
-          
-          <Button 
-            onClick={handleLoadFiles}
-            disabled={loading}
-            size="sm"
-            variant="outline"
-            className="h-8 border-border hover:bg-table-row-hover text-xs"
-          >
-            <FolderOpen className="w-3 h-3 mr-1" />
-            {loading ? 'Loading...' : 'Load Files'}
-          </Button>
-          <Button 
-            size="sm"
-            className="h-8 bg-primary hover:bg-primary/90 text-xs"
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Add
-          </Button>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="relative flex-1 min-h-0">
-        <div ref={tableScrollRef} className="absolute inset-0 overflow-x-auto overflow-y-auto">
-          {filteredSongs.length === 0 ? (
-            <EmptyState 
-              hasSearch={!!searchQuery} 
-              onLoadFiles={handleLoadFiles} 
-              loading={loading} 
-            />
-          ) : (
-            <div className="w-max min-w-full">
-              <SongTableHeader
-                columnConfig={columnConfig}
-                filters={filters}
-                filterOptions={filterOptions}
-                onFilterChange={updateFilter}
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader
+        title="Library"
+        meta={meta}
+        actions={
+          <>
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search the library"
+                placeholder="Search title, artist, genre, key"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 rounded-chip pl-9 pr-9"
               />
-              
-              <div>
-                {filteredSongs.map((song, index) => (
-                  <SongTableRow
-                    key={song.id}
-                    song={song}
-                    index={index}
-                    songTags={songTags[song.id] || []}
-                    columnConfig={columnConfig}
-                    editingNotes={editingNotes[song.id]}
-                    onSongClick={handleSongClick}
-                    onPlaySong={(song) => player.play(song)}
-                    onEditSong={handleEditSong}
-                    onTagsChange={handleTagsChange}
-                    onTagCreated={handleTagCreated}
-                    onNotesEdit={handleNotesEdit}
-                    onNotesBlur={handleNotesBlur}
-                    onNotesKeyDown={handleNotesKeyDown}
-                    getCurrentNotes={getCurrentNotes}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Button variant="outline" onClick={() => setColumnSettingsOpen(true)}>
+              <SlidersHorizontal />
+              Columns
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/load-files">
+                <FolderInput />
+                Import
+              </Link>
+            </Button>
+          </>
+        }
+      >
+        {(crateCounts.length > 0 || activeFilterKeys.length > 0) && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {crateCounts.length > 0 && (
+              <div role="group" aria-label="Crates" className="-ml-1 flex flex-wrap items-center gap-1">
+                <CrateTab
+                  label="All tracks"
+                  count={songs.length}
+                  active={filters.rootFolder.length === 0}
+                  onClick={() => updateFilter("rootFolder", [])}
+                />
+                {crateCounts.map(([crate, count]) => (
+                  <CrateTab
+                    key={crate}
+                    label={crate}
+                    count={count}
+                    active={activeCrate === crate}
+                    onClick={() => updateFilter("rootFolder", activeCrate === crate ? [] : [crate])}
                   />
                 ))}
               </div>
-            </div>
+            )}
+            {activeFilterKeys.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {activeFilterKeys.map((key) => (
+                  <FilterChip
+                    key={key}
+                    label={COLUMN_DEFINITIONS[key]?.label ?? key}
+                    value={describeFilter(key, filters[key], filterOptions)}
+                    onRemove={() => updateFilter(key, INITIAL_FILTERS[key])}
+                  />
+                ))}
+                <Button variant="link" size="sm" onClick={clearAll} className="h-6 text-xs">
+                  Clear all
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </PageHeader>
+
+      <div className="relative min-h-0 flex-1">
+        <div ref={tableScrollRef} className="absolute inset-0 overflow-auto">
+          {loadError ? (
+            <EmptyState
+              title="The library didn't load."
+              body={`Klangkurator couldn't reach its backend: ${loadError}. Check that the app is running (./run.sh status), then try again.`}
+              action={<Button onClick={() => loadAllData()}>Try again</Button>}
+              arrangement="split"
+            />
+          ) : !initialLoadDone ? (
+            <TableSkeleton gridTemplate={gridTemplate} columns={visibleColumns} />
+          ) : (
+            <>
+              <div role="table" aria-label="Library" aria-rowcount={filteredSongs.length} className="w-max min-w-full">
+                <SongTableHeader
+                  columnConfig={columnConfig}
+                  filters={filters}
+                  filterOptions={filterOptions}
+                  onFilterChange={updateFilter}
+                  sort={sort}
+                  onSortChange={setSort}
+                />
+                <div role="rowgroup">
+                  {filteredSongs.map((song, index) => (
+                    <SongTableRow
+                      key={song.id}
+                      song={song}
+                      index={index}
+                      songTags={songTags[song.id] || EMPTY_TAGS}
+                      allTags={allTags}
+                      visibleColumns={visibleColumns}
+                      gridTemplate={gridTemplate}
+                      editingNotes={editingNotes[song.id]}
+                      isCurrent={song.id === currentId}
+                      isPlaying={song.id === currentId && isPlaying}
+                      onPlaySong={handlePlaySong}
+                      onEditSong={handleEditSong}
+                      onTagsChange={handleTagsChange}
+                      onTagCreated={handleTagCreated}
+                      onNotesEdit={handleNotesEdit}
+                      onNotesBlur={handleNotesBlur}
+                      onNotesKeyDown={handleNotesKeyDown}
+                    />
+                  ))}
+                </div>
+              </div>
+              {filteredSongs.length === 0 && songs.length > 0 && (
+                <div className="sticky left-0 w-full max-w-3xl p-5 md:p-8">
+                  <EmptyState
+                    size="inline"
+                    arrangement="stack"
+                    title="No track matches."
+                    body={
+                      searchQuery.trim()
+                        ? `Nothing in your ${songs.length} tracks matches “${searchQuery.trim()}” with the current filters.`
+                        : "The active filters exclude every track."
+                    }
+                    action={
+                      <Button variant="outline" size="sm" onClick={clearAll}>
+                        Clear search and filters
+                      </Button>
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Right-edge affordance: only when content overflows horizontally.
-            Positioned outside the scroll container so it stays viewport-anchored. */}
         {tableOverflows && filteredSongs.length > 0 && (
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
         )}
       </div>
 
-      {/* Dialogs */}
-      <ColumnSettingsDialog
-        open={columnSettingsOpen}
-        onOpenChange={setColumnSettingsOpen}
-        columnConfig={columnConfig}
-      />
-      
+      <ColumnSettingsDialog open={columnSettingsOpen} onOpenChange={setColumnSettingsOpen} columnConfig={columnConfig} />
       <EditSongDialog
         song={selectedSongForEdit}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
-        onSave={handleSongSaved}
+        onSave={() => loadAllData()}
       />
     </div>
   );
 }
 
-// Empty state component
-function EmptyState({ 
-  hasSearch, 
-  onLoadFiles, 
-  loading 
-}: { 
-  hasSearch: boolean; 
-  onLoadFiles: () => void; 
-  loading: boolean; 
-}) {
+const EMPTY_TAGS: Tag[] = [];
+
+function CrateTab({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-64 bg-table-row">
-      <Music2 className="w-8 h-8 text-muted-foreground mb-3" />
-      <h3 className="text-sm font-medium mb-1">No tracks found</h3>
-      <p className="text-xs text-muted-foreground text-center mb-3">
-        {hasSearch 
-          ? "Try adjusting your search terms" 
-          : "Load audio files to start building your library"}
-      </p>
-      {!hasSearch && (
-        <Button 
-          onClick={onLoadFiles}
-          disabled={loading}
-          size="sm"
-          className="bg-primary hover:bg-primary/90 text-xs"
-        >
-          <FolderOpen className="w-3 h-3 mr-1" />
-          Load Audio Files
-        </Button>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex h-8 max-w-[16rem] items-center gap-2 rounded-chip px-3.5 text-[13px] font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "bg-signal-soft text-signal-text" : "text-muted-foreground hover:text-foreground",
       )}
+    >
+      <span className="truncate">{label}</span>
+      <span className={cn("k-num text-[11px]", active ? "text-signal-text/80" : "text-muted-foreground/80")}>{count}</span>
+    </button>
+  );
+}
+
+function FilterChip({ label, value, onRemove }: { label: string; value: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-chip border border-border pl-2.5 pr-1 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-[12rem] truncate font-medium">{value}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+function describeFilter(key: keyof FilterState, value: FilterValue, options: FilterOptions): string {
+  const type = FILTER_CONFIG[key].type;
+  if (type === "text") return `“${value}”`;
+  if (type === "range") {
+    const range = value as RangeValue;
+    const fmt = (n?: number) => (n === undefined ? "" : key === "duration" ? `${Math.floor(n / 60)}:${String(Math.round(n % 60)).padStart(2, "0")}` : String(n));
+    if (range.min !== undefined && range.max !== undefined) return `${fmt(range.min)}–${fmt(range.max)}`;
+    return range.min !== undefined ? `≥ ${fmt(range.min)}` : `≤ ${fmt(range.max)}`;
+  }
+  const list = (value as string[]) ?? [];
+  const optionsKey = FILTER_CONFIG[key].optionsKey;
+  const labelOf = (v: string) => (optionsKey ? options[optionsKey].find((o) => o.value === v)?.label : undefined) ?? v;
+  return list.length <= 2 ? list.map(labelOf).join(", ") : `${list.length} selected`;
+}
+
+function TableSkeleton({ gridTemplate, columns }: { gridTemplate: string; columns: string[] }) {
+  return (
+    <div aria-busy="true" aria-label="Loading the library" className="w-max min-w-full">
+      <div className="h-9 border-b border-border" />
+      {Array.from({ length: 12 }, (_, r) => (
+        <div
+          key={r}
+          className="grid h-11 items-center gap-2 border-b border-border/70 px-3"
+          style={{ gridTemplateColumns: gridTemplate }}
+        >
+          {columns.map((c) =>
+            c === "cover" ? (
+              <Skeleton key={c} className="h-8 w-8 rounded-[3px]" />
+            ) : (
+              <Skeleton key={c} className={cn("h-2.5", c === "title" ? "w-4/5" : "w-1/2")} />
+            ),
+          )}
+        </div>
+      ))}
     </div>
   );
 }

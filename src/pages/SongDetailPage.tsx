@@ -8,7 +8,7 @@ import { EditSongDialog } from '@/components/dj/EditSongDialog';
 import { storage, Song, SongRelationship, Tag } from '@/lib/storage';
 import { usePlayer } from '@/lib/PlayerContext';
 import { getMainGenreColor } from '@/lib/genreData';
-import { formatDuration } from '@/components/dj/SongTableRow';
+import { formatDuration } from '@/lib/trackFormat';
 import {
   ArrowLeft, Music2, Play, Pencil, Clock, FileText,
 } from 'lucide-react';
