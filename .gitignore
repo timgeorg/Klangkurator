@@ -39,3 +39,6 @@ __pycache__/
 .impeccable/decision-*.json
 .impeccable/config.local.json
 .impeccable/questions/
+
+# Python test cache
+.pytest_cache/

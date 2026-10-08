@@ -75,7 +75,7 @@ Shape and motion: `--radius` 10px (cards, dialogs), `--radius-control` 8px (butt
 | Class | Face | Size | Use |
 |---|---|---|---|
 | `k-display-lg` / `k-display` / `k-display-sm` | Literata | 72 / 56 / 40px | Editorial headlines: empty states, 404, website |
-| `k-headline` | Literata | 28px | Track title on detail views |
+| `k-headline` | Literata | 28px | Set names on the Sets page (the song page's track title uses `k-display-sm`) |
 | `k-title` | Inter 700 | 24px | Page titles |
 | `k-heading` | Inter 600 | 17px | Section and card titles |
 | `k-body`, `k-small` | Inter | 14 / 12px | Body and secondary text |

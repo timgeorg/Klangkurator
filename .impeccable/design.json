@@ -1,0 +1,707 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T13:07:31+00:00",
+  "title": "Design System: Klangkurator",
+  "extensions": {
+    "colorMeta": {
+      "signal-orange": {
+        "role": "primary",
+        "displayName": "Signal Orange",
+        "canonical": "hsl(23 98% 50%)",
+        "tonalRamp": [
+          "oklch(0.15 0.152 43.0)",
+          "oklch(0.26 0.174 43.0)",
+          "oklch(0.37 0.197 43.0)",
+          "oklch(0.48 0.204 43.0)",
+          "oklch(0.60 0.204 43.0)",
+          "oklch(0.72 0.204 43.0)",
+          "oklch(0.84 0.195 43.0)",
+          "oklch(0.95 0.172 43.0)"
+        ]
+      },
+      "signal-orange-text-paper": {
+        "role": "primary",
+        "displayName": "Burnt Signal",
+        "canonical": "hsl(22 100% 32%)",
+        "tonalRamp": [
+          "oklch(0.15 0.122 42.0)",
+          "oklch(0.26 0.138 42.0)",
+          "oklch(0.37 0.149 42.0)",
+          "oklch(0.48 0.149 42.0)",
+          "oklch(0.60 0.149 42.0)",
+          "oklch(0.72 0.149 42.0)",
+          "oklch(0.84 0.149 42.0)",
+          "oklch(0.95 0.137 42.0)"
+        ]
+      },
+      "signal-soft-ink": {
+        "role": "primary",
+        "displayName": "Signal Wash (ink)",
+        "canonical": "hsl(22 45% 11%)",
+        "tonalRamp": [
+          "oklch(0.15 0.031 52.6)",
+          "oklch(0.26 0.031 52.6)",
+          "oklch(0.37 0.031 52.6)",
+          "oklch(0.48 0.031 52.6)",
+          "oklch(0.60 0.031 52.6)",
+          "oklch(0.72 0.031 52.6)",
+          "oklch(0.84 0.031 52.6)",
+          "oklch(0.95 0.031 52.6)"
+        ]
+      },
+      "signal-soft-paper": {
+        "role": "primary",
+        "displayName": "Signal Wash (paper)",
+        "canonical": "hsl(24 86% 88%)",
+        "tonalRamp": [
+          "oklch(0.15 0.045 55.3)",
+          "oklch(0.26 0.045 55.3)",
+          "oklch(0.37 0.045 55.3)",
+          "oklch(0.48 0.045 55.3)",
+          "oklch(0.60 0.045 55.3)",
+          "oklch(0.72 0.045 55.3)",
+          "oklch(0.84 0.045 55.3)",
+          "oklch(0.95 0.045 55.3)"
+        ]
+      },
+      "ink-rail": {
+        "role": "neutral",
+        "displayName": "Ink Rail",
+        "canonical": "#0A0A0B",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-ground": {
+        "role": "neutral",
+        "displayName": "Ink Ground",
+        "canonical": "#111112",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-panel": {
+        "role": "neutral",
+        "displayName": "Ink Panel",
+        "canonical": "#161617",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-popover": {
+        "role": "neutral",
+        "displayName": "Ink Popover",
+        "canonical": "#1C1C1D",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-hover": {
+        "role": "neutral",
+        "displayName": "Ink Hover",
+        "canonical": "#232324",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-hairline": {
+        "role": "neutral",
+        "displayName": "Ink Hairline",
+        "canonical": "#2E2E30",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-control-border": {
+        "role": "neutral",
+        "displayName": "Ink Control Border",
+        "canonical": "#66655F",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "ink-muted-text": {
+        "role": "neutral",
+        "displayName": "Ink Muted Text",
+        "canonical": "#9C9891",
+        "tonalRamp": [
+          "#0A0A0B",
+          "#161617",
+          "#232324",
+          "#3A3A3C",
+          "#66655F",
+          "#8A8781",
+          "#9C9891",
+          "#E8E2D8"
+        ]
+      },
+      "paper-popover": {
+        "role": "neutral",
+        "displayName": "Paper Popover",
+        "canonical": "#FBF8F3",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-card": {
+        "role": "neutral",
+        "displayName": "Paper Card",
+        "canonical": "#F7F3EC",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-ground": {
+        "role": "neutral",
+        "displayName": "Paper Ground",
+        "canonical": "#F1ECE4",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-hover": {
+        "role": "neutral",
+        "displayName": "Paper Hover",
+        "canonical": "#E8E2D8",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-hairline": {
+        "role": "neutral",
+        "displayName": "Paper Hairline",
+        "canonical": "#D8D0C3",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-control-border": {
+        "role": "neutral",
+        "displayName": "Paper Control Border",
+        "canonical": "#8E877C",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "paper-muted-text": {
+        "role": "neutral",
+        "displayName": "Paper Muted Text",
+        "canonical": "#645F57",
+        "tonalRamp": [
+          "#3B3833",
+          "#645F57",
+          "#8E877C",
+          "#BDB4A6",
+          "#D8D0C3",
+          "#E8E2D8",
+          "#F1ECE4",
+          "#FBF8F3"
+        ]
+      },
+      "cool-silver": {
+        "role": "secondary",
+        "displayName": "Cool Silver",
+        "canonical": "#A1A2B3",
+        "tonalRamp": [
+          "oklch(0.15 0.025 283.1)",
+          "oklch(0.26 0.025 283.1)",
+          "oklch(0.37 0.025 283.1)",
+          "oklch(0.48 0.025 283.1)",
+          "oklch(0.60 0.025 283.1)",
+          "oklch(0.72 0.025 283.1)",
+          "oklch(0.84 0.025 283.1)",
+          "oklch(0.95 0.025 283.1)"
+        ]
+      },
+      "lavender": {
+        "role": "secondary",
+        "displayName": "Lavender",
+        "canonical": "#C2B7F2",
+        "tonalRamp": [
+          "oklch(0.15 0.083 293.0)",
+          "oklch(0.26 0.083 293.0)",
+          "oklch(0.37 0.083 293.0)",
+          "oklch(0.48 0.083 293.0)",
+          "oklch(0.60 0.083 293.0)",
+          "oklch(0.72 0.083 293.0)",
+          "oklch(0.84 0.083 293.0)",
+          "oklch(0.95 0.083 293.0)"
+        ]
+      },
+      "lavender-text-paper": {
+        "role": "secondary",
+        "displayName": "Lavender (paper text)",
+        "canonical": "#5B4FC4",
+        "tonalRamp": [
+          "oklch(0.15 0.137 282.8)",
+          "oklch(0.26 0.156 282.8)",
+          "oklch(0.37 0.175 282.8)",
+          "oklch(0.48 0.176 282.8)",
+          "oklch(0.60 0.176 282.8)",
+          "oklch(0.72 0.176 282.8)",
+          "oklch(0.84 0.174 282.8)",
+          "oklch(0.95 0.154 282.8)"
+        ]
+      },
+      "success-ink": {
+        "role": "status",
+        "displayName": "Success Ink",
+        "canonical": "#6DB33F",
+        "tonalRamp": [
+          "oklch(0.15 0.131 135.1)",
+          "oklch(0.26 0.149 135.1)",
+          "oklch(0.37 0.165 135.1)",
+          "oklch(0.48 0.165 135.1)",
+          "oklch(0.60 0.165 135.1)",
+          "oklch(0.72 0.165 135.1)",
+          "oklch(0.84 0.165 135.1)",
+          "oklch(0.95 0.148 135.1)"
+        ]
+      },
+      "success-paper": {
+        "role": "status",
+        "displayName": "Success Paper",
+        "canonical": "#3E6F05",
+        "tonalRamp": [
+          "oklch(0.15 0.115 133.4)",
+          "oklch(0.26 0.130 133.4)",
+          "oklch(0.37 0.136 133.4)",
+          "oklch(0.48 0.136 133.4)",
+          "oklch(0.60 0.136 133.4)",
+          "oklch(0.72 0.136 133.4)",
+          "oklch(0.84 0.136 133.4)",
+          "oklch(0.95 0.128 133.4)"
+        ]
+      },
+      "warning-ink": {
+        "role": "status",
+        "displayName": "Warning Ink",
+        "canonical": "#D9B43A",
+        "tonalRamp": [
+          "oklch(0.15 0.117 91.4)",
+          "oklch(0.26 0.133 91.4)",
+          "oklch(0.37 0.141 91.4)",
+          "oklch(0.48 0.141 91.4)",
+          "oklch(0.60 0.141 91.4)",
+          "oklch(0.72 0.141 91.4)",
+          "oklch(0.84 0.141 91.4)",
+          "oklch(0.95 0.131 91.4)"
+        ]
+      },
+      "warning-paper": {
+        "role": "status",
+        "displayName": "Warning Paper",
+        "canonical": "#7D6200",
+        "tonalRamp": [
+          "oklch(0.15 0.097 89.8)",
+          "oklch(0.26 0.104 89.8)",
+          "oklch(0.37 0.104 89.8)",
+          "oklch(0.48 0.104 89.8)",
+          "oklch(0.60 0.104 89.8)",
+          "oklch(0.72 0.104 89.8)",
+          "oklch(0.84 0.104 89.8)",
+          "oklch(0.95 0.104 89.8)"
+        ]
+      },
+      "destructive-ink": {
+        "role": "status",
+        "displayName": "Destructive Ink",
+        "canonical": "#F26B5E",
+        "tonalRamp": [
+          "oklch(0.15 0.133 27.8)",
+          "oklch(0.26 0.152 27.8)",
+          "oklch(0.37 0.169 27.8)",
+          "oklch(0.48 0.169 27.8)",
+          "oklch(0.60 0.169 27.8)",
+          "oklch(0.72 0.169 27.8)",
+          "oklch(0.84 0.168 27.8)",
+          "oklch(0.95 0.150 27.8)"
+        ]
+      },
+      "destructive-paper": {
+        "role": "status",
+        "displayName": "Destructive Paper",
+        "canonical": "#B42318",
+        "tonalRamp": [
+          "oklch(0.15 0.140 29.5)",
+          "oklch(0.26 0.160 29.5)",
+          "oklch(0.37 0.180 29.5)",
+          "oklch(0.48 0.182 29.5)",
+          "oklch(0.60 0.182 29.5)",
+          "oklch(0.72 0.182 29.5)",
+          "oklch(0.84 0.178 29.5)",
+          "oklch(0.95 0.158 29.5)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display-lg": {
+        "displayName": "Display LG",
+        "purpose": "Largest editorial headline; website and future editorial surfaces."
+      },
+      "display": {
+        "displayName": "Display",
+        "purpose": "The 404 headline; the import start line from 768px up."
+      },
+      "display-sm": {
+        "displayName": "Display SM",
+        "purpose": "Page-level empty states, import start, track title on the song page."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Set names on set cards."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Page titles in the page header."
+      },
+      "heading": {
+        "displayName": "Heading",
+        "purpose": "Section and card titles."
+      },
+      "ui": {
+        "displayName": "UI",
+        "purpose": "Working size for buttons, inputs, tabs, table cells."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Document default text."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Secondary text and data cells."
+      },
+      "prose": {
+        "displayName": "Prose",
+        "purpose": "Notes and lyrics, max 68ch."
+      },
+      "num": {
+        "displayName": "Num",
+        "purpose": "Tabular mono for every number, key and duration."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Mono caps term of a data pair (BPM, KEY); never an eyebrow."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The name beside the asterisk mark."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-1",
+        "value": "0 1px 2px rgb(10 10 11 / 0.06), 0 2px 8px rgb(10 10 11 / 0.06)",
+        "purpose": "Lift 1 on paper: toasts, slider thumb."
+      },
+      {
+        "name": "shadow-1-ink",
+        "value": "0 1px 2px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.3)",
+        "purpose": "Lift 1 on ink."
+      },
+      {
+        "name": "shadow-2",
+        "value": "0 2px 4px rgb(10 10 11 / 0.08), 0 12px 32px rgb(10 10 11 / 0.14)",
+        "purpose": "Lift 2 on paper: menus, selects, popovers, dialogs, sheets."
+      },
+      {
+        "name": "shadow-2-ink",
+        "value": "0 2px 4px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5)",
+        "purpose": "Lift 2 on ink."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default easing for every state transition and the orange cut."
+      },
+      {
+        "name": "ease-in-out",
+        "value": "cubic-bezier(0.65, 0, 0.35, 1)",
+        "purpose": "Symmetric moves such as sheets."
+      },
+      {
+        "name": "dur-fast",
+        "value": "150ms",
+        "purpose": "Hover, colour and border changes."
+      },
+      {
+        "name": "dur-base",
+        "value": "220ms",
+        "purpose": "Switches, progress, larger state changes."
+      },
+      {
+        "name": "dur-cut",
+        "value": "220ms",
+        "purpose": "The orange disc sweeping into the current cover."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "All animation and transition durations under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px",
+        "purpose": "Rail becomes off-canvas below; page gutters widen to 32px at and above."
+      },
+      {
+        "name": "xl",
+        "value": "1280px",
+        "purpose": "Now-playing may dock as a 320px right panel."
+      },
+      {
+        "name": "container-2xl",
+        "value": "1400px",
+        "purpose": "Max centred container width."
+      }
+    ],
+    "textures": [
+      {
+        "name": "grain",
+        "value": "256px tiles (grain-dark.png on paper, grain-light.png on ink), opacity --grain-opacity 0.55 paper / 0.5 ink",
+        "purpose": "Editorial bands, the rail, the now-playing panel, and (veiled) the working ground."
+      },
+      {
+        "name": "cut-tint",
+        "value": "0.8",
+        "purpose": "Opacity of the flat disc over the multiplied disc in the orange cut."
+      },
+      {
+        "name": "cover-filter",
+        "value": "grayscale(1) contrast(1.08)",
+        "purpose": "Default cover treatment; removed when data-covers=original."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action in view: signal orange, ink text.",
+      "html": "<button class=\"ds-btn-primary\">Import folder</button>",
+      "css": ".ds-btn-primary { font-family: var(--font-sans); display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border: 0; border-radius: var(--radius-control); background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 13px; font-weight: 600; letter-spacing: -0.005em; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out); } .ds-btn-primary:hover { background: hsl(var(--primary) / 0.9); } .ds-btn-primary:active { background: hsl(var(--primary) / 0.8); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline-ink",
+      "description": "Every other action: control-border stroke, transparent fill.",
+      "html": "<button class=\"ds-btn-outline\">Columns</button>",
+      "css": ".ds-btn-outline { font-family: var(--font-sans); display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid hsl(var(--input)); border-radius: var(--radius-control); background: transparent; color: hsl(var(--foreground)); font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); } .ds-btn-outline:hover { border-color: hsl(var(--foreground) / 0.45); background: hsl(var(--accent)); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)); }"
+    },
+    {
+      "name": "Ghost Icon Button",
+      "kind": "button",
+      "refersTo": "button-ghost-ink",
+      "description": "Icon-only actions, always labelled.",
+      "html": "<button class=\"ds-btn-ghost\" aria-label=\"Stop playback\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"5\" y=\"5\" width=\"14\" height=\"14\" rx=\"2\"/></svg></button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; border-radius: var(--radius-control); background: transparent; color: hsl(var(--foreground) / 0.8); cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); } .ds-btn-ghost:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-ink",
+      "description": "Transparent field on a control-border stroke; orange caret.",
+      "html": "<input class=\"ds-input\" placeholder=\"Artist\" />",
+      "css": ".ds-input { font-family: var(--font-sans); height: 36px; width: 240px; padding: 0 12px; border: 1px solid hsl(var(--input)); border-radius: var(--radius-control); background: transparent; color: hsl(var(--foreground)); font-size: 13px; caret-color: hsl(var(--signal-text)); transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); } .ds-input::placeholder { color: hsl(var(--muted-foreground)); } .ds-input:hover { border-color: hsl(var(--foreground) / 0.4); } .ds-input:focus-visible { outline: none; border-color: hsl(var(--ring)); box-shadow: 0 0 0 1px hsl(var(--ring)); }"
+    },
+    {
+      "name": "Crate Tabs",
+      "kind": "nav",
+      "refersTo": "tab-active-ink",
+      "description": "Pill tabs; the active one is signal wash with orange text.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button class=\"ds-tab\" role=\"tab\" aria-selected=\"true\">All tracks</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">House</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Techno</button></div>",
+      "css": ".ds-tabs { display: inline-flex; gap: 4px; align-items: center; } .ds-tab { font-family: var(--font-sans); height: 32px; padding: 0 14px; border: 0; border-radius: 9999px; background: transparent; color: hsl(var(--muted-foreground)); font-size: 13px; font-weight: 500; cursor: pointer; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); } .ds-tab:hover { color: hsl(var(--foreground)); } .ds-tab[aria-selected=\"true\"] { background: hsl(var(--signal-soft)); color: hsl(var(--signal-text)); } .ds-tab:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring)); }"
+    },
+    {
+      "name": "Color Chip",
+      "kind": "chip",
+      "refersTo": "color-chip",
+      "description": "Tag or genre: hairline pill, the user's colour as a dot.",
+      "html": "<span class=\"ds-chip\"><span class=\"ds-chip-dot\" style=\"background:#6B5BD6\"></span>Deep house</span>",
+      "css": ".ds-chip { font-family: var(--font-sans); display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 6px; border: 1px solid hsl(var(--border)); border-radius: 9999px; background: hsl(var(--background) / 0.4); color: hsl(var(--foreground)); font-size: 11px; } .ds-chip-dot { width: 6px; height: 6px; border-radius: 9999px; flex: none; }"
+    },
+    {
+      "name": "Set Card",
+      "kind": "card",
+      "refersTo": "card-ink",
+      "description": "Flat card on a hairline for independent objects (sets, blocks).",
+      "html": "<article class=\"ds-card\"><h3 class=\"ds-card-title\">Sunset, Ølen</h3><p class=\"ds-card-meta\">14 tracks · 1:32:10</p><p class=\"ds-card-body\">Warm open, peak around the third block.</p></article>",
+      "css": ".ds-card { font-family: var(--font-sans); width: 320px; padding: 20px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--card)); color: hsl(var(--card-foreground)); } .ds-card-title { margin: 0; font-family: var(--font-serif); font-size: 1.75rem; font-weight: 400; line-height: 1.15; letter-spacing: -0.01em; } .ds-card-meta { margin: 12px 0 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; color: hsl(var(--muted-foreground)); } .ds-card-body { margin: 8px 0 0; font-size: 14px; line-height: 1.6; color: hsl(var(--muted-foreground)); }"
+    },
+    {
+      "name": "Library Row (current)",
+      "kind": "custom",
+      "refersTo": "table-row-current-ink",
+      "description": "44px row: mono index, B&W cover with the orange cut, title; the current row in signal wash.",
+      "html": "<div class=\"ds-row\" data-current=\"true\"><span class=\"ds-row-idx\">07</span><span class=\"ds-cut\" data-cut=\"on\"><span class=\"ds-cut-img\"></span></span><span class=\"ds-row-title\">Midnight Pass</span><span class=\"ds-row-artist\">Kollektiv Ost</span><span class=\"ds-row-num\">122</span><span class=\"ds-row-num\">Am</span></div>",
+      "css": ".ds-row { font-family: var(--font-sans); display: grid; grid-template-columns: 32px 32px 1fr 1fr 48px 40px; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-bottom: 1px solid hsl(var(--border) / 0.7); font-size: 13px; color: hsl(var(--foreground)); transition: background-color var(--dur-fast) var(--ease-out); } .ds-row:hover { background: hsl(var(--accent) / 0.6); } .ds-row[data-current=\"true\"] { background: hsl(var(--signal-soft)); } .ds-row-idx, .ds-row-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; color: hsl(var(--muted-foreground)); text-align: right; } .ds-row[data-current=\"true\"] .ds-row-idx, .ds-row[data-current=\"true\"] .ds-row-title { color: hsl(var(--signal-text)); } .ds-row-title { font-weight: 500; } .ds-row-artist { color: hsl(var(--foreground) / 0.85); } .ds-cut { position: relative; display: block; width: 32px; height: 32px; border-radius: 3px; overflow: hidden; isolation: isolate; background: hsl(var(--surface-sunken)); } .ds-cut-img { position: absolute; inset: 0; background: linear-gradient(135deg, #d8d8d8, #2a2a2a); } .ds-cut::before, .ds-cut::after { content: \"\"; position: absolute; top: 0; bottom: 0; left: 50%; height: 100%; aspect-ratio: 1; border-radius: 9999px; background: hsl(var(--signal)); transform: translateX(50%) scale(0); transition: transform var(--dur-cut) var(--ease-out); z-index: 1; } .ds-cut::before { mix-blend-mode: multiply; } .ds-cut::after { opacity: var(--cut-tint, 0.8); } .ds-cut[data-cut=\"on\"]::before, .ds-cut[data-cut=\"on\"]::after { transform: translateX(0) scale(1); }"
+    },
+    {
+      "name": "Rail Item (active)",
+      "kind": "nav",
+      "refersTo": "rail",
+      "description": "Ink rail destination; active item gets an orange half-pill and orange icon.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item\" aria-current=\"page\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\"><path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/></svg><span>Library</span></a><a class=\"ds-rail-item\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\"><path d=\"m12 2 10 5-10 5L2 7z\"/><path d=\"m2 17 10 5 10-5\"/><path d=\"m2 12 10 5 10-5\"/></svg><span>Sets</span></a></nav>",
+      "css": ".ds-rail { font-family: var(--font-sans); display: flex; flex-direction: column; gap: 4px; width: 224px; padding: 16px 12px; background: hsl(var(--sidebar-background)); } .ds-rail-item { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 12px; border-radius: var(--radius-control); color: hsl(var(--sidebar-foreground)); font-size: 14px; text-decoration: none; transition: background-color var(--dur-fast) var(--ease-out); } .ds-rail-item:hover { background: hsl(var(--sidebar-accent)); color: hsl(var(--sidebar-accent-foreground)); } .ds-rail-item[aria-current=\"page\"] { background: hsl(var(--sidebar-accent)); color: hsl(var(--sidebar-accent-foreground)); font-weight: 500; } .ds-rail-item[aria-current=\"page\"] svg { color: hsl(var(--signal)); } .ds-rail-item[aria-current=\"page\"]::before { content: \"\"; position: absolute; left: 0; top: 50%; width: 10px; height: 20px; transform: translateY(-50%); border-radius: 0 9999px 9999px 0; background: hsl(var(--signal)); } .ds-rail-item:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--sidebar-ring)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Label's Catalog",
+    "overview": "**Creative North Star: \"The Label's Catalog\"**\n\nKlangkurator presents a DJ's library the way a record label prints its catalog. The grounds are ink (dark, the default) and warm paper (light). Covers are black and white. Everything you operate is set in a tight grotesk, the editorial moments are set in a serif, and data is set in mono. One signal orange carries a single meaning: *this one*. It marks the playing track, the current row, the active tab, focus, the primary action and the brand mark. Its signature form is the orange cut, a disc that sweeps in over the current track's cover.\n\nThe density is a working tool's density. Tables run 44px rows at 13px with hairlines between them. Page titles are bold Inter rather than display serif. Editorial weight goes to the places where nothing is being operated: empty states, the 404, the import start screen, a track's title on its own page, set names, notes. Those grounds carry fine paper grain, which gives texture without roughness. The geometric vocabulary (circle, half disc, quarter disc, block) illustrates edge states and marks the active rail item. It never encodes data.\n\nDepth stays flat until something floats. Panels and cards sit on hairlines. Only overlays (menus, popovers, dialogs, sheets, toasts) lift, with an offset soft shadow. Motion signals state only, at 150–220ms ease-out, and is cut to near zero under reduced motion.",
+    "keyCharacteristics": [
+      "Ink and paper themes from one set of roles; the rail is ink in both.",
+      "One signal orange (#FD6402) that means \"this one\" and is never a category color.",
+      "Three faces with three jobs: Inter operates, Literata narrates, Geist Mono counts.",
+      "Black-and-white covers, with the orange cut on the single current item.",
+      "Hairlines and space instead of boxes; shadows only on overlays.",
+      "Paper grain on editorial and working grounds, never on the data itself."
+    ],
+    "rules": [
+      {
+        "name": "The This-One Rule",
+        "body": "Orange marks state: current, playing, selected, focused, primary. It is never a category, a decoration or the fill of a whole region. Only one item carries the orange cut at a time.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink-On-Orange Rule",
+        "body": "Text and icons placed on an orange fill are ink. On paper, orange used as text is Burnt Signal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dot-Not-Fill Rule",
+        "body": "A user's color appears as a small dot inside a hairline pill, never as the chip's fill. That keeps any stored hex legible in both themes and keeps orange reserved for state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Jobs Rule",
+        "body": "Inter is for anything you operate, Literata for editorial moments and long reading, and Geist Mono only for data. A serif page title or a mono sentence is out of system.",
+        "section": "typography"
+      },
+      {
+        "name": "The Label-Names-Data Rule",
+        "body": "A mono caps label names the data value beside it. It never sits above a heading as an eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-Until-It-Floats Rule",
+        "body": "A surface that belongs to the page gets a hairline. Only a surface that sits above the page gets a shadow, and that shadow is Lift 1 or Lift 2.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reserve Signal Orange for the current, playing, selected, focused or primary item, and give the orange cut to exactly one item at a time.",
+      "Do put ink text on orange fills, and use Burnt Signal for orange text on paper.",
+      "Do set page titles in Inter 700 at 24px, data in Geist Mono with tabular figures, and editorial lines, notes and lyrics in Literata.",
+      "Do separate content with 1px hairlines and space, and keep shadows to Lift 1 and Lift 2 on floating surfaces.",
+      "Do keep covers black and white by default and use the cut, not a border or a glow, to mark the current cover.",
+      "Do use one orange shape per composition in empty and edge states.",
+      "Do keep every motion to 150–220ms ease-out and only for state changes, and make every hover action reachable by keyboard focus."
+    ],
+    "donts": [
+      "Don't use orange as a tag, genre or category color, as decoration, or as a region fill.",
+      "Don't put white text on orange.",
+      "Don't place a mono caps label above a heading as an eyebrow; labels name data values only.",
+      "Don't fill a chip with the user's color; show it as a dot.",
+      "Don't add drop shadows to cards or panels, or use a zero-offset glow anywhere.",
+      "Don't lay grain over individual table rows or long text; grain belongs to grounds and editorial bands.",
+      "Don't load fonts or assets from a CDN; the app runs offline."
+    ]
+  }
+}
