@@ -5,7 +5,7 @@ Last Updated: 2026-10-08
 
 ## 2026-10-08
 
-### Editorial redesign and design system (02, 13, 17; issue #1)
+### Editorial redesign and design system (02, 13, 14, 15, 16, 17; issue #1)
 
 The stock dark "Lexicon-style" skin is replaced by an editorial design
 system built from the user's moodboard ("editorial magazine look with shapes,
@@ -26,6 +26,19 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   keeps the header, working sort on the sortable columns, play/edit on
   keyboard focus, the real crate name in the Crate column, three requests
   instead of one per track on load.
+- **Song detail and relationships (14)**: an editorial detail page (serif
+  title, spec sheet, notes as liner notes); the relationships dialog opens
+  from it directly and no longer crashes when re-centring on a related song;
+  the graph follows the theme, draws black-and-white cover nodes and gives
+  each relationship type its own line; BPM keeps its decimal on save.
+- **Sets and blocks (15, 16)**: the Sets page reads like a contents page
+  (cover mosaic in the set's colour, serif name, totals, numbered running
+  order). Set items now resolve by `ref_id` (before, every item showed
+  "Unknown"); alternatives are saved as `{ref_id, label}` (before, saving a
+  set with an alternative failed); suggestions from saved `transition`
+  relationships load again. Tracks and blocks are added from a searchable
+  picker; deleted tracks and blocks keep their slot, marked, until removed;
+  deleting a block says how many sets use it; a description can be cleared.
 - **Settings (17)**: an Appearance section (theme, cover style, player dock).
 
 ## 2026-09-24 (v2)

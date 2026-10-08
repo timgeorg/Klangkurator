@@ -65,7 +65,7 @@ Run against a sandbox copy of the library, never the user's real data.
 
 ## Sets and blocks
 
-- **ST-1** Given `/sets`, then sets and blocks are listed as cards with name, track count, total time and a numbered preview of the first items, and each has edit and delete actions reachable by keyboard.
+- **ST-1** Given `/sets`, then each set shows its name, track count, total time and a numbered preview of its first items, each block shows its name, track count, total time and its track titles in order, and every set and block has edit and delete actions reachable by keyboard. No item reads "Unknown" when its track or block exists.
 - **ST-2** Given "New block", when a name and at least two songs are added and saved, then the block appears; fewer than two songs shows a message and saves nothing.
 - **ST-3** Given a block or set editor, when items are moved up/down, removed, or transition notes are typed, then saving keeps that order and those notes.
 - **ST-4** Given an existing set, when it is opened and saved again without changes, then its items still resolve to the same songs and blocks.

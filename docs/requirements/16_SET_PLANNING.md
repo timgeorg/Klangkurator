@@ -1,7 +1,7 @@
 # Set Planning
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-08
 Source: New — based on set planning session 2026-08-08
 
 ## Vision
@@ -62,6 +62,29 @@ The workflow mirrors how Tim plans sets in practice:
 |---|---|---|
 | `ref_id` | string | Alternative song/block ID |
 | `label` | string? | Why this is an option (e.g. "if crowd is more energetic") |
+
+## Current Set Editor (flat running order)
+
+The phase-based planner below is the target. What ships today is a flat
+running order stored in the set's legacy `items` list (`phases` is kept but
+not used by the UI):
+
+- The Sets page lists each set as a contents page: a 2×2 mosaic (the set's
+  colour tile with a whole disc, then black-and-white covers), the name in
+  the serif, track count and total (and "of" the target when
+  `target_duration_min` is set), and the first six items numbered
+- The editor adds tracks and blocks from one searchable picker, moves items
+  up and down, removes them, and takes a transition note between each pair
+- Alternatives: from any transition, "Alternative" adds another possible next
+  track, saved as `{ ref_id, label? }`; older `{ to_song_id, notes }` data
+  reads the same
+- Suggestions: saved `transition` relationships from the last track that
+  plays (a block's last track counts) are offered as one-click additions
+- Items resolve by `ref_id`; data written by older builds with `song_id` /
+  `block_id` resolves too, and saving writes `ref_id`
+- A deleted track or block keeps its slot as "Track no longer in the
+  library" / "Deleted block" until removed (no title is stored, so the last
+  known title cannot be shown)
 
 ## Set Planning UI
 

@@ -372,9 +372,9 @@ class RemoteStorageImpl implements StorageInterface {
   async searchSongs(q: string) { return api.get<Song[]>(`/songs?search=${encodeURIComponent(q)}`); }
   async getTagsForSong(sid: string) { return api.get<Tag[]>(`/songs/${sid}/tags`); }
   async getSongsForTag(tid: string) { return api.get<Song[]>(`/tags/${tid}/songs`); }
-  async getRelatedSongs(id: string) { return api.get(`/songs/${id}/related`); }
-  async getTransitionSuggestions(id: string) { return api.get(`/songs/${id}/transition-suggestions`); }
-  async getPlaylistsForSong(id: string) { return api.get(`/songs/${id}/playlists`); }
+  async getRelatedSongs(id: string) { return api.get<Array<{ song: Song; relationship: SongRelationship; direction: 'source' | 'target' }>>(`/songs/${id}/related`); }
+  async getTransitionSuggestions(id: string) { return api.get<Array<{ song: Song; notes?: string }>>(`/songs/${id}/transition-suggestions`); }
+  async getPlaylistsForSong(id: string) { return api.get<SongPlaylistMembership[]>(`/songs/${id}/playlists`); }
   async getBlockWithSongs(id: string) {
     const b = await api.get<Block>(`/blocks/${id}`); if (!b) return null;
     const s = await this.getSongs();

@@ -72,7 +72,7 @@ export function DJSidebar() {
                         />
                       )}
                       <item.icon strokeWidth={1.75} />
-                      <span>{item.title}</span>
+                      <span className="group-data-[collapsible=icon]:sr-only">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

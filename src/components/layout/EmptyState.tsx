@@ -37,7 +37,7 @@ export function EmptyState({ title, body, action, size = "page", arrangement = "
   }
 
   return (
-    <div className={cn("k-grain grid items-center gap-10 px-6 py-14 md:grid-cols-[minmax(0,1fr)_auto] md:px-10", className)}>
+    <div className={cn("k-grain grid items-center gap-10 px-5 py-14 md:grid-cols-[minmax(0,1fr)_auto] md:px-8", className)}>
       <div className="max-w-xl">
         <h2 className="k-display-sm">{title}</h2>
         {body && <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{body}</p>}
