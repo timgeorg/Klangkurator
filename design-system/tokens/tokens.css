@@ -73,7 +73,7 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 150ms;
   --dur-base: 220ms;
-  --dur-cut: 260ms;
+  --dur-cut: 220ms;
 
   /* depth: offset + soft blur, never a zero-offset glow */
   --shadow-1: 0 1px 2px rgb(10 10 11 / 0.06), 0 2px 8px rgb(10 10 11 / 0.06);

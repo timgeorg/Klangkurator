@@ -35,11 +35,12 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   notes: { id: 'notes', label: 'Notes', minWidth: 100, maxWidth: 500, defaultWidth: 200, resizable: true, filterable: false, sortable: false },
 };
 
-// Default column order
+// Default column order: what a DJ scans first (title, artist, genre, BPM, key)
+// leads; saved layouts keep their own order.
 const DEFAULT_COLUMN_ORDER = [
-  'play', 'cover', 'preview', 'title', 'artist', 'album', 'rootFolder', 'bpm', 'key', 
-  'genre', 'subgenres', 'energy', 'danceability', 'social',
-  'duration', 'tags', 'lyrics', 'notes'
+  'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
+  'subgenres', 'energy', 'danceability', 'social', 'album', 'rootFolder',
+  'tags', 'lyrics', 'notes'
 ];
 
 // Default visibility (all visible)

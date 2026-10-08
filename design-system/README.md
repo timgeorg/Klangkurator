@@ -68,7 +68,7 @@ Colours are HSL triplets so Tailwind can add opacity (`bg-signal/20`). Plain-hex
 | `waveform` / `waveform-played` | | | Waveform ink and the played part |
 | `sidebar-*` | ink | ink | The rail is ink in both themes |
 
-Shape and motion: `--radius` 10px (cards, dialogs), `--radius-control` 8px (buttons, inputs), `rounded-chip` for pills. Durations 150ms (`duration-fast`), 220ms (`duration-base`), 260ms (`duration-cut`); easing `ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`). Motion shows state; nothing animates on page load.
+Shape and motion: `--radius` 10px (cards, dialogs), `--radius-control` 8px (buttons, inputs), `rounded-chip` for pills. Durations 150ms (`duration-fast`), 220ms (`duration-base` and `duration-cut`, the orange cut); easing `ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`). Motion shows state; nothing animates on page load.
 
 ## Type roles
 

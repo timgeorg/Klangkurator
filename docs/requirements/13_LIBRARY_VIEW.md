@@ -50,24 +50,26 @@ removed earlier — the table handles all of it.
 |---|---|---|
 | # | index + actions | Mono row number; Play/Pause and Edit replace it on row hover **and keyboard focus** |
 | Cover | image | 32px, black and white (Settings: original colour) |
-| Waveform | waveform | Static SVG |
 | Title | text (link) | Opens the song detail page; a trailing version or catalogue number in brackets is set quieter |
 | Artist | text | |
-| Album | text | |
-| Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
+| Genre | chip | Hairline chip with the genre's colour as a dot |
 | BPM | number | Mono, one decimal at most |
 | Key | text | Mono; minor keys in the info colour, full name as tooltip |
-| Genre | chip | Hairline chip with the genre's colour as a dot |
+| Waveform | waveform | Static SVG |
+| Time | duration | m:ss (minutes unpadded) |
 | Subgenres | text | Up to three, "+N" beyond |
 | Energy | rating (0–5) | Five rising bars |
 | Dance | rating (0–5) | Five rising bars |
 | Social | rating (0–5) | Five rising bars |
-| Time | duration | m:ss (minutes unpadded) |
+| Album | text | |
+| Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
 | Tags | chips | Side-by-side, auto-grow, inline add/remove |
 | Lyrics | preview | First 50 characters, 200 in the tooltip |
 | Notes | text | Flex-fills remaining width, inline-editable |
 
-Column ids are unchanged from PF-15, so saved layouts stay valid.
+Default order as listed (title, artist, genre, BPM and key lead, as on the
+moodboard). Column ids are unchanged from PF-15, so saved layouts stay valid
+and keep their own order.
 
 ## Column Controls
 

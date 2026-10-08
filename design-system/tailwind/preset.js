@@ -103,7 +103,7 @@ export default {
       transitionDuration: {
         fast: "150ms",
         base: "220ms",
-        cut: "260ms",
+        cut: "220ms",
       },
       keyframes: {
         "accordion-down": {
