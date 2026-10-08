@@ -44,6 +44,10 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   the desktop dialog is now saved as the root (it was only scanned). The
   browser folder dialog opens folders on click or Enter, shows `~/…` paths
   and keyboard focus follows. Errors show the backend's reason.
+- **Library details (13)**: the Notes cell edits the mixing note only (other
+  notes show as a hint and are never copied into it); the tag picker puts
+  existing matches before Create and creates on Enter; crowded tag cells
+  clip; the last, width-filling Notes column has no dead resize handle.
 - **Editing (11, 21)**: Cancel in the Edit track and Lyrics dialogs discards
   the edits (reopening showed them before); emptying a field clears it — the
   dialog sends `null` and the backend now applies an explicit `null` to
