@@ -1,7 +1,32 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-08
+
+## 2026-10-08
+
+### Editorial redesign and design system (02, 13, 17; issue #1)
+
+The stock dark "Lexicon-style" skin is replaced by an editorial design
+system built from the user's moodboard ("editorial magazine look with shapes,
+layouts and textures, no roughness"). Source of truth: `design-system/`;
+product record: `PRODUCT.md`; built world: `DESIGN.md`.
+
+- **Themes**: ink (dark, default) and paper (light); the rail stays ink.
+- **Orange means "this one"**: current track, selection, focus, primary
+  action, the mark. Genre/tag colours move to a print-ink palette without it.
+- **Signature**: the orange cut on the current track's cover, in the table,
+  the player and the song detail page.
+- **Player (PF-16)**: same single-track preview, now a right-hand panel on
+  screens ≥ 1280px (bottom bar below, or when docked); the waveform is the
+  scrubber.
+- **Navigation**: the rail lists Library, Sets, Import, Settings; the five
+  links to unbuilt pages are gone; the active link is marked again.
+- **Library (13)**: crate tabs, active-filter chips, a no-match state that
+  keeps the header, working sort on the sortable columns, play/edit on
+  keyboard focus, the real crate name in the Crate column, three requests
+  instead of one per track on load.
+- **Settings (17)**: an Appearance section (theme, cover style, player dock).
 
 ## 2026-09-24 (v2)
 

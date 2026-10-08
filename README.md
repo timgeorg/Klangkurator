@@ -11,13 +11,14 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
 
 - **Library table** — 17 data-driveable columns (BPM, key, genre/subgenres, energy
   ratings, tags, notes, ...) with per-column filters (text, range, multi-select),
-  resizing, show/hide, and **drag-and-drop column reorder** — order, visibility, and
-  widths all persist to localStorage
+  sorting, crate tabs, removable filter chips, resizing, show/hide, and **drag-and-drop
+  column reorder** — order, visibility, and widths all persist to localStorage
 - **Real waveforms** — 200-bucket peak envelopes computed from the actual audio at scan
   time (soundfile, float32 decode + decimation); a lazy backfill endpoint covers tracks
   scanned before this feature existed
-- **Audio player** — fixed bottom bar with play/pause/seek and persisted volume; seeking
-  works via a Range-request streaming endpoint that only serves library-tracked audio files
+- **Preview player** — a now-playing panel on wide screens (a bottom bar otherwise) with
+  the waveform as the scrubber, play/pause and persisted volume; seeking works via a
+  Range-request streaming endpoint that only serves library-tracked audio files
 - **Album covers** — embedded art extracted from ID3 `APIC` / FLAC pictures / MP4 `covr`,
   re-encoded to bounded 300px thumbnails, served through a cacheable artwork endpoint
 - **Root-folder import** — native OS folder picker in desktop mode, sandboxed
@@ -27,6 +28,8 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
   progress (polled status endpoint), so the UI stays responsive while a library processes
 - **Song detail view** — full metadata, notes, tags, relationships, cover, and waveform in
   one place; an empty library redirects to the import flow instead of a dead-end table
+- **Editorial design system** — ink and paper themes, self-hosted type, black-and-white
+  covers and one signal orange, packaged in `design-system/` for reuse (see [Design](#design))
 - **One launcher** — `./run.sh` covers dev, server-only, and PyWebView desktop modes
 
 ## Architecture
@@ -36,6 +39,7 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
 | Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | FastAPI (Python), JSON-file storage, mutagen + soundfile |
 | Desktop shell | PyWebView |
+| Design system | `design-system/`: CSS-variable tokens, a Tailwind preset, self-hosted Inter / Literata / Geist Mono |
 
 The backend owns the audio work — file scanning, metadata extraction, the waveform and
 artwork pipelines, background analysis jobs — and serves the built frontend in production
@@ -51,6 +55,22 @@ explicit, numbered invariant table (stable IDs, idempotent re-scan, ID-only refe
 Security posture reflects the local-only design: CORS is scoped to localhost origins, and
 the audio endpoint serves only paths already tracked in the library — no client-controlled
 paths, no traversal, and non-audio files are rejected with a 415.
+
+## Design
+
+The interface follows an editorial design system built from a moodboard: ink and paper
+themes, black-and-white covers, a few geometric shapes, a fine paper grain, and one signal
+orange that only ever means "this one" (the playing track, the current selection, focus,
+the primary action). The current track's cover carries the signature mark: an orange disc
+multiplied over the black-and-white image, in the table and in the player.
+
+Type is Inter for the interface, Literata for editorial moments (empty states, track
+titles, notes) and Geist Mono for numbers. Everything is self-hosted, because the desktop
+app runs offline.
+
+The system lives in [`design-system/`](design-system/README.md) as plain CSS variables,
+fonts and a Tailwind preset, so a website or a future set canvas can share it. The README
+there explains the rules; `DESIGN.md` documents the built result.
 
 ## Quick start
 

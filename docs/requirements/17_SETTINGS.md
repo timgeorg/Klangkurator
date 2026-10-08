@@ -34,4 +34,9 @@ Source: Requirements.md section 11
 - Default phase names for new sets (e.g. "Opening, Building, Sunset, Peak, Closing")
 - Default target set duration
 - Column layout persistence (order, visibility, widths) — saved to localStorage
-- Theme settings (dark only for now, future: accent color picker)
+- **Appearance** (built 2026-10-08): theme Ink (dark, default) / Paper (light) /
+  System; covers in black and white (default) or original colour; on wide
+  screens the player as a right-hand panel or a bottom bar. All stored in
+  localStorage (`klangkurator.theme.v1`, `klangkurator.covers.v1`,
+  `klangkurator.player.dock.v1`). No accent picker: orange carries meaning
+  ("this one") and is not a preference.
