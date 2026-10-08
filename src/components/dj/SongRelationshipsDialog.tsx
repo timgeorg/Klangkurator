@@ -1,477 +1,411 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Song, SongRelationship, SongPlaylistMembership, storage } from '@/lib/storage';
-import { Music, ArrowRight, ArrowLeft, List, Network, ChevronLeft, Plus, Trash2, Save, Link2, ListMusic, ChevronsUpDown, Check } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
-import { SongRelationshipGraph } from './SongRelationshipGraph';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, ChevronLeft, ChevronsUpDown, List, Network, Plus, Trash2 } from "lucide-react";
+
+import { CoverArt } from "@/components/brand";
+import { RelationLine } from "@/components/detail/RelationLine";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { Button } from "@/components/ui/button";
+import { ColorChip } from "@/components/ui/color-chip";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/hooks/use-toast";
+import { usePlayer } from "@/lib/PlayerContext";
+import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, RelationshipType, relationshipPhrase } from "@/lib/relationshipStyle";
+import { Song, SongPlaylistMembership, SongRelationship, storage } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+
+import { GraphRelationships, SongRelationshipGraph } from "./SongRelationshipGraph";
 
 interface SongRelationshipsDialogProps {
   song: Song | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after a relationship is added or deleted. */
   onSave?: () => void;
-  relationships?: {
-    asSource: Array<SongRelationship & { targetSong: Song }>;
-    asTarget: Array<SongRelationship & { sourceSong: Song }>;
-  };
 }
-
-const relationshipTypes = [
-  { value: 'remix', label: 'Remix' },
-  { value: 'cover', label: 'Cover' },
-  { value: 'mashup', label: 'Mashup' },
-  { value: 'edit', label: 'Edit' },
-  { value: 'bootleg', label: 'Bootleg' },
-  { value: 'same_sample', label: 'Same Sample' },
-  { value: 'in_playlist', label: 'In Playlist' },
-  { value: 'transition', label: 'Transition' },
-];
-
-const relationshipLabels: Record<string, { source: string; target: string }> = {
-  remix: { source: 'Is Remix Of', target: 'Remixed By' },
-  cover: { source: 'Is Cover Of', target: 'Covered By' },
-  mashup: { source: 'Is Mashup With', target: 'Mashed Up In' },
-  edit: { source: 'Is Edit Of', target: 'Edited By' },
-  bootleg: { source: 'Is Bootleg Of', target: 'Bootlegged By' },
-  same_sample: { source: 'Uses Same Sample As', target: 'Same Sample Used By' },
-  in_playlist: { source: 'In Playlist', target: 'Contains' },
-  transition: { source: 'Transitions To', target: 'Transitioned From' },
-};
 
 interface ExistingRelationship {
   id: string;
   type: string;
-  direction: 'source' | 'target';
+  direction: "source" | "target";
   otherSong: Song;
   notes?: string;
 }
 
-// Helper to load relationships for a song
-async function loadRelationshipsForSong(song: Song) {
-  const allRelationships = await storage.getSongRelationships();
-  const allSongs = await storage.getSongs();
-  
-  const asSource = allRelationships
-    .filter(rel => rel.source_song_id === song.id)
-    .map(rel => ({
-      ...rel,
-      targetSong: allSongs.find(s => s.id === rel.target_song_id)!
-    }))
-    .filter(rel => rel.targetSong);
-  
-  const asTarget = allRelationships
-    .filter(rel => rel.target_song_id === song.id)
-    .map(rel => ({
-      ...rel,
-      sourceSong: allSongs.find(s => s.id === rel.source_song_id)!
-    }))
-    .filter(rel => rel.sourceSong);
-  
-  return { asSource, asTarget };
-}
-
-async function toExistingRelationships(song: Song): Promise<ExistingRelationship[]> {
-  const allRelationships = await storage.getSongRelationships();
-  const allSongs = await storage.getSongs();
+/** Both views of one song's relationships, built from a single fetch. */
+function buildFor(song: Song, rels: SongRelationship[], songs: Song[]) {
+  const byId = new Map(songs.map((s) => [s.id, s]));
+  const graph: GraphRelationships = { asSource: [], asTarget: [] };
   const existing: ExistingRelationship[] = [];
-
-  allRelationships.forEach(rel => {
+  for (const rel of rels) {
     if (rel.source_song_id === song.id) {
-      const targetSong = allSongs.find(s => s.id === rel.target_song_id);
-      if (targetSong) {
-        existing.push({ id: rel.id, type: rel.relationship_type, direction: 'source', otherSong: targetSong, notes: rel.notes });
-      }
+      const targetSong = byId.get(rel.target_song_id);
+      if (!targetSong) continue;
+      graph.asSource.push({ ...rel, targetSong });
+      existing.push({ id: rel.id, type: rel.relationship_type, direction: "source", otherSong: targetSong, notes: rel.notes });
     } else if (rel.target_song_id === song.id) {
-      const sourceSong = allSongs.find(s => s.id === rel.source_song_id);
-      if (sourceSong) {
-        existing.push({ id: rel.id, type: rel.relationship_type, direction: 'target', otherSong: sourceSong, notes: rel.notes });
-      }
+      const sourceSong = byId.get(rel.source_song_id);
+      if (!sourceSong) continue;
+      graph.asTarget.push({ ...rel, sourceSong });
+      existing.push({ id: rel.id, type: rel.relationship_type, direction: "target", otherSong: sourceSong, notes: rel.notes });
     }
-  });
-
-  return existing;
+  }
+  return { graph, existing };
 }
 
-export function SongRelationshipsDialog({
-  song: initialSong,
-  open,
-  onOpenChange,
-  onSave,
-  relationships: initialRelationships,
-}: SongRelationshipsDialogProps) {
-  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange, onSave }: SongRelationshipsDialogProps) {
+  const { current } = usePlayer();
+  const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [currentRelationships, setCurrentRelationships] = useState<{
-    asSource: Array<SongRelationship & { targetSong: Song }>;
-    asTarget: Array<SongRelationship & { sourceSong: Song }>;
-  } | null>(null);
-  const [navigationHistory, setNavigationHistory] = useState<Song[]>([]);
+  const [history, setHistory] = useState<Song[]>([]);
 
-  // Edit state
-  const [existingRelationships, setExistingRelationships] = useState<ExistingRelationship[]>([]);
+  const [graph, setGraph] = useState<GraphRelationships>({ asSource: [], asTarget: [] });
+  const [existing, setExisting] = useState<ExistingRelationship[]>([]);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
-  const [playlistMemberships, setPlaylistMemberships] = useState<SongPlaylistMembership[]>([]);
+  const [playlists, setPlaylists] = useState<SongPlaylistMembership[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newRelationType, setNewRelationType] = useState<string>('');
-  const [newTargetSongId, setNewTargetSongId] = useState<string>('');
-  const [newNotes, setNewNotes] = useState('');
-  const [songSearchOpen, setSongSearchOpen] = useState(false);
-  const [songSearchQuery, setSongSearchQuery] = useState('');
+  const [newType, setNewType] = useState<string>("");
+  const [newTargetId, setNewTargetId] = useState<string>("");
+  const [newNotes, setNewNotes] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Use current navigation state or fall back to initial props
   const song = currentSong || initialSong;
-  const relationships = currentRelationships || initialRelationships || { asSource: [], asTarget: [] };
-
-  // Load edit data when song changes
-  useEffect(() => {
-    if (song && open) {
-      loadEditData();
-    }
-  }, [song?.id, open]);
-
-  const loadEditData = async () => {
-    if (!song) return;
-    const allSongsData = await storage.getSongs();
-    setAllSongs(allSongsData.filter(s => s.id !== song.id));
-    setExistingRelationships(await toExistingRelationships(song));
-    const memberships = await storage.getPlaylistsForSong(song.id);
-    setPlaylistMemberships(memberships);
-    resetForm();
-  };
 
   const resetForm = () => {
     setShowAddForm(false);
-    setNewRelationType('');
-    setNewTargetSongId('');
-    setNewNotes('');
-    setSongSearchQuery('');
+    setNewType("");
+    setNewTargetId("");
+    setNewNotes("");
+    setSearchQuery("");
   };
 
-  const refreshRelationships = useCallback(async () => {
-    if (!song) return;
-    const newRels = await loadRelationshipsForSong(song);
-    setCurrentRelationships(newRels);
-    setExistingRelationships(await toExistingRelationships(song));
-    onSave?.();
-  }, [song, onSave]);
+  const loadFor = useCallback(async (target: Song) => {
+    const [rels, songs, memberships] = await Promise.all([
+      storage.getSongRelationships(),
+      storage.getSongs(),
+      storage.getPlaylistsForSong(target.id),
+    ]);
+    const built = buildFor(target, rels, songs);
+    setGraph(built.graph);
+    setExisting(built.existing);
+    setAllSongs(songs.filter((s) => s.id !== target.id));
+    setPlaylists(memberships);
+    setLoaded(true);
+  }, []);
 
-  const handleAddRelationship = async () => {
-    if (!song || !newRelationType || !newTargetSongId) {
-      toast({ title: "Missing information", description: "Please select a relationship type and target song.", variant: "destructive" });
+  const songId = song?.id;
+  useEffect(() => {
+    if (!open || !song) return;
+    resetForm();
+    loadFor(song).catch(() => {
+      toast({ title: "Couldn't load relationships", description: "Check that Klangkurator is still running.", variant: "destructive" });
+    });
+    // song identity changes on every navigation; the id is what matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, songId, loadFor]);
+
+  const refresh = async () => {
+    if (!song) return;
+    await loadFor(song);
+    onSave?.();
+  };
+
+  const handleAdd = async () => {
+    if (!song || !newType || !newTargetId) {
+      toast({ title: "Missing information", description: "Choose a relationship type and a track.", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
       await storage.addSongRelationship({
         source_song_id: song.id,
-        target_song_id: newTargetSongId,
-        relationship_type: newRelationType as SongRelationship['relationship_type'],
+        target_song_id: newTargetId,
+        relationship_type: newType as RelationshipType,
         notes: newNotes.trim() || undefined,
       });
       toast({ title: "Relationship added", description: "The song relationship has been created." });
       resetForm();
-      await refreshRelationships();
-    } catch (error) {
-      toast({ title: "Error adding relationship", description: "Failed to add relationship.", variant: "destructive" });
+      await refresh();
+    } catch {
+      toast({ title: "Error adding relationship", description: "The relationship wasn't saved.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteRelationship = async (relationshipId: string) => {
+  const handleDelete = async (relationshipId: string) => {
     try {
       await storage.deleteSongRelationship(relationshipId);
       toast({ title: "Relationship deleted", description: "The song relationship has been removed." });
-      await refreshRelationships();
-    } catch (error) {
-      toast({ title: "Error deleting relationship", description: "Failed to delete relationship.", variant: "destructive" });
+      await refresh();
+    } catch {
+      toast({ title: "Error deleting relationship", description: "The relationship is still there.", variant: "destructive" });
     }
   };
 
-  const getRelationshipLabel = (type: string, direction: 'source' | 'target') => {
-    const labels = relationshipLabels[type];
-    if (!labels) return type;
-    return direction === 'source' ? labels.source : labels.target;
+  // Re-centre on another song (list row or graph node), with back history
+  const navigateTo = useCallback(
+    (target: Song) => {
+      if (!song || target.id === song.id) return;
+      setHistory((prev) => [...prev, song]);
+      setCurrentSong(target);
+    },
+    [song],
+  );
+
+  const goBack = () => {
+    const previous = history[history.length - 1];
+    if (!previous) return;
+    setHistory((prev) => prev.slice(0, -1));
+    setCurrentSong(previous);
   };
 
-  // Navigate to a different song in the graph
-  const handleNavigateToSong = useCallback((targetSong: Song) => {
-    if (!song) return;
-    setNavigationHistory(prev => [...prev, song]);
-    const newRelationships = loadRelationshipsForSong(targetSong);
-    setCurrentSong(targetSong);
-    setCurrentRelationships(newRelationships);
-  }, [song]);
-
-  // Go back in navigation history
-  const handleGoBack = useCallback(() => {
-    if (navigationHistory.length === 0) return;
-    const previousSong = navigationHistory[navigationHistory.length - 1];
-    setNavigationHistory(prev => prev.slice(0, -1));
-    const newRelationships = loadRelationshipsForSong(previousSong);
-    setCurrentSong(previousSong);
-    setCurrentRelationships(newRelationships);
-  }, [navigationHistory]);
-
-  // Reset state when dialog closes
-  const handleOpenChange = useCallback((isOpen: boolean) => {
+  const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setCurrentSong(null);
-      setCurrentRelationships(null);
-      setNavigationHistory([]);
+      setHistory([]);
+      setViewMode("list");
+      setLoaded(false);
       resetForm();
     }
     onOpenChange(isOpen);
-  }, [onOpenChange]);
+  };
 
-  // Filter out songs that already have a relationship
-  const availableSongs = useMemo(() =>
-    allSongs.filter(s => !existingRelationships.some(r => r.otherSong.id === s.id)),
-    [allSongs, existingRelationships]
+  const availableSongs = useMemo(
+    () => allSongs.filter((s) => !existing.some((r) => r.otherSong.id === s.id)),
+    [allSongs, existing],
   );
 
   const filteredSongs = useMemo(() => {
-    if (!songSearchQuery.trim()) return availableSongs;
-    const query = songSearchQuery.toLowerCase();
-    return availableSongs.filter(s =>
-      s.title.toLowerCase().includes(query) ||
-      s.artist.toLowerCase().includes(query)
-    );
-  }, [availableSongs, songSearchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return availableSongs;
+    return availableSongs.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q));
+  }, [availableSongs, searchQuery]);
 
-  const selectedSong = useMemo(() =>
-    availableSongs.find(s => s.id === newTargetSongId),
-    [availableSongs, newTargetSongId]
-  );
+  const selectedSong = useMemo(() => availableSongs.find((s) => s.id === newTargetId), [availableSongs, newTargetId]);
 
   if (!song) return null;
 
-  const hasRelationships = relationships.asSource.length > 0 || relationships.asTarget.length > 0;
+  const hasRelationships = existing.length > 0;
+  const previous = history[history.length - 1];
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {navigationHistory.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={handleGoBack} className="h-8 px-2">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <DialogTitle className="flex items-center gap-2">
-                <Music className="w-5 h-5" />
-                {viewMode === 'graph' ? (
-                  <span>
-                    <span className="text-primary">{song.title}</span>
-                    <span className="text-muted-foreground font-normal text-sm ml-2">by {song.artist}</span>
-                  </span>
-                ) : (
-                  'Song Relationships'
-                )}
-              </DialogTitle>
-            </div>
-            {hasRelationships && (
-              <div className="flex gap-1 mr-6">
-                <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} className="h-8 px-3">
-                  <List className="w-4 h-4 mr-1" />
-                  List
-                </Button>
-                <Button variant={viewMode === 'graph' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('graph')} className="h-8 px-3">
-                  <Network className="w-4 h-4 mr-1" />
-                  Graph
-                </Button>
-              </div>
+          <div className="flex items-center gap-1">
+            {previous && (
+              <Button variant="ghost" size="icon-sm" onClick={goBack} aria-label={`Back to ${previous.title}`} className="-ml-1.5">
+                <ChevronLeft />
+              </Button>
             )}
+            <DialogTitle>Relationships</DialogTitle>
           </div>
-          <DialogDescription>
-            {navigationHistory.length > 0
-              ? `Exploring from: ${navigationHistory[0].title}`
-              : `${song.title} — ${song.artist}`}
+          <DialogDescription className="truncate">
+            {history.length > 0 ? `${song.title} — exploring from ${history[0].title}` : `${song.title} — ${song.artist}`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 space-y-4 overflow-y-auto">
-          {/* Playlist Memberships */}
-          {viewMode === 'list' && playlistMemberships.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <ListMusic className="w-4 h-4" />
-                In Playlists
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {playlistMemberships.map((membership) => (
-                  <Badge
-                    key={membership.playlist.id}
-                    variant="outline"
-                    style={{
-                      borderColor: membership.playlist.color,
-                      backgroundColor: `${membership.playlist.color}20`
-                    }}
-                  >
-                    {membership.playlist.name}
-                    <span className="ml-1 text-muted-foreground text-xs">(#{membership.position + 1})</span>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
+        {hasRelationships && (
+          <div role="group" aria-label="View" className="-mt-1 flex gap-1">
+            {(["list", "graph"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-chip px-3.5 text-[13px] font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  viewMode === mode ? "bg-signal-soft text-signal-text" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode === "list" ? <List className="h-3.5 w-3.5" /> : <Network className="h-3.5 w-3.5" />}
+                {mode === "list" ? "List" : "Graph"}
+              </button>
+            ))}
+          </div>
+        )}
 
-          {/* Graph View */}
-          {viewMode === 'graph' && hasRelationships && (
-            <SongRelationshipGraph
-              key={song.id}
-              centerSong={song}
-              relationships={relationships}
-              onNavigateToSong={handleNavigateToSong}
-            />
-          )}
-
-          {/* List View - Existing Relationships */}
-          {viewMode === 'list' && (
+        <div className="-mx-6 min-h-0 flex-1 space-y-5 overflow-y-auto px-6">
+          {viewMode === "graph" && hasRelationships ? (
+            <SongRelationshipGraph key={song.id} centerSong={song} relationships={graph} onNavigateToSong={navigateTo} />
+          ) : (
             <>
-              {existingRelationships.length === 0 && (
-                <div className="text-center py-6 text-muted-foreground bg-muted/30 rounded-lg">
-                  <Link2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No relationships yet</p>
+              {playlists.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-[13px] font-semibold">In playlists</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {playlists.map((m) => (
+                      <ColorChip
+                        key={m.playlist.id}
+                        size="md"
+                        color={m.playlist.color}
+                        label={`${m.playlist.name} · #${m.position + 1}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {existingRelationships.length > 0 && (
-                <div className="space-y-2">
-                  {existingRelationships.map((rel) => (
-                    <div
-                      key={rel.id}
-                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border hover:border-primary/50 transition-colors"
-                    >
-                      <div
-                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-                        onClick={() => handleNavigateToSong(rel.otherSong)}
+              {loaded && existing.length === 0 && (
+                <EmptyState
+                  size="inline"
+                  arrangement="split"
+                  title="No relationships yet."
+                  body="Link remixes, edits, shared samples and transitions to see how your tracks connect."
+                />
+              )}
+
+              {existing.length > 0 && (
+                <ul className="divide-y divide-border/70 border-y border-border/70">
+                  {existing.map((rel) => (
+                    <li key={rel.id} className="flex items-center gap-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => navigateTo(rel.otherSong)}
+                        aria-label={`Show the relationships of ${rel.otherSong.title}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        {rel.direction === 'source' ? (
-                          <ArrowRight className="w-4 h-4 text-primary flex-shrink-0" />
-                        ) : (
-                          <ArrowLeft className="w-4 h-4 text-secondary flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {getRelationshipLabel(rel.type, rel.direction)}
-                            </Badge>
-                          </div>
-                          <p className="font-medium truncate">{rel.otherSong.title}</p>
-                          <p className="text-sm text-muted-foreground truncate">{rel.otherSong.artist}</p>
-                          {rel.notes && (
-                            <p className="text-xs text-muted-foreground mt-1 italic truncate">{rel.notes}</p>
-                          )}
-                        </div>
-                      </div>
+                        <CoverArt
+                          src={rel.otherSong.artwork_url}
+                          current={current?.id === rel.otherSong.id}
+                          className="h-9 w-9 rounded-[3px]"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <RelationLine type={rel.type} />
+                            {relationshipPhrase(rel.type, rel.direction)}
+                          </span>
+                          <span className="block truncate text-[13px] font-medium">{rel.otherSong.title}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {rel.otherSong.artist}
+                            {rel.notes ? ` · ${rel.notes}` : ""}
+                          </span>
+                        </span>
+                      </button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
-                        onClick={() => handleDeleteRelationship(rel.id)}
+                        size="icon-sm"
+                        onClick={() => handleDelete(rel.id)}
+                        aria-label={`Delete the relationship with ${rel.otherSong.title}`}
+                        title="Delete"
+                        className="text-muted-foreground hover:text-destructive"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 />
                       </Button>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
 
-              {/* Add New Relationship */}
-              <div className="space-y-3 pt-2 border-t">
-                {!showAddForm ? (
-                  <Button variant="outline" className="w-full" onClick={() => setShowAddForm(true)} disabled={availableSongs.length === 0}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Relationship
-                  </Button>
-                ) : (
-                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Relationship Type</Label>
-                        <Select value={newRelationType} onValueChange={setNewRelationType}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {relationshipTypes.map(type => (
-                              <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Related Song</Label>
-                        <Popover open={songSearchOpen} onOpenChange={setSongSearchOpen}>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" aria-expanded={songSearchOpen} className="w-full justify-between font-normal">
-                              {selectedSong ? (
-                                <span className="truncate">{selectedSong.title} - {selectedSong.artist}</span>
-                              ) : (
-                                <span className="text-muted-foreground">Search songs...</span>
-                              )}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[300px] p-0 bg-popover z-50" align="start">
-                            <Command shouldFilter={false}>
-                              <CommandInput placeholder="Search by title or artist..." value={songSearchQuery} onValueChange={setSongSearchQuery} />
-                              <CommandList>
-                                <CommandEmpty>No songs found.</CommandEmpty>
-                                <CommandGroup>
-                                  {filteredSongs.slice(0, 50).map(s => (
-                                    <CommandItem
-                                      key={s.id}
-                                      value={s.id}
-                                      onSelect={(value) => {
-                                        setNewTargetSongId(value);
-                                        setSongSearchOpen(false);
-                                        setSongSearchQuery('');
-                                      }}
-                                    >
-                                      <Check className={cn("mr-2 h-4 w-4", newTargetSongId === s.id ? "opacity-100" : "opacity-0")} />
-                                      <div className="flex flex-col min-w-0">
-                                        <span className="truncate font-medium">{s.title}</span>
-                                        <span className="truncate text-xs text-muted-foreground">{s.artist}</span>
-                                      </div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+              {!showAddForm ? (
+                <Button variant="outline" onClick={() => setShowAddForm(true)} disabled={!loaded || availableSongs.length === 0}>
+                  <Plus />
+                  Add a relationship
+                </Button>
+              ) : (
+                <div className="space-y-4 rounded-lg border border-border p-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="rel-type">Type</Label>
+                      <Select value={newType} onValueChange={setNewType}>
+                        <SelectTrigger id="rel-type">
+                          <SelectValue placeholder="Choose a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RELATIONSHIP_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              <span className="flex items-center gap-2">
+                                <RelationLine type={type} />
+                                {RELATIONSHIP_STYLES[type].label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Notes (optional)</Label>
-                      <Textarea value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Add notes about this relationship..." rows={2} />
-                    </div>
-
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="ghost" size="sm" onClick={resetForm}>Cancel</Button>
-                      <Button size="sm" onClick={handleAddRelationship} disabled={saving || !newRelationType || !newTargetSongId}>
-                        <Save className="w-4 h-4 mr-1" />
-                        Add
-                      </Button>
+                      <Label htmlFor="rel-song">Track</Label>
+                      <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="rel-song"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={searchOpen}
+                            className="w-full justify-between font-normal"
+                          >
+                            {selectedSong ? (
+                              <span className="truncate">
+                                {selectedSong.title} — {selectedSong.artist}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Find a track</span>
+                            )}
+                            <ChevronsUpDown className="text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[min(22rem,calc(100vw-2rem))] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandInput placeholder="Title or artist" value={searchQuery} onValueChange={setSearchQuery} />
+                            <CommandList>
+                              <CommandEmpty>No track matches.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredSongs.slice(0, 50).map((s) => (
+                                  <CommandItem
+                                    key={s.id}
+                                    value={s.id}
+                                    onSelect={(value) => {
+                                      setNewTargetId(value);
+                                      setSearchOpen(false);
+                                      setSearchQuery("");
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-3.5 w-3.5 text-signal-text", newTargetId !== s.id && "invisible")} />
+                                    <span className="flex min-w-0 flex-col">
+                                      <span className="truncate">{s.title}</span>
+                                      <span className="truncate text-xs text-muted-foreground">{s.artist}</span>
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
-                )}
-              </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="rel-notes">Notes (optional)</Label>
+                    <Textarea
+                      id="rel-notes"
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      placeholder="How the two connect, where the transition works"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={resetForm}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleAdd} disabled={saving || !newType || !newTargetId}>
+                      {saving ? "Adding…" : "Add"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

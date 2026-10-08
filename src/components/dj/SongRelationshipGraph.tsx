@@ -1,5 +1,19 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Song, SongRelationship, storage } from '@/lib/storage';
+import { useEffect, useRef } from "react";
+
+import { RelationLine } from "@/components/detail/RelationLine";
+import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, relationshipStyle } from "@/lib/relationshipStyle";
+import type { Song, SongRelationship } from "@/lib/storage";
+
+export interface GraphRelationships {
+  asSource: Array<SongRelationship & { targetSong: Song }>;
+  asTarget: Array<SongRelationship & { sourceSong: Song }>;
+}
+
+interface SongRelationshipGraphProps {
+  centerSong: Song;
+  relationships: GraphRelationships;
+  onNavigateToSong?: (song: Song) => void;
+}
 
 interface GraphNode {
   id: string;
@@ -8,530 +22,500 @@ interface GraphNode {
   y: number;
   vx: number;
   vy: number;
-  isCenter: boolean;
+  center: boolean;
+  r: number;
 }
 
 interface GraphEdge {
-  source: string;
-  target: string;
-  relationship: SongRelationship;
+  from: string;
+  to: string;
+  type: string;
 }
 
-interface SongRelationshipGraphProps {
-  centerSong: Song;
-  relationships: {
-    asSource: Array<SongRelationship & { targetSong: Song }>;
-    asTarget: Array<SongRelationship & { sourceSong: Song }>;
+interface Palette {
+  fg: string;
+  muted: string;
+  border: string;
+  signal: string;
+  sunken: string;
+  labelBg: string;
+}
+
+const CENTER_R = 38;
+const NODE_R = 26;
+const LABEL_WIDTH = 136;
+const SANS = '"Inter Variable", Inter, system-ui, sans-serif';
+
+/** Read the design tokens at draw time so the canvas follows the theme. */
+function readPalette(): Palette {
+  const css = getComputedStyle(document.documentElement);
+  const hsl = (name: string, alpha = 1) => `hsl(${css.getPropertyValue(`--${name}`).trim()} / ${alpha})`;
+  return {
+    fg: hsl("foreground"),
+    muted: hsl("muted-foreground"),
+    border: hsl("border"),
+    signal: hsl("signal"),
+    sunken: hsl("surface-sunken"),
+    labelBg: hsl("popover", 0.9),
   };
-  onNavigateToSong?: (song: Song) => void;
 }
 
-const relationshipColors: Record<string, string> = {
-  remix: '#a855f7',      // Purple
-  cover: '#3b82f6',      // Blue
-  mashup: '#ec4899',     // Pink
-  edit: '#22c55e',       // Green
-  bootleg: '#f97316',    // Orange
-  same_sample: '#eab308', // Yellow
-};
+// Covers prepared for the canvas (black and white unless the user chose original colour).
+const coverCache = new Map<string, HTMLCanvasElement | "loading" | "failed">();
 
-const relationshipLabels: Record<string, string> = {
-  remix: 'Remix',
-  cover: 'Cover',
-  mashup: 'Mashup',
-  edit: 'Edit',
-  bootleg: 'Bootleg',
-  same_sample: 'Same Sample',
-};
-
-// Canvas-compatible colors (not CSS variables)
-const COLORS = {
-  centerNode: '#404040',        // Neutral gray for center
-  centerNodeBorder: '#666666',
-  relatedNode: '#1e293b',       // Slate dark
-  relatedNodeBorder: '#475569',
-  hoveredNode: '#334155',
-  hoveredNodeBorder: '#f97316', // Orange accent
-  background: 'rgba(15, 15, 15, 0.9)',
-  text: '#e2e8f0',
-  textMuted: '#94a3b8',
-  textPrimary: '#f97316',       // Orange accent
-};
-
-export function SongRelationshipGraph({ centerSong, relationships, onNavigateToSong }: SongRelationshipGraphProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
-  const [nodes, setNodes] = useState<GraphNode[]>([]);
-  const [edges, setEdges] = useState<GraphEdge[]>([]);
-  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
-  const [draggingNode, setDraggingNode] = useState<GraphNode | null>(null);
-  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null);
-
-  // Build graph data from relationships
-  useEffect(() => {
-    const nodeMap = new Map<string, GraphNode>();
-    const edgeList: GraphEdge[] = [];
-
-    // Add center node
-    const centerX = dimensions.width / 2;
-    const centerY = dimensions.height / 2;
-    
-    nodeMap.set(centerSong.id, {
-      id: centerSong.id,
-      song: centerSong,
-      x: centerX,
-      y: centerY,
-      vx: 0,
-      vy: 0,
-      isCenter: true,
-    });
-
-    // Add related nodes from source relationships
-    relationships.asSource.forEach((rel) => {
-      if (rel.targetSong && !nodeMap.has(rel.targetSong.id)) {
-        nodeMap.set(rel.targetSong.id, {
-          id: rel.targetSong.id,
-          song: rel.targetSong,
-          x: 0,
-          y: 0,
-          vx: 0,
-          vy: 0,
-          isCenter: false,
-        });
-      }
-      edgeList.push({
-        source: centerSong.id,
-        target: rel.target_song_id,
-        relationship: rel,
-      });
-    });
-
-    // Add related nodes from target relationships
-    relationships.asTarget.forEach((rel) => {
-      if (rel.sourceSong && !nodeMap.has(rel.sourceSong.id)) {
-        nodeMap.set(rel.sourceSong.id, {
-          id: rel.sourceSong.id,
-          song: rel.sourceSong,
-          x: 0,
-          y: 0,
-          vx: 0,
-          vy: 0,
-          isCenter: false,
-        });
-      }
-      edgeList.push({
-        source: rel.source_song_id,
-        target: centerSong.id,
-        relationship: rel,
-      });
-    });
-
-    // Position related nodes in a circle around center
-    const radius = Math.min(dimensions.width, dimensions.height) * 0.38;
-    const relatedNodes = Array.from(nodeMap.values()).filter(n => !n.isCenter);
-    const angleStep = (2 * Math.PI) / Math.max(relatedNodes.length, 1);
-    
-    relatedNodes.forEach((node, index) => {
-      const angle = angleStep * index - Math.PI / 2;
-      node.x = centerX + Math.cos(angle) * radius;
-      node.y = centerY + Math.sin(angle) * radius;
-    });
-
-    setNodes(Array.from(nodeMap.values()));
-    setEdges(edgeList);
-  }, [centerSong, relationships, dimensions]);
-
-  // Handle resize
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: Math.max(400, width), height: Math.max(300, height) });
-      }
-    };
-
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
-
-  // Simple force simulation
-  useEffect(() => {
-    if (nodes.length <= 1) return;
-
-    const simulate = () => {
-      const updatedNodes = [...nodes];
-      const centerX = dimensions.width / 2;
-      const centerY = dimensions.height / 2;
-      const targetRadius = Math.min(dimensions.width, dimensions.height) * 0.38;
-
-      updatedNodes.forEach((node) => {
-        if (node.isCenter || draggingNode?.id === node.id) return;
-
-        // Spring force toward ideal position
-        const dx = node.x - centerX;
-        const dy = node.y - centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist > 0) {
-          const force = (dist - targetRadius) * 0.02;
-          node.vx -= (dx / dist) * force;
-          node.vy -= (dy / dist) * force;
-        }
-
-        // Repulsion from other non-center nodes
-        updatedNodes.forEach((other) => {
-          if (other.id === node.id || other.isCenter) return;
-          const odx = node.x - other.x;
-          const ody = node.y - other.y;
-          const oDist = Math.sqrt(odx * odx + ody * ody);
-          if (oDist < 120 && oDist > 0) {
-            const repulsion = (120 - oDist) * 0.01;
-            node.vx += (odx / oDist) * repulsion;
-            node.vy += (ody / oDist) * repulsion;
-          }
-        });
-
-        // Apply velocity with damping
-        node.x += node.vx;
-        node.y += node.vy;
-        node.vx *= 0.9;
-        node.vy *= 0.9;
-
-        // Keep in bounds (with more margin for labels)
-        node.x = Math.max(80, Math.min(dimensions.width - 80, node.x));
-        node.y = Math.max(50, Math.min(dimensions.height - 50, node.y));
-      });
-
-      setNodes(updatedNodes);
-      animationRef.current = requestAnimationFrame(simulate);
-    };
-
-    animationRef.current = requestAnimationFrame(simulate);
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [nodes.length, dimensions, draggingNode]);
-
-  // Draw the graph
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
+function coverFor(url: string, onReady: () => void): HTMLCanvasElement | null {
+  const mode = document.documentElement.dataset.covers === "original" ? "original" : "bw";
+  const key = `${mode}:${url}`;
+  const cached = coverCache.get(key);
+  if (cached instanceof HTMLCanvasElement) return cached;
+  if (cached) return null;
+  coverCache.set(key, "loading");
+  const img = new Image();
+  img.decoding = "async";
+  img.onload = () => {
+    const size = 112;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    // Clear canvas with dark background
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, dimensions.width, dimensions.height);
-
-    // Draw subtle grid pattern
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-    ctx.lineWidth = 1;
-    const gridSize = 30;
-    for (let x = 0; x < dimensions.width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, dimensions.height);
-      ctx.stroke();
+    const scale = Math.max(size / img.width, size / img.height);
+    ctx.drawImage(img, (size - img.width * scale) / 2, (size - img.height * scale) / 2, img.width * scale, img.height * scale);
+    if (mode === "bw") {
+      try {
+        const data = ctx.getImageData(0, 0, size, size);
+        const d = data.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const l = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] - 128) * 1.08 + 128;
+          d[i] = d[i + 1] = d[i + 2] = Math.max(0, Math.min(255, l));
+        }
+        ctx.putImageData(data, 0, 0);
+      } catch {
+        /* a tainted canvas keeps its colour */
+      }
     }
-    for (let y = 0; y < dimensions.height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(dimensions.width, y);
-      ctx.stroke();
-    }
+    coverCache.set(key, canvas);
+    onReady();
+  };
+  img.onerror = () => coverCache.set(key, "failed");
+  img.src = url;
+  return null;
+}
 
-    // Draw edges with glow effect
-    edges.forEach((edge) => {
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      const targetNode = nodes.find(n => n.id === edge.target);
-      
-      if (!sourceNode || !targetNode) return;
+function truncate(ctx: CanvasRenderingContext2D, text: string, width: number): string {
+  if (ctx.measureText(text).width <= width) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(text.slice(0, mid) + "…").width <= width) lo = mid;
+    else hi = mid - 1;
+  }
+  return text.slice(0, lo).trimEnd() + "…";
+}
 
-      const color = relationshipColors[edge.relationship.relationship_type] || '#888888';
-      
-      // Glow effect
-      ctx.beginPath();
-      ctx.moveTo(sourceNode.x, sourceNode.y);
-      ctx.lineTo(targetNode.x, targetNode.y);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 6;
-      ctx.globalAlpha = 0.15;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      
-      // Main line
-      ctx.beginPath();
-      ctx.moveTo(sourceNode.x, sourceNode.y);
-      ctx.lineTo(targetNode.x, targetNode.y);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+/**
+ * The relationship graph: the song in the centre (with the orange cut), its
+ * direct relations around it, one line style per relationship type. A canvas
+ * that reads the design tokens, scales for HiDPI and sleeps once the layout
+ * settles. The list view is the keyboard path; the canvas says so.
+ */
+export function SongRelationshipGraph({ centerSong, relationships, onNavigateToSong }: SongRelationshipGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const navigateRef = useRef(onNavigateToSong);
+  navigateRef.current = onNavigateToSong;
 
-      // Draw arrow
-      const angle = Math.atan2(targetNode.y - sourceNode.y, targetNode.x - sourceNode.x);
-      const arrowSize = 10;
-      const arrowX = (sourceNode.x + targetNode.x) / 2;
-      const arrowY = (sourceNode.y + targetNode.y) / 2;
+  const sim = useRef({
+    nodes: [] as GraphNode[],
+    edges: [] as GraphEdge[],
+    w: 600,
+    h: 416,
+    dpr: 1,
+    hover: null as string | null,
+    drag: null as { id: string; startX: number; startY: number; moved: boolean } | null,
+    raf: null as number | null,
+    palette: null as Palette | null,
+  });
 
-      ctx.beginPath();
-      ctx.moveTo(arrowX + arrowSize * Math.cos(angle), arrowY + arrowSize * Math.sin(angle));
-      ctx.lineTo(
-        arrowX - arrowSize * Math.cos(angle - Math.PI / 5),
-        arrowY - arrowSize * Math.sin(angle - Math.PI / 5)
-      );
-      ctx.lineTo(
-        arrowX - arrowSize * Math.cos(angle + Math.PI / 5),
-        arrowY - arrowSize * Math.sin(angle + Math.PI / 5)
-      );
-      ctx.closePath();
-      ctx.fillStyle = color;
-      ctx.fill();
+  const related = relationships.asSource.length + relationships.asTarget.length;
 
-      // Draw relationship label on edge with background
-      const label = relationshipLabels[edge.relationship.relationship_type] || edge.relationship.relationship_type;
-      const labelX = arrowX;
-      const labelY = arrowY - 16;
-      
-      ctx.font = 'bold 10px system-ui';
-      const labelWidth = ctx.measureText(label).width + 8;
-      
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.beginPath();
-      ctx.roundRect(labelX - labelWidth / 2, labelY - 8, labelWidth, 16, 4);
-      ctx.fill();
-      
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, labelX, labelY);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const s = sim.current;
+    s.palette = readPalette();
+
+    // ---- graph data ----
+    const nodeMap = new Map<string, GraphNode>();
+    nodeMap.set(centerSong.id, { id: centerSong.id, song: centerSong, x: 0, y: 0, vx: 0, vy: 0, center: true, r: CENTER_R });
+    const edges: GraphEdge[] = [];
+    const addNode = (song: Song) => {
+      if (!nodeMap.has(song.id)) nodeMap.set(song.id, { id: song.id, song, x: 0, y: 0, vx: 0, vy: 0, center: false, r: NODE_R });
+    };
+    relationships.asSource.forEach((rel) => {
+      addNode(rel.targetSong);
+      edges.push({ from: centerSong.id, to: rel.targetSong.id, type: rel.relationship_type });
     });
+    relationships.asTarget.forEach((rel) => {
+      addNode(rel.sourceSong);
+      edges.push({ from: rel.sourceSong.id, to: centerSong.id, type: rel.relationship_type });
+    });
+    s.nodes = [...nodeMap.values()];
+    s.edges = edges;
 
-    // Draw nodes
-    nodes.forEach((node) => {
-      const isHovered = hoveredNode?.id === node.id;
-      const nodeRadius = node.isCenter ? 32 : 26;
-      
-      // Glow effect for hovered nodes
-      if (isHovered && !node.isCenter) {
+    // Related songs sit on an ellipse sized to the canvas, so wide canvases spread out
+    const radii = () => ({ rx: Math.max(110, s.w * 0.36), ry: Math.max(96, s.h * 0.33) });
+    const ellipseRadius = (angle: number) => {
+      const { rx, ry } = radii();
+      return (rx * ry) / Math.hypot(ry * Math.cos(angle), rx * Math.sin(angle));
+    };
+    const place = () => {
+      const cx = s.w / 2;
+      const cy = s.h / 2 - 8;
+      const others = s.nodes.filter((n) => !n.center);
+      const step = (2 * Math.PI) / Math.max(1, others.length);
+      s.nodes.forEach((n) => {
+        if (n.center) {
+          n.x = cx;
+          n.y = cy;
+        }
+      });
+      const { rx, ry } = radii();
+      others.forEach((n, i) => {
+        const angle = step * i - Math.PI / 2;
+        n.x = cx + Math.cos(angle) * rx;
+        n.y = cy + Math.sin(angle) * ry;
+        n.vx = 0;
+        n.vy = 0;
+      });
+    };
+
+    // ---- simulation: spring to the ellipse + mutual repulsion; returns peak speed ----
+    const step = () => {
+      const cx = s.w / 2;
+      const cy = s.h / 2 - 8;
+      let peak = 0;
+      for (const n of s.nodes) {
+        if (n.center) {
+          n.x = cx;
+          n.y = cy;
+          continue;
+        }
+        if (s.drag?.id === n.id) continue;
+        const dx = n.x - cx;
+        const dy = n.y - cy;
+        const dist = Math.hypot(dx, dy) || 1;
+        const spring = (dist - ellipseRadius(Math.atan2(dy, dx))) * 0.025;
+        n.vx -= (dx / dist) * spring;
+        n.vy -= (dy / dist) * spring;
+        for (const o of s.nodes) {
+          if (o === n || o.center) continue;
+          const ox = n.x - o.x;
+          const oy = n.y - o.y;
+          const od = Math.hypot(ox, oy) || 1;
+          if (od < 150) {
+            const push = (150 - od) * 0.012;
+            n.vx += (ox / od) * push;
+            n.vy += (oy / od) * push;
+          }
+        }
+        n.vx *= 0.82;
+        n.vy *= 0.82;
+        n.x = Math.max(70, Math.min(s.w - 70, n.x + n.vx));
+        n.y = Math.max(44, Math.min(s.h - 56, n.y + n.vy));
+        peak = Math.max(peak, Math.abs(n.vx), Math.abs(n.vy));
+      }
+      return peak;
+    };
+
+    // ---- drawing ----
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      const p = s.palette;
+      if (!ctx || !p) return;
+      ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+      ctx.clearRect(0, 0, s.w, s.h);
+      const byId = new Map(s.nodes.map((n) => [n.id, n]));
+      const hovered = s.hover;
+
+      // edges: the hovered route burns brightest, the rest recede
+      for (const e of s.edges) {
+        const a = byId.get(e.from);
+        const b = byId.get(e.to);
+        if (!a || !b) continue;
+        const style = relationshipStyle(e.type);
+        const color = style.color ?? p.fg;
+        const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const ux = (b.x - a.x) / dist;
+        const uy = (b.y - a.y) / dist;
+        const x1 = a.x + ux * (a.r + 4);
+        const y1 = a.y + uy * (a.r + 4);
+        const x2 = b.x - ux * (b.r + 6);
+        const y2 = b.y - uy * (b.r + 6);
+        const dim = hovered && hovered !== e.from && hovered !== e.to;
+        ctx.globalAlpha = dim ? 0.3 : 1;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = style.width;
+        ctx.lineCap = "round";
+        ctx.setLineDash(style.dash);
         ctx.beginPath();
-        ctx.arc(node.x, node.y, nodeRadius + 8, 0, Math.PI * 2);
-        const gradient = ctx.createRadialGradient(node.x, node.y, nodeRadius, node.x, node.y, nodeRadius + 12);
-        gradient.addColorStop(0, 'rgba(249, 115, 22, 0.4)');
-        gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
-        ctx.fillStyle = gradient;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // arrowhead at the target end
+        const head = 7;
+        const angle = Math.atan2(uy, ux);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - head * Math.cos(angle - 0.45), y2 - head * Math.sin(angle - 0.45));
+        ctx.lineTo(x2 - head * Math.cos(angle + 0.45), y2 - head * Math.sin(angle + 0.45));
+        ctx.closePath();
         ctx.fill();
+        // type label a third of the way out from the centre song, clear of the node labels
+        const label = style.label;
+        ctx.font = `500 10.5px ${SANS}`;
+        const lw = ctx.measureText(label).width + 10;
+        // Edges heading below the centre would put their label on the centre's own label
+        const other = a.center ? b : a;
+        const below = other.y > (a.center ? a.y : b.y) + 20;
+        const fromCentre = below ? 0.62 : 0.34;
+        const t = a.center ? fromCentre : 1 - fromCentre;
+        const mx = x1 + (x2 - x1) * t;
+        const my = y1 + (y2 - y1) * t;
+        ctx.fillStyle = p.labelBg;
+        ctx.beginPath();
+        ctx.roundRect(mx - lw / 2, my - 8, lw, 16, 8);
+        ctx.fill();
+        ctx.fillStyle = p.muted;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, mx, my + 0.5);
+        ctx.globalAlpha = 1;
       }
-      
-      // Node fill with gradient
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2);
-      
-      if (node.isCenter) {
-        // Neutral gradient for center node
-        const gradient = ctx.createRadialGradient(node.x - 8, node.y - 8, 0, node.x, node.y, nodeRadius);
-        gradient.addColorStop(0, '#555555');
-        gradient.addColorStop(1, '#2a2a2a');
-        ctx.fillStyle = gradient;
+
+      // nodes: covers in circles; the centre carries the orange cut
+      const ordered = [...s.nodes].sort((x, y) => Number(x.center) - Number(y.center));
+      for (const n of ordered) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.clip();
+        const cover = n.song.artwork_url ? coverFor(n.song.artwork_url, kick) : null;
+        if (cover) {
+          ctx.drawImage(cover, n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+        } else {
+          ctx.fillStyle = p.sunken;
+          ctx.fillRect(n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+        }
+        if (n.center) {
+          ctx.globalCompositeOperation = cover ? "multiply" : "source-over";
+          ctx.fillStyle = p.signal;
+          ctx.beginPath();
+          ctx.arc(n.x + n.r, n.y, n.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 0.32;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+        ctx.lineWidth = n.center ? 1.5 : 1;
+        ctx.strokeStyle = n.center ? p.fg : p.border;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.stroke();
+        if (hovered === n.id && !n.center) {
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = p.signal;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      // labels under the nodes
+      for (const n of ordered) {
+        const titleFont = n.center ? `650 13px ${SANS}` : `600 12px ${SANS}`;
+        ctx.font = titleFont;
+        const title = truncate(ctx, n.song.title, LABEL_WIDTH);
+        const titleW = ctx.measureText(title).width;
+        ctx.font = `400 11px ${SANS}`;
+        const artist = truncate(ctx, n.song.artist, LABEL_WIDTH);
+        const artistW = ctx.measureText(artist).width;
+        const bw = Math.max(titleW, artistW) + 14;
+        const top = n.y + n.r + 8;
+        ctx.fillStyle = p.labelBg;
+        ctx.beginPath();
+        ctx.roundRect(n.x - bw / 2, top, bw, 34, 6);
+        ctx.fill();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.font = titleFont;
+        ctx.fillStyle = hovered === n.id && !n.center ? p.signal : p.fg;
+        ctx.fillText(title, n.x, top + 4);
+        ctx.font = `400 11px ${SANS}`;
+        ctx.fillStyle = p.muted;
+        ctx.fillText(artist, n.x, top + 19);
+      }
+    };
+
+    // ---- loop: run while something moves, then sleep ----
+    const loop = () => {
+      const peak = step();
+      draw();
+      if (peak > 0.04 || s.drag) {
+        s.raf = requestAnimationFrame(loop);
       } else {
-        // Colored gradient for related nodes
-        const gradient = ctx.createRadialGradient(node.x - 6, node.y - 6, 0, node.x, node.y, nodeRadius);
-        gradient.addColorStop(0, isHovered ? '#475569' : '#334155');
-        gradient.addColorStop(1, isHovered ? '#1e293b' : '#0f172a');
-        ctx.fillStyle = gradient;
+        s.raf = null;
       }
-      ctx.fill();
-      
-      // Node border
-      ctx.strokeStyle = node.isCenter 
-        ? '#777777'
-        : isHovered 
-          ? COLORS.hoveredNodeBorder
-          : '#475569';
-      ctx.lineWidth = isHovered ? 3 : 2;
-      ctx.stroke();
+    };
+    function kick() {
+      if (s.raf === null) s.raf = requestAnimationFrame(loop);
+    }
 
-      // Music note icon (simplified)
-      ctx.beginPath();
-      ctx.arc(node.x, node.y - 2, 5, 0, Math.PI * 2);
-      ctx.fillStyle = node.isCenter ? '#999999' : (isHovered ? COLORS.textPrimary : '#64748b');
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(node.x + 5, node.y - 2);
-      ctx.lineTo(node.x + 5, node.y - 12);
-      ctx.strokeStyle = node.isCenter ? '#999999' : (isHovered ? COLORS.textPrimary : '#64748b');
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    // ---- size (HiDPI) ----
+    const resize = () => {
+      const rect = container.getBoundingClientRect();
+      const w = Math.max(280, rect.width);
+      const h = Math.max(320, rect.height);
+      const sx = w / s.w;
+      const sy = h / s.h;
+      s.w = w;
+      s.h = h;
+      s.dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * s.dpr);
+      canvas.height = Math.round(h * s.dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      s.nodes.forEach((n) => {
+        n.x *= sx;
+        n.y *= sy;
+      });
+      kick();
+    };
+    const rect = container.getBoundingClientRect();
+    s.w = Math.max(280, rect.width);
+    s.h = Math.max(320, rect.height);
+    place();
+    resize();
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
+
+    // ---- theme and cover-style changes ----
+    const themeObserver = new MutationObserver(() => {
+      s.palette = readPalette();
+      kick();
     });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "data-covers"] });
+    document.fonts?.ready.then(kick);
 
-    // Draw labels below nodes
-    nodes.forEach((node) => {
-      const isHovered = hoveredNode?.id === node.id;
-      const nodeRadius = node.isCenter ? 32 : 26;
-      const labelY = node.y + nodeRadius + 16;
-
-      // Measure text for background
-      ctx.font = node.isCenter ? 'bold 12px system-ui' : '11px system-ui';
-      const titleWidth = ctx.measureText(node.song.title).width;
-      ctx.font = '10px system-ui';
-      const artistWidth = ctx.measureText(node.song.artist).width;
-      const bgWidth = Math.max(titleWidth, artistWidth) + 16;
-      const bgHeight = 34;
-
-      // Label background with rounded corners
-      ctx.fillStyle = COLORS.background;
-      ctx.beginPath();
-      ctx.roundRect(node.x - bgWidth / 2, labelY - 14, bgWidth, bgHeight, 6);
-      ctx.fill();
-      
-      // Border for label
-      ctx.strokeStyle = node.isCenter ? '#555555' : (isHovered ? COLORS.hoveredNodeBorder : '#333333');
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Title text
-      ctx.font = node.isCenter ? 'bold 12px system-ui' : '11px system-ui';
-      ctx.fillStyle = node.isCenter 
-        ? '#ffffff'
-        : isHovered 
-          ? COLORS.textPrimary 
-          : COLORS.text;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(node.song.title, node.x, labelY);
-      
-      // Artist text
-      ctx.font = '10px system-ui';
-      ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText(node.song.artist, node.x, labelY + 14);
-    });
-  }, [nodes, edges, hoveredNode, dimensions]);
-
-  // Mouse interaction handlers
-  const getNodeAtPosition = useCallback((x: number, y: number): GraphNode | null => {
-    // Check nodes in reverse order (top nodes first)
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const node = nodes[i];
-      const dx = x - node.x;
-      const dy = y - node.y;
-      const radius = node.isCenter ? 28 : 22;
-      if (dx * dx + dy * dy <= radius * radius) {
-        return node;
+    // ---- pointer interaction ----
+    const pointAt = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    const hit = (x: number, y: number) => {
+      for (let i = s.nodes.length - 1; i >= 0; i--) {
+        const n = s.nodes[i];
+        if (Math.hypot(x - n.x, y - n.y) <= n.r + 2) return n;
       }
-    }
-    return null;
-  }, [nodes]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    if (draggingNode) {
-      setNodes(prev => prev.map(node => 
-        node.id === draggingNode.id 
-          ? { ...node, x, y, vx: 0, vy: 0 }
-          : node
-      ));
-    } else {
-      const node = getNodeAtPosition(x, y);
-      setHoveredNode(node);
-      canvas.style.cursor = node && !node.isCenter ? 'pointer' : 'default';
-    }
-  }, [draggingNode, getNodeAtPosition]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const node = getNodeAtPosition(x, y);
-    if (node && !node.isCenter) {
-      setDraggingNode(node);
-      setDragStartPos({ x, y });
-    }
-  }, [getNodeAtPosition]);
-
-  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    // Check if it was a click (not a drag)
-    if (draggingNode && dragStartPos) {
-      const dx = x - dragStartPos.x;
-      const dy = y - dragStartPos.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      
-      // If moved less than 5px, treat as click
-      if (distance < 5 && onNavigateToSong) {
-        onNavigateToSong(draggingNode.song);
+      return null;
+    };
+    const onDown = (e: PointerEvent) => {
+      const { x, y } = pointAt(e);
+      const n = hit(x, y);
+      if (n && !n.center) {
+        s.drag = { id: n.id, startX: x, startY: y, moved: false };
+        canvas.setPointerCapture(e.pointerId);
+        kick();
       }
-    }
-    
-    setDraggingNode(null);
-    setDragStartPos(null);
-  }, [draggingNode, dragStartPos, onNavigateToSong]);
+    };
+    const onMove = (e: PointerEvent) => {
+      const { x, y } = pointAt(e);
+      if (s.drag) {
+        const n = s.nodes.find((node) => node.id === s.drag?.id);
+        if (n) {
+          if (Math.hypot(x - s.drag.startX, y - s.drag.startY) > 5) s.drag.moved = true;
+          n.x = Math.max(40, Math.min(s.w - 40, x));
+          n.y = Math.max(40, Math.min(s.h - 40, y));
+          n.vx = 0;
+          n.vy = 0;
+        }
+        kick();
+        return;
+      }
+      const n = hit(x, y);
+      const next = n && !n.center ? n.id : null;
+      canvas.style.cursor = next ? "pointer" : "default";
+      if (next !== s.hover) {
+        s.hover = next;
+        kick();
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      const drag = s.drag;
+      s.drag = null;
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      if (drag && !drag.moved) {
+        const n = s.nodes.find((node) => node.id === drag.id);
+        if (n) navigateRef.current?.(n.song);
+      }
+      kick();
+    };
+    const onLeave = () => {
+      if (!s.drag && s.hover) {
+        s.hover = null;
+        kick();
+      }
+    };
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("pointerleave", onLeave);
 
-  const handleMouseLeave = useCallback(() => {
-    setDraggingNode(null);
-    setDragStartPos(null);
-    setHoveredNode(null);
-  }, []);
+    return () => {
+      resizeObserver.disconnect();
+      themeObserver.disconnect();
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("pointerleave", onLeave);
+      if (s.raf !== null) cancelAnimationFrame(s.raf);
+      s.raf = null;
+    };
+  }, [centerSong, relationships]);
 
-  const hasRelationships = relationships.asSource.length > 0 || relationships.asTarget.length > 0;
-
-  if (!hasRelationships) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <p>No relationships to display as a graph.</p>
-      </div>
-    );
+  if (related === 0) {
+    return <p className="py-10 text-center text-[13px] text-muted-foreground">No relationships to draw yet.</p>;
   }
 
   return (
-    <div ref={containerRef} className="w-full h-96 relative">
-      <canvas
-        ref={canvasRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        onMouseMove={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        className="w-full h-full rounded-lg"
-      />
-      
-      {/* Legend */}
-      <div className="absolute bottom-2 left-2 flex flex-wrap gap-2 bg-background/80 backdrop-blur-sm rounded-md p-2 text-xs">
-        {Object.entries(relationshipLabels).map(([key, label]) => (
-          <div key={key} className="flex items-center gap-1">
-            <div 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: relationshipColors[key] }}
-            />
-            <span className="text-muted-foreground">{label}</span>
-          </div>
-        ))}
+    <div className="space-y-3">
+      <div ref={containerRef} className="relative h-[26rem] w-full overflow-hidden rounded-lg border border-border">
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={`Relationship graph of ${centerSong.title}: ${related} related ${related === 1 ? "track" : "tracks"}. Use the list view to browse them with the keyboard.`}
+          className="block touch-none"
+        />
       </div>
-
-      {/* Click hint */}
-      <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-2 py-1">
-        Click a node to explore its relationships
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-label="Line styles">
+          {RELATIONSHIP_TYPES.map((type) => (
+            <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <RelationLine type={type} />
+              {RELATIONSHIP_STYLES[type].label}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-muted-foreground">Click a track to explore its relationships.</p>
       </div>
     </div>
   );
 }
-

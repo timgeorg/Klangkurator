@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Song, storage } from '@/lib/storage';
-import { toast } from '@/hooks/use-toast';
-import { FileText, Save, X } from 'lucide-react';
+import { useEffect, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/hooks/use-toast";
+import { Song, storage } from "@/lib/storage";
 
 interface LyricsDialogProps {
   song: Song | null;
@@ -13,40 +13,28 @@ interface LyricsDialogProps {
   onSave: (updatedSong: Song) => void;
 }
 
+/** Lyrics save on their own (LY-1), independent of the edit dialog's Save or Cancel. */
 export function LyricsDialog({ song, open, onOpenChange, onSave }: LyricsDialogProps) {
-  const [lyrics, setLyrics] = useState('');
+  const [lyrics, setLyrics] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (song) {
-      setLyrics(song.lyrics || '');
-    }
+    if (song) setLyrics(song.lyrics || "");
   }, [song]);
 
   const handleSave = async () => {
     if (!song) return;
-
     setSaving(true);
-
     try {
-      const updatedSong = await storage.updateSong(song.id, {
-        lyrics: lyrics.trim() || undefined
-      });
-
-      if (updatedSong) {
-        toast({
-          title: "Lyrics saved",
-          description: `Lyrics for "${updatedSong.title}" have been saved.`,
-        });
-        onSave(updatedSong);
-        onOpenChange(false);
-      } else {
-        throw new Error('Failed to update song');
-      }
-    } catch (error) {
+      const updatedSong = await storage.updateSong(song.id, { lyrics: lyrics.trim() || undefined });
+      if (!updatedSong) throw new Error("Failed to update song");
+      toast({ title: "Lyrics saved", description: `Lyrics for “${updatedSong.title}” have been saved.` });
+      onSave(updatedSong);
+      onOpenChange(false);
+    } catch {
       toast({
         title: "Error saving lyrics",
-        description: "Failed to save lyrics. Please try again.",
+        description: "The lyrics weren't saved. Check that Klangkurator is still running and try again.",
         variant: "destructive",
       });
     } finally {
@@ -58,32 +46,28 @@ export function LyricsDialog({ song, open, onOpenChange, onSave }: LyricsDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Lyrics - {song.title}
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground">{song.artist}</p>
+          <DialogTitle>Lyrics</DialogTitle>
+          <DialogDescription className="truncate">
+            {song.title} — {song.artist}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 py-4">
-          <Textarea
-            value={lyrics}
-            onChange={(e) => setLyrics(e.target.value)}
-            placeholder="Paste or type lyrics here..."
-            className="h-[400px] resize-none font-mono text-sm"
-          />
-        </div>
+        <Textarea
+          aria-label={`Lyrics for ${song.title}`}
+          value={lyrics}
+          onChange={(e) => setLyrics(e.target.value)}
+          placeholder="Paste or type the lyrics"
+          className="min-h-[360px] flex-1 resize-none font-serif text-[15px] leading-relaxed"
+        />
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            <X className="w-4 h-4 mr-2" />
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Lyrics'}
+            {saving ? "Saving…" : "Save lyrics"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,131 +1,154 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { MainGenreSelector } from '@/components/ui/main-genre-selector';
-import { SubgenreSelector } from '@/components/ui/subgenre-selector';
-import { Song, storage } from '@/lib/storage';
-import { toast } from '@/hooks/use-toast';
-import { Music, Save, X, FileText, Link2 } from 'lucide-react';
-import { LyricsDialog } from './LyricsDialog';
-import { SongRelationshipsDialog } from './SongRelationshipsDialog';
+import { useEffect, useState } from "react";
+import { FileText, Share2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MainGenreSelector } from "@/components/ui/main-genre-selector";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { SubgenreSelector } from "@/components/ui/subgenre-selector";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/hooks/use-toast";
+import { Song, storage } from "@/lib/storage";
+
+import { LyricsDialog } from "./LyricsDialog";
+import { SongRelationshipsDialog } from "./SongRelationshipsDialog";
 
 interface EditSongDialogProps {
   song: Song | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (updatedSong: Song) => void;
+  /** Lyrics or relationships changed from inside this dialog (they save on their own). */
+  onDataChange?: () => void;
 }
 
-const musicalKeys = [
-  'C major', 'C minor', 'C# major', 'C# minor',
-  'D major', 'D minor', 'D# major', 'D# minor',
-  'E major', 'E minor',
-  'F major', 'F minor', 'F# major', 'F# minor',
-  'G major', 'G minor', 'G# major', 'G# minor',
-  'A major', 'A minor', 'A# major', 'A# minor',
-  'B major', 'B minor'
+const MUSICAL_KEYS = [
+  "C major", "C minor", "C# major", "C# minor",
+  "D major", "D minor", "D# major", "D# minor",
+  "E major", "E minor",
+  "F major", "F minor", "F# major", "F# minor",
+  "G major", "G minor", "G# major", "G# minor",
+  "A major", "A minor", "A# major", "A# minor",
+  "B major", "B minor",
 ];
 
+const RATINGS = [
+  { field: "energy", label: "Energy" },
+  { field: "danceability", label: "Danceability" },
+  { field: "social_acceptance", label: "Social acceptance" },
+] as const;
 
-export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDialogProps) {
-  const [formData, setFormData] = useState({
-    title: '',
-    artist: '',
-    album: '',
-    bpm: '',
-    musical_key: '',
-    mainGenre: undefined as string | undefined,
-    subgenres: [] as string[],
-    year: '',
-    energy: 0,
-    danceability: 0,
-    social_acceptance: 0,
-    drum_notes: '',
-    element_notes: '',
-    mixing_notes: ''
-  });
+const NOTES = [
+  { field: "mixing_notes", label: "Mixing notes", placeholder: "Where to mix in and out, what to watch for" },
+  { field: "drum_notes", label: "Drum notes", placeholder: "Kick, hats, percussion, breaks" },
+  { field: "element_notes", label: "Element notes", placeholder: "Vocals, leads, pads, the moments that carry it" },
+] as const;
 
+interface FormState {
+  title: string;
+  artist: string;
+  album: string;
+  bpm: string;
+  musical_key: string;
+  mainGenre: string | undefined;
+  subgenres: string[];
+  year: string;
+  energy: number;
+  danceability: number;
+  social_acceptance: number;
+  drum_notes: string;
+  element_notes: string;
+  mixing_notes: string;
+}
+
+const EMPTY_FORM: FormState = {
+  title: "",
+  artist: "",
+  album: "",
+  bpm: "",
+  musical_key: "",
+  mainGenre: undefined,
+  subgenres: [],
+  year: "",
+  energy: 0,
+  danceability: 0,
+  social_acceptance: 0,
+  drum_notes: "",
+  element_notes: "",
+  mixing_notes: "",
+};
+
+export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange }: EditSongDialogProps) {
+  const [formData, setFormData] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
   const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
   const [currentSong, setCurrentSong] = useState<Song | null>(song);
-  // Reset form when song changes
+
+  // Reset the form when the song changes (unsaved edits survive Cancel + reopen of the same song)
   useEffect(() => {
-    if (song) {
-      setCurrentSong(song);
-      // Support new mainGenre/subgenres and legacy genres array
-      const mainGenre = song.mainGenre || (song.genres?.[0]) || song.genre;
-      const subgenres = song.subgenres || [];
-      setFormData({
-        title: song.title || '',
-        artist: song.artist || '',
-        album: song.album || '',
-        bpm: song.bpm?.toString() || '',
-        musical_key: song.musical_key || '',
-        mainGenre: mainGenre,
-        subgenres: subgenres,
-        year: song.year?.toString() || '',
-        energy: song.energy || 0,
-        danceability: song.danceability || 0,
-        social_acceptance: song.social_acceptance || 0,
-        drum_notes: song.drum_notes || '',
-        element_notes: song.element_notes || '',
-        mixing_notes: song.mixing_notes || ''
-      });
-    }
+    if (!song) return;
+    setCurrentSong(song);
+    setFormData({
+      title: song.title || "",
+      artist: song.artist || "",
+      album: song.album || "",
+      bpm: song.bpm?.toString() || "",
+      musical_key: song.musical_key || "",
+      // Supports the new mainGenre/subgenres and the legacy genres array
+      mainGenre: song.mainGenre || song.genres?.[0] || song.genre,
+      subgenres: song.subgenres || [],
+      year: song.year?.toString() || "",
+      energy: song.energy || 0,
+      danceability: song.danceability || 0,
+      social_acceptance: song.social_acceptance || 0,
+      drum_notes: song.drum_notes || "",
+      element_notes: song.element_notes || "",
+      mixing_notes: song.mixing_notes || "",
+    });
   }, [song]);
 
-  const handleLyricsSave = (updatedSong: Song) => {
-    setCurrentSong(updatedSong);
-  };
+  const set = <K extends keyof FormState>(field: K, value: FormState[K]) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleSave = async () => {
     if (!song) return;
-
     setSaving(true);
-
     try {
+      const bpm = parseFloat(formData.bpm);
       const updates: Partial<Song> = {
         title: formData.title.trim(),
         artist: formData.artist.trim(),
         album: formData.album.trim() || undefined,
-        bpm: formData.bpm ? parseInt(formData.bpm) : undefined,
+        // parseFloat keeps analysed decimals (127.8); parseInt used to truncate them on every save
+        bpm: isFinite(bpm) ? Math.round(bpm * 10) / 10 : undefined,
         musical_key: formData.musical_key || undefined,
         mainGenre: formData.mainGenre || undefined,
         subgenres: formData.subgenres.length > 0 ? formData.subgenres : undefined,
         // Legacy support
         genres: formData.mainGenre ? [formData.mainGenre, ...formData.subgenres] : undefined,
         genre: formData.mainGenre || undefined,
-        year: formData.year ? parseInt(formData.year) : undefined,
+        year: formData.year ? parseInt(formData.year, 10) : undefined,
         energy: formData.energy,
         danceability: formData.danceability,
         social_acceptance: formData.social_acceptance,
         drum_notes: formData.drum_notes.trim() || undefined,
         element_notes: formData.element_notes.trim() || undefined,
-        mixing_notes: formData.mixing_notes.trim() || undefined
+        mixing_notes: formData.mixing_notes.trim() || undefined,
       };
 
       const updatedSong = await storage.updateSong(song.id, updates);
-      
-      if (updatedSong) {
-        toast({
-          title: "Song updated",
-          description: `"${updatedSong.title}" has been saved.`,
-        });
-        onSave(updatedSong);
-        onOpenChange(false);
-      } else {
-        throw new Error('Failed to update song');
-      }
-    } catch (error) {
+      if (!updatedSong) throw new Error("Failed to update song");
+      toast({ title: "Song updated", description: `“${updatedSong.title}” has been saved.` });
+      onSave(updatedSong);
+      onOpenChange(false);
+    } catch {
       toast({
         title: "Error saving song",
-        description: "Failed to save changes. Please try again.",
+        description: "The changes weren't saved. Check that Klangkurator is still running and try again.",
         variant: "destructive",
       });
     } finally {
@@ -133,262 +156,160 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
     }
   };
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
   if (!song) return null;
+
+  // Keys from file tags or analysis may be in short notation ("Am"); keep them selectable.
+  const keyOptions =
+    formData.musical_key && !MUSICAL_KEYS.includes(formData.musical_key)
+      ? [formData.musical_key, ...MUSICAL_KEYS]
+      : MUSICAL_KEYS;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Music className="w-5 h-5" />
-            Edit Song
-          </DialogTitle>
+          <DialogTitle>Edit track</DialogTitle>
+          <DialogDescription className="truncate">
+            {song.title} — {song.artist}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 py-4">
-          {/* Basic Info */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Basic Information</h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
-                  placeholder="Song title"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="artist">Artist *</Label>
-                <Input
-                  id="artist"
-                  value={formData.artist}
-                  onChange={(e) => handleInputChange('artist', e.target.value)}
-                  placeholder="Artist name"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="album">Album</Label>
-                <Input
-                  id="album"
-                  value={formData.album}
-                  onChange={(e) => handleInputChange('album', e.target.value)}
-                  placeholder="Album name"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
+        <div className="grid gap-7">
+          <FormSection title="Basics">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="title" label="Title" required>
+                <Input id="title" value={formData.title} onChange={(e) => set("title", e.target.value)} />
+              </Field>
+              <Field id="artist" label="Artist" required>
+                <Input id="artist" value={formData.artist} onChange={(e) => set("artist", e.target.value)} />
+              </Field>
+              <Field id="album" label="Album">
+                <Input id="album" value={formData.album} onChange={(e) => set("album", e.target.value)} />
+              </Field>
+              <Field id="year" label="Year">
                 <Input
                   id="year"
                   type="number"
+                  inputMode="numeric"
+                  className="k-num"
                   value={formData.year}
-                  onChange={(e) => handleInputChange('year', e.target.value)}
-                  placeholder="Release year"
+                  onChange={(e) => set("year", e.target.value)}
                   min="1900"
                   max="2100"
                 />
-              </div>
+              </Field>
             </div>
-          </div>
+          </FormSection>
 
-          {/* Musical Properties */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Musical Properties</h3>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="bpm">BPM</Label>
+          <FormSection title="Musical properties">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field id="bpm" label="BPM">
                 <Input
                   id="bpm"
                   type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  className="k-num"
                   value={formData.bpm}
-                  onChange={(e) => handleInputChange('bpm', e.target.value)}
-                  placeholder="120"
-                  min="60"
-                  max="200"
+                  onChange={(e) => set("bpm", e.target.value)}
+                  placeholder="124"
+                  min="40"
+                  max="250"
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="key">Key</Label>
-                <Select
-                  value={formData.musical_key}
-                  onValueChange={(value) => handleInputChange('musical_key', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select key" />
+              </Field>
+              <Field id="key" label="Key">
+                <Select value={formData.musical_key} onValueChange={(value) => set("musical_key", value)}>
+                  <SelectTrigger id="key">
+                    <SelectValue placeholder="Choose a key" />
                   </SelectTrigger>
                   <SelectContent>
-                    {musicalKeys.map(key => (
-                      <SelectItem key={key} value={key}>{key}</SelectItem>
+                    {keyOptions.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {key}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Main Genre</Label>
+              </Field>
+              <Field label="Main genre">
                 <MainGenreSelector
                   selectedGenre={formData.mainGenre}
-                  onGenreChange={(genre) => {
-                    setFormData(prev => ({ 
-                      ...prev, 
+                  onGenreChange={(genre) =>
+                    setFormData((prev) => ({
+                      ...prev,
                       mainGenre: genre,
-                      // Clear subgenres when main genre changes
-                      subgenres: genre !== prev.mainGenre ? [] : prev.subgenres
-                    }));
-                  }}
+                      // Subgenres belong to a main genre; clear them when it changes
+                      subgenres: genre !== prev.mainGenre ? [] : prev.subgenres,
+                    }))
+                  }
                   size="md"
                 />
-              </div>
+              </Field>
             </div>
-
-            <div className="space-y-2">
-              <Label>Subgenres</Label>
+            <Field label="Subgenres">
               <SubgenreSelector
                 mainGenre={formData.mainGenre}
                 selectedSubgenres={formData.subgenres}
-                onSubgenresChange={(subgenres) => setFormData(prev => ({ ...prev, subgenres }))}
+                onSubgenresChange={(subgenres) => set("subgenres", subgenres)}
                 size="md"
               />
-            </div>
-          </div>
+            </Field>
+          </FormSection>
 
-          {/* DJ Ratings */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">DJ Ratings</h3>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Energy</Label>
-                  <span className="text-sm text-muted-foreground">{formData.energy}/5</span>
+          <FormSection title="Ratings">
+            <div className="grid gap-5 sm:grid-cols-3">
+              {RATINGS.map(({ field, label }) => (
+                <div key={field} className="space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <Label id={`${field}-label`}>{label}</Label>
+                    <span className="k-num text-xs text-muted-foreground">{formData[field]}/5</span>
+                  </div>
+                  <Slider
+                    aria-label={label}
+                    value={[formData[field]]}
+                    onValueChange={([value]) => set(field, value)}
+                    max={5}
+                    step={1}
+                  />
                 </div>
-                <Slider
-                  value={[formData.energy]}
-                  onValueChange={([value]) => handleInputChange('energy', value)}
-                  max={5}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Danceability</Label>
-                  <span className="text-sm text-muted-foreground">{formData.danceability}/5</span>
-                </div>
-                <Slider
-                  value={[formData.danceability]}
-                  onValueChange={([value]) => handleInputChange('danceability', value)}
-                  max={5}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Social Acceptance</Label>
-                  <span className="text-sm text-muted-foreground">{formData.social_acceptance}/5</span>
-                </div>
-                <Slider
-                  value={[formData.social_acceptance]}
-                  onValueChange={([value]) => handleInputChange('social_acceptance', value)}
-                  max={5}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
+              ))}
             </div>
-          </div>
+          </FormSection>
 
-          {/* Notes */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Notes</h3>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="mixing_notes">Mixing Notes</Label>
+          <FormSection title="Notes">
+            {NOTES.map(({ field, label, placeholder }) => (
+              <Field key={field} id={field} label={label}>
                 <Textarea
-                  id="mixing_notes"
-                  value={formData.mixing_notes}
-                  onChange={(e) => handleInputChange('mixing_notes', e.target.value)}
-                  placeholder="Notes about mixing this track..."
+                  id={field}
+                  value={formData[field]}
+                  onChange={(e) => set(field, e.target.value)}
+                  placeholder={placeholder}
                   rows={2}
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="drum_notes">Drum Notes</Label>
-                <Textarea
-                  id="drum_notes"
-                  value={formData.drum_notes}
-                  onChange={(e) => handleInputChange('drum_notes', e.target.value)}
-                  placeholder="Notes about drums and percussion..."
-                  rows={2}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="element_notes">Element Notes</Label>
-                <Textarea
-                  id="element_notes"
-                  value={formData.element_notes}
-                  onChange={(e) => handleInputChange('element_notes', e.target.value)}
-                  placeholder="Notes about musical elements..."
-                  rows={2}
-                />
-              </div>
+              </Field>
+            ))}
+          </FormSection>
+
+          <FormSection title="Lyrics and relationships">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button variant="outline" className="justify-start" onClick={() => setLyricsDialogOpen(true)}>
+                <FileText />
+                {currentSong?.lyrics ? "View or edit lyrics" : "Add lyrics"}
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => setRelationshipsDialogOpen(true)}>
+                <Share2 />
+                Manage relationships
+              </Button>
             </div>
-          </div>
-
-          {/* Lyrics */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Lyrics</h3>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => setLyricsDialogOpen(true)}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              {currentSong?.lyrics ? 'View / Edit Lyrics' : 'Add Lyrics'}
-            </Button>
-          </div>
-
-          {/* Relationships */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Relationships</h3>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start"
-              onClick={() => setRelationshipsDialogOpen(true)}
-            >
-              <Link2 className="w-4 h-4 mr-2" />
-              Manage Song Relationships
-            </Button>
-          </div>
+          </FormSection>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            <X className="w-4 h-4 mr-2" />
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving || !formData.title.trim() || !formData.artist.trim()}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -397,15 +318,44 @@ export function EditSongDialog({ song, open, onOpenChange, onSave }: EditSongDia
         song={currentSong}
         open={lyricsDialogOpen}
         onOpenChange={setLyricsDialogOpen}
-        onSave={handleLyricsSave}
+        onSave={(updated) => {
+          setCurrentSong(updated);
+          onDataChange?.();
+        }}
       />
 
       <SongRelationshipsDialog
         song={currentSong}
         open={relationshipsDialogOpen}
         onOpenChange={setRelationshipsDialogOpen}
-        onSave={() => {}}
+        onSave={() => onDataChange?.()}
       />
     </Dialog>
+  );
+}
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4 border-t border-border pt-5 first:border-t-0 first:pt-0">
+      <h3 className="text-[13px] font-semibold">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Field({ id, label, required, children }: { id?: string; label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>
+        {label}
+        {required && (
+          <span aria-hidden className="text-muted-foreground">
+            {" "}
+            *
+          </span>
+        )}
+      </Label>
+      {children}
+    </div>
   );
 }

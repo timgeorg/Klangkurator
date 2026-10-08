@@ -22,7 +22,7 @@ const GAP = 1;
  * mirrored around the centre line like the moodboard's player.
  */
 function WaveformImpl({ className, variant = "compact", peaks, progress, active = false }: WaveformProps) {
-  const bars = variant === "compact" ? 48 : 160;
+  const bars = variant === "compact" ? 48 : 200;
   const width = bars * (BAR + GAP) - GAP;
 
   const path = useMemo(() => {
