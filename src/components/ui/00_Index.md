@@ -1,0 +1,65 @@
+---
+source: auto
+tags:
+  - index
+---
+# Index — src/components/ui
+
+- [[accordion.tsx]] — Radix-based collapsible accordion with chevron trigger (not used by the app yet).
+- [[alert-dialog.tsx]] — Modal alert dialog for confirmations, wraps Radix AlertDialog primitives.
+- [[alert.tsx]] — Inline alert box with variants for default and destructive states (not used by the app yet).
+- [[aspect-ratio.tsx]] — Wrapper to lock aspect ratio on an element (not used by the app yet).
+- [[avatar.tsx]] — Circular user avatar with image and fallback (not used by the app yet).
+- [[badge.tsx]] — Small inline label pill with signal, destructive, secondary and outline variants (not used by the app yet).
+- [[breadcrumb.tsx]] — Navigation breadcrumb trail (not used by the app yet).
+- [[button.tsx]] — Core interactive button with variants (default, destructive, outline, secondary, ghost, link) and sizes.
+- [[calendar.tsx]] — Date picker calendar (not used by the app yet).
+- [[card.tsx]] — Container with border and rounded corners for grouping content (not used by the app yet).
+- [[carousel.tsx]] — Embla-carousel image/content carousel with arrow controls (not used by the app yet).
+- [[chart.tsx]] — Recharts wrapper for data visualization (not used by the app yet).
+- [[checkbox.tsx]] — Radix-based checkbox with check icon.
+- [[collapsible.tsx]] — Radix collapsible trigger and content (Import's typed-path fallback, Settings' genre rows).
+- [[color-chip.tsx]] — App-specific genre/tag chip with user color dot and optional remove button.
+- [[column-filter.tsx]] — App-specific library table column filter UI with text, checkbox, and range modes.
+- [[command.tsx]] — Command palette / list search component wrapping cmdk.
+- [[context-menu.tsx]] — Right-click context menu (not used by the app yet).
+- [[dialog.tsx]] — Modal dialog wrapper around Radix Dialog primitives.
+- [[drawer.tsx]] — Mobile-friendly sheet drawer using Vaul library (not used by the app yet).
+- [[dropdown-menu.tsx]] — Dropdown menu with groups, submenus, and checkmarks (not used by the app yet).
+- [[energy-bar.tsx]] — DJ library UI: horizontal or vertical energy bar with optional value display (not used by the app yet).
+- [[form.tsx]] — React Hook Form integration layer for form field state and validation (not used by the app yet).
+- [[hover-card.tsx]] — Floating card on hover (not used by the app yet).
+- [[input-otp.tsx]] — One-time password input fields (not used by the app yet).
+- [[input.tsx]] — Text input field with border and hover states.
+- [[label.tsx]] — Form label bound to input via htmlFor.
+- [[main-genre-selector.tsx]] — App-specific dropdown to pick a track's main genre with color dot.
+- [[menubar.tsx]] — Menu bar with dropdowns and keyboard navigation (not used by the app yet).
+- [[navigation-menu.tsx]] — Top-level navigation menu component (not used by the app yet).
+- [[pagination.tsx]] — Page number and arrow controls for table pagination (not used by the app yet).
+- [[popover.tsx]] — Floating popover triggered by a button or element.
+- [[progress.tsx]] — Radix progress bar for showing linear progress.
+- [[radio-group.tsx]] — Radix radio button group (not used by the app yet).
+- [[rating.tsx]] — Rating control with colour variants (not used by the app yet; the table draws its own rating bars).
+- [[resizable.tsx]] — Resizable panel layout using react-resizable-panels (not used by the app yet).
+- [[scroll-area.tsx]] — Custom scrollbar wrapper around Radix ScrollArea (not used by the app yet).
+- [[segmented-control.tsx]] — App-specific single choice shown as pills (a radio group), used by Settings → Appearance.
+- [[select.tsx]] — Dropdown select using Radix Select primitives.
+- [[separator.tsx]] — Horizontal or vertical divider line.
+- [[sheet.tsx]] — Side panel that slides in (mobile-friendly variant of dialog).
+- [[sidebar.tsx]] — App layout sidebar with collapsible state, tooltip, and responsive mobile drawer.
+- [[skeleton.tsx]] — Animated placeholder loading skeleton.
+- [[slider.tsx]] — Range slider using Radix Slider.
+- [[subgenre-selector.tsx]] — App-specific popover to search and add/remove subgenres with color chips.
+- [[swatch-picker.tsx]] — App-specific color swatch picker for user-defined entity colors.
+- [[switch.tsx]] — Toggle switch using Radix Switch primitives.
+- [[table.tsx]] — HTML table wrapper with header, body, footer and cell components (not used by the app yet).
+- [[tabs.tsx]] — Tab navigation using Radix Tabs (not used by the app yet).
+- [[tag-selector.tsx]] — App-specific popover to search and add/remove tags from a song.
+- [[textarea.tsx]] — Multi-line text input field.
+- [[toast.tsx]] — Toast notification system using Radix Toast.
+- [[toaster.tsx]] — Notification portal that renders active toasts.
+- [[toggle-group.tsx]] — Radio-like toggle button group (not used by the app yet).
+- [[toggle.tsx]] — Single-press toggle button, only used by toggle-group (not used by the app yet).
+- [[tooltip.tsx]] — Hover tooltip using Radix Tooltip.
+- [[use-toast.ts]] — Copy of the toast hook from the template; the app imports the one in src/hooks (not used by the app yet).
+- [[waveform.tsx]] — App-specific audio waveform visualization with compact and full variants.
