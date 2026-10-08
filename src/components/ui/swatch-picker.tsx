@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 interface SwatchPickerProps {
   value: string;
   onChange: (hex: string) => void;
-  /** Accessible group label, e.g. "Tag colour". */
+  /** Accessible group label, e.g. "Tag color". */
   label: string;
   className?: string;
 }
@@ -21,7 +21,7 @@ interface SwatchPickerProps {
 export function SwatchPicker({ value, onChange, label, className }: SwatchPickerProps) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const inPalette = ENTITY_COLORS.some((c) => c.hex.toLowerCase() === value?.toLowerCase());
-  const colors = inPalette || !value ? ENTITY_COLORS : [{ name: "Current colour", hex: value }, ...ENTITY_COLORS];
+  const colors = inPalette || !value ? ENTITY_COLORS : [{ name: "Current color", hex: value }, ...ENTITY_COLORS];
   const selectedIndex = Math.max(
     0,
     colors.findIndex((c) => c.hex.toLowerCase() === value?.toLowerCase()),

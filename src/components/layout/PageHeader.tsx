@@ -17,7 +17,7 @@ interface PageHeaderProps {
 export function PageHeader({ title, meta, actions, children, className }: PageHeaderProps) {
   return (
     <header className={cn("border-b border-border px-5 pt-5 md:px-8 md:pt-7", children ? "pb-3" : "pb-5", className)}>
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="flex min-h-9 flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 items-baseline gap-3">
           <h1 className="k-title truncate">{title}</h1>
           {meta && <span className="k-num shrink-0 text-[13px] text-muted-foreground">{meta}</span>}

@@ -1,21 +1,29 @@
 # Settings
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-08
 Source: Requirements.md section 11
 
 ## Tags Management
 
 - Add / rename / edit color (20-color palette) / delete with confirmation
 - Deleting a tag removes it from all songs
+- Each tag shows how many tracks use it; the delete confirmation repeats the
+  number. Names are unique (case-insensitive), checked in the dialog
 
 ## Genres & Subgenres Management
 
 - Add / rename / edit color / delete
-- Collapsible per main genre
+- Collapsible per main genre (the row is a disclosure button); subgenres
+  show as chips: the name renames, the × deletes after a confirmation
+- Renaming or deleting does not touch tracks: they keep the old name until
+  they are edited (the dialogs say so). Duplicate names are refused
+- Edit and delete are always visible, never only on hover
 - **No "Reset to Defaults" button** — user changes are permanent
 
 ## Root Folder
+
+Lives on the Import page, not in Settings (see 10_LIBRARY_AND_FILE_LOADING):
 
 - View current root folder path
 - Change root folder (triggers re-scan)

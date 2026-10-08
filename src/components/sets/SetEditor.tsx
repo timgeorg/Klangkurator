@@ -234,8 +234,8 @@ function SetForm({
             <Textarea id="set-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </div>
           <div className="space-y-2.5">
-            <Label id="set-colour">Colour</Label>
-            <SwatchPicker value={color} onChange={setColor} label="Set colour" />
+            <Label id="set-color">Color</Label>
+            <SwatchPicker value={color} onChange={setColor} label="Set color" />
           </div>
         </div>
 

@@ -75,14 +75,14 @@ Run against a sandbox copy of the library, never the user's real data.
 ## Import
 
 - **IM-1** Given no root folder, then the Import page explains what a root folder is and offers "Choose folder & scan".
-- **IM-2** Given the browser (not the desktop window), when "Choose folder & scan" is pressed, then an in-app folder browser opens at the home folder; folders open on double-click or Enter; "Use this folder" saves it as root and scans.
+- **IM-2** Given the browser (not the desktop window), when "Choose folder & scan" is pressed, then an in-app folder browser opens at the home folder; a folder opens on click or Enter; the use button (“Use “<folder>””) saves the open folder as root and scans.
 - **IM-3** Given a root folder, then the page shows it, offers Re-scan, and after a scan shows found / added / skipped counts.
-- **IM-4** Given a root with crates, when "Analyze BPM/key" is pressed, then progress shows (count and current title) until a completion message.
+- **IM-4** Given a root with crates, when "Analyze BPM and key" is pressed, then progress shows (count and current title) until a completion message.
 - **IM-5** Given crates, then each crate is listed with its track count.
 
 ## Settings
 
-- **SE-1** Given Settings, then Appearance offers theme (Ink, Paper, System), covers (black and white, original colour) and the wide-screen player (panel, bottom bar); each choice applies at once and persists.
+- **SE-1** Given Settings, then Appearance offers theme (Ink, Paper, System), covers (black and white, original colors) and the wide-screen player (panel, bottom bar); each choice applies at once and persists.
 - **SE-2** Given Tags, when a tag is created, renamed, recoloured or deleted (with confirmation), then the change persists and the library reflects it.
 - **SE-3** Given Genres, when a genre or subgenre is created, edited or deleted, then the list updates and persists; a duplicate genre name is refused with a message.
 - **SE-4** Given a colour picker, then it offers the palette swatches by name and can be used with the keyboard.

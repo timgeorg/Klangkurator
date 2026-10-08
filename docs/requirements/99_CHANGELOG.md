@@ -5,7 +5,7 @@ Last Updated: 2026-10-08
 
 ## 2026-10-08
 
-### Editorial redesign and design system (02, 13, 14, 15, 16, 17; issue #1)
+### Editorial redesign and design system (02, 10, 13, 14, 15, 16, 17; issue #1)
 
 The stock dark "Lexicon-style" skin is replaced by an editorial design
 system built from the user's moodboard ("editorial magazine look with shapes,
@@ -39,7 +39,14 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   relationships load again. Tracks and blocks are added from a searchable
   picker; deleted tracks and blocks keep their slot, marked, until removed;
   deleting a block says how many sets use it; a description can be cleared.
-- **Settings (17)**: an Appearance section (theme, cover style, player dock).
+- **Import (10)**: the page is called Import; without a root folder it opens
+  on "Start with your music folder." and the three steps. A folder picked in
+  the desktop dialog is now saved as the root (it was only scanned). The
+  browser folder dialog opens folders on click or Enter, shows `~/…` paths
+  and keyboard focus follows. Errors show the backend's reason.
+- **Settings (17)**: an Appearance section (theme, cover style, player dock);
+  tags show their track counts; genre edits no longer change the built-in
+  defaults in memory; edit and delete are visible without hovering.
 
 ## 2026-09-24 (v2)
 

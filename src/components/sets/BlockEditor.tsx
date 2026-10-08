@@ -203,8 +203,8 @@ function BlockForm({
             <Textarea id="block-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </div>
           <div className="space-y-2.5">
-            <Label id="block-colour">Colour</Label>
-            <SwatchPicker value={color} onChange={setColor} label="Block colour" />
+            <Label id="block-color">Color</Label>
+            <SwatchPicker value={color} onChange={setColor} label="Block color" />
           </div>
         </div>
 
