@@ -131,6 +131,13 @@ The tester role is where judgment pays off — probing beyond the happy path has
 
 ## Documentation
 
+- `PRODUCT.md` — who Klangkurator is for, what it must do, its design principles
+- `DESIGN.md` — the built design: tokens, type, shapes, the orange cut, components and
+  the rules for using them
+- [`design-system/README.md`](design-system/README.md) — how to use the tokens, CSS
+  and Tailwind preset in this app, a website or a new view (e.g. a canvas)
+- `docs/plans/REDESIGN_BEHAVIOR_CONTRACT.md` — observable behaviour the redesign must
+  keep, checked view by view
 - `docs/requirements/` — numbered domain specs with a changelog: `13_LIBRARY_VIEW.md`
   (the table contract), `11_SONG_MODEL.md`, `16_SET_PLANNING.md`, the data-model docs
   (`20`–`22`), `90_NFRS.md`, `91_INVARIANTS.md` (the numbered constraint table),
