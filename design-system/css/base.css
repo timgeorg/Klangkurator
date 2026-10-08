@@ -156,10 +156,10 @@ a {
 /* ---------- the orange cut (signature) ----------
  * An orange disc, the height of the element, centred on its right edge:
  * half of it shows over the black-and-white image. Two layers make a
- * duotone that reads on any artwork: a multiplied disc (lights turn orange,
- * texture stays) and a faint flat tint (darks turn deep orange instead of
- * swallowing the shape). Mark the current item with data-cut="on"; the disc
- * sweeps in from the edge.
+ * duotone that reads as signal orange on any artwork: a multiplied disc
+ * (keeps the image's lights and darks) under a flat disc at --cut-tint (so
+ * a black cover still turns orange instead of brown). Mark the current item
+ * with data-cut="on"; the disc sweeps in from the edge.
  */
 
 .k-cut {
@@ -186,7 +186,7 @@ a {
 }
 
 .k-cut::before { mix-blend-mode: multiply; }
-.k-cut::after { opacity: 0.32; }
+.k-cut::after { opacity: var(--cut-tint, 0.8); }
 
 .k-cut[data-cut="on"]::before,
 .k-cut[data-cut="on"]::after { transform: translateX(0) scale(1); }
@@ -253,6 +253,24 @@ a {
 .k-grain-layer--ink {
   background-image: url("../assets/grain-light.png");
 }
+
+/* Grain on a working ground: the page behind tables, lists and forms. A
+ * background rather than a layer, so it costs no element and stays put while
+ * the content scrolls; the flat top layer thins the tile to --grain-opacity.
+ * Inside a ground, .k-grain bands don't add a second grain. */
+.k-ground {
+  --k-ground-veil: hsl(var(--background) / calc(1 - var(--grain-opacity)));
+  background-color: hsl(var(--background));
+  background-image: linear-gradient(var(--k-ground-veil), var(--k-ground-veil)), url("../assets/grain-dark.png");
+  background-size: auto, 256px 256px;
+}
+
+.dark .k-ground,
+[data-theme="ink"] .k-ground {
+  background-image: linear-gradient(var(--k-ground-veil), var(--k-ground-veil)), url("../assets/grain-light.png");
+}
+
+.k-ground .k-grain::before { content: none; }
 
 /* ---------- rules ---------- */
 

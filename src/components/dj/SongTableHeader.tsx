@@ -136,7 +136,7 @@ export function SongTableHeader({
   };
 
   return (
-    <div role="rowgroup" className="sticky top-0 z-10 border-b border-border bg-background">
+    <div role="rowgroup" className="k-ground sticky top-0 z-10 border-b border-border">
       <div
         role="row"
         className="grid h-9 items-center gap-2 px-3 text-xs font-medium text-muted-foreground"

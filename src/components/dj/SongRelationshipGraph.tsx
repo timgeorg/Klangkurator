@@ -39,6 +39,8 @@ interface Palette {
   signal: string;
   sunken: string;
   labelBg: string;
+  /** Opacity of the flat orange disc over the multiplied one (--cut-tint). */
+  cutTint: number;
 }
 
 const CENTER_R = 38;
@@ -57,6 +59,7 @@ function readPalette(): Palette {
     signal: hsl("signal"),
     sunken: hsl("surface-sunken"),
     labelBg: hsl("popover", 0.9),
+    cutTint: parseFloat(css.getPropertyValue("--cut-tint")) || 0.8,
   };
 }
 
@@ -101,6 +104,15 @@ function coverFor(url: string, onReady: () => void): HTMLCanvasElement | null {
   img.src = url;
   return null;
 }
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 function truncate(ctx: CanvasRenderingContext2D, text: string, width: number): string {
   if (ctx.measureText(text).width <= width) return text;
@@ -240,6 +252,21 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
       const byId = new Map(s.nodes.map((n) => [n.id, n]));
       const hovered = s.hover;
 
+      // Boxes edge labels must stay clear of: node discs and the title plates under them.
+      const ordered = [...s.nodes].sort((x, y) => Number(x.center) - Number(y.center));
+      const plates = ordered.map((n) => {
+        ctx.font = n.center ? `650 13px ${SANS}` : `600 12px ${SANS}`;
+        const titleW = ctx.measureText(truncate(ctx, n.song.title, LABEL_WIDTH)).width;
+        ctx.font = `400 11px ${SANS}`;
+        const artistW = ctx.measureText(truncate(ctx, n.song.artist, LABEL_WIDTH)).width;
+        const w = Math.max(titleW, artistW) + 14;
+        return { x: n.x - w / 2, y: n.y + n.r + 8, w, h: 34 };
+      });
+      const blockers: Box[] = [
+        ...plates,
+        ...s.nodes.map((n) => ({ x: n.x - n.r - 3, y: n.y - n.r - 3, w: n.r * 2 + 6, h: n.r * 2 + 6 })),
+      ];
+
       // edges: the hovered route burns brightest, the rest recede
       for (const e of s.edges) {
         const a = byId.get(e.from);
@@ -275,17 +302,32 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
         ctx.lineTo(x2 - head * Math.cos(angle + 0.45), y2 - head * Math.sin(angle + 0.45));
         ctx.closePath();
         ctx.fill();
-        // type label a third of the way out from the centre song, clear of the node labels
+        // type label: a third of the way out from the centre song, slid along the
+        // edge until it clears every node disc, title plate and earlier label; on a
+        // short edge it steps off to the side of the line instead
         const label = style.label;
         ctx.font = `500 10.5px ${SANS}`;
         const lw = ctx.measureText(label).width + 10;
-        // Edges heading below the centre would put their label on the centre's own label
-        const other = a.center ? b : a;
-        const below = other.y > (a.center ? a.y : b.y) + 20;
-        const fromCentre = below ? 0.62 : 0.34;
-        const t = a.center ? fromCentre : 1 - fromCentre;
-        const mx = x1 + (x2 - x1) * t;
-        const my = y1 + (y2 - y1) * t;
+        const place = (fromCentre: number, aside: number) => {
+          const t = a.center ? fromCentre : 1 - fromCentre;
+          return { x: x1 + (x2 - x1) * t - uy * aside, y: y1 + (y2 - y1) * t + ux * aside };
+        };
+        const tries: Array<[number, number]> = [0.34, 0.42, 0.26, 0.5, 0.58, 0.66, 0.74, 0.18].map((f) => [f, 0]);
+        for (const aside of [14, -14, 22, -22, 30, -30]) {
+          for (const f of [0.5, 0.42, 0.58, 0.34, 0.66]) tries.push([f, aside]);
+        }
+        let spot = place(0.34, 0);
+        for (const [f, aside] of tries) {
+          const c = place(f, aside);
+          const box = { x: c.x - lw / 2, y: c.y - 8, w: lw, h: 16 };
+          if (!blockers.some((o) => overlaps(box, o))) {
+            spot = c;
+            break;
+          }
+        }
+        const mx = spot.x;
+        const my = spot.y;
+        blockers.push({ x: mx - lw / 2, y: my - 8, w: lw, h: 16 });
         ctx.fillStyle = p.labelBg;
         ctx.beginPath();
         ctx.roundRect(mx - lw / 2, my - 8, lw, 16, 8);
@@ -298,7 +340,6 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
       }
 
       // nodes: covers in circles; the centre carries the orange cut
-      const ordered = [...s.nodes].sort((x, y) => Number(x.center) - Number(y.center));
       for (const n of ordered) {
         ctx.save();
         ctx.beginPath();
@@ -318,7 +359,7 @@ export function SongRelationshipGraph({ centerSong, relationships, onNavigateToS
           ctx.arc(n.x + n.r, n.y, n.r, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalCompositeOperation = "source-over";
-          ctx.globalAlpha = 0.32;
+          ctx.globalAlpha = p.cutTint;
           ctx.fill();
           ctx.globalAlpha = 1;
         }

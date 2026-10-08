@@ -61,13 +61,13 @@ function SongTableRowImpl({
           <div className="relative flex h-full items-center justify-center">
             <span
               className={cn(
-                "k-num pointer-events-none text-xs transition-opacity duration-fast group-hover/row:opacity-0 group-focus-within/row:opacity-0",
+                "k-num pointer-events-none text-xs transition-opacity duration-fast group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0",
                 isCurrent ? "text-signal-text" : "text-muted-foreground",
               )}
             >
               {String(index + 1).padStart(2, "0")}
             </span>
-            <div className="absolute inset-0 flex items-center justify-center gap-0.5 opacity-0 transition-opacity duration-fast group-focus-within/row:opacity-100 group-hover/row:opacity-100">
+            <div className="absolute inset-0 flex items-center justify-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
               <button
                 type="button"
                 onClick={(e) => {

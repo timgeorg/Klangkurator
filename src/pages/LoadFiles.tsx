@@ -337,8 +337,10 @@ export default function LoadFiles() {
               ["Analyze", "Fill in missing BPM and key from the audio itself, about 3–5 seconds per track."],
             ].map(([title, body], i) => (
               <li key={title} className="border-t border-border pt-4">
-                <span className="k-num text-xs text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
-                <h3 className="mt-2 text-[15px] font-semibold">{title}</h3>
+                <h3 className="flex items-baseline gap-2.5 text-[15px] font-semibold">
+                  <span className="k-num text-xs font-normal text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                  {title}
+                </h3>
                 <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{body}</p>
               </li>
             ))}

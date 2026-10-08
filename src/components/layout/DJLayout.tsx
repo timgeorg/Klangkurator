@@ -36,7 +36,7 @@ export function DJLayout({ children }: DJLayoutProps) {
             <Wordmark />
           </Link>
         </header>
-        <main id="main" tabIndex={-1} className="k-shell-main focus:outline-none">
+        <main id="main" tabIndex={-1} className="k-shell-main k-ground focus:outline-none">
           {children}
         </main>
         <NowPlaying />

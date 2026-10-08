@@ -295,11 +295,13 @@ export function SongLibrary() {
     return () => observer.disconnect();
   }, [filteredSongs.length, gridTemplate, initialLoadDone]);
 
+  const crateTotal = filterOptions.rootFolders.length;
   const meta = !initialLoadDone
     ? undefined
     : isFiltering
       ? `${filteredSongs.length} of ${songs.length} tracks`
-      : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}`;
+      : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}` +
+        (crateTotal > 0 ? ` · ${crateTotal} ${crateTotal === 1 ? "crate" : "crates"}` : "");
 
   const activeCrate = filters.rootFolder.length === 1 ? filters.rootFolder[0] : null;
 

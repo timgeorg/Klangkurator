@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { WIDE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { usePlayer } from "@/lib/PlayerContext";
 import type { Song } from "@/lib/storage";
+import { splitTitle } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
 // m:ss, minutes unpadded (PF-12 revised), same as the duration column
@@ -193,6 +194,7 @@ interface ViewProps {
 function PanelView(props: ViewProps & { onDock: () => void }) {
   const { song, isPlaying, currentTime, duration, onToggle, onStop, onDock } = props;
   const genre = song.mainGenre || song.genre;
+  const titleParts = splitTitle(song.title);
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <div aria-hidden className="k-grain-layer" />
@@ -214,7 +216,10 @@ function PanelView(props: ViewProps & { onDock: () => void }) {
         </Link>
 
         <div className="mt-5">
-          <h2 className="line-clamp-2 text-xl font-semibold leading-tight tracking-[-0.02em]">{song.title}</h2>
+          <h2 className="line-clamp-3 font-serif text-[1.4375rem] leading-[1.16] tracking-[-0.01em] [text-wrap:balance]">
+            {titleParts.main}
+            {titleParts.version && <span className="text-muted-foreground"> {titleParts.version}</span>}
+          </h2>
           <p className="mt-1 truncate text-[15px] text-foreground/80">{song.artist}</p>
           {(genre || song.year) && (
             <p className="mt-1 truncate text-[13px] text-muted-foreground">

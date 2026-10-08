@@ -15,28 +15,30 @@ export interface ColumnDef {
 
 // All available columns with their configuration
 export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
-  play: { id: 'play', label: '#', minWidth: 52, maxWidth: 100, defaultWidth: 56, resizable: true, filterable: false, sortable: false },
-  cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 48, resizable: true, filterable: false, sortable: false },
-  preview: { id: 'preview', label: 'Waveform', minWidth: 64, maxWidth: 240, defaultWidth: 96, resizable: true, filterable: false, sortable: false },
-  title: { id: 'title', label: 'Title', minWidth: 120, maxWidth: 480, defaultWidth: 260, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 160, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  play: { id: 'play', label: '#', minWidth: 52, maxWidth: 100, defaultWidth: 52, resizable: true, filterable: false, sortable: false },
+  cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 40, resizable: true, filterable: false, sortable: false },
+  preview: { id: 'preview', label: 'Waveform', minWidth: 64, maxWidth: 240, defaultWidth: 72, resizable: true, filterable: false, sortable: false },
+  title: { id: 'title', label: 'Title', minWidth: 120, maxWidth: 480, defaultWidth: 216, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 112, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   rootFolder: { id: 'rootFolder', label: 'Crate', minWidth: 80, maxWidth: 260, defaultWidth: 140, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
-  bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 68, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  key: { id: 'key', label: 'Key', minWidth: 56, maxWidth: 100, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
-  genre: { id: 'genre', label: 'Genre', minWidth: 80, maxWidth: 220, defaultWidth: 120, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
+  bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  key: { id: 'key', label: 'Key', minWidth: 56, maxWidth: 100, defaultWidth: 56, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
+  genre: { id: 'genre', label: 'Genre', minWidth: 80, maxWidth: 220, defaultWidth: 96, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   subgenres: { id: 'subgenres', label: 'Subgenres', minWidth: 100, maxWidth: 300, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   energy: { id: 'energy', label: 'Energy', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   danceability: { id: 'danceability', label: 'Dance', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   social: { id: 'social', label: 'Social', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  duration: { id: 'duration', label: 'Time', minWidth: 64, maxWidth: 120, defaultWidth: 68, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  duration: { id: 'duration', label: 'Time', minWidth: 64, maxWidth: 120, defaultWidth: 64, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   lyrics: { id: 'lyrics', label: 'Lyrics', minWidth: 80, maxWidth: 300, defaultWidth: 100, resizable: true, filterable: false, sortable: false },
   notes: { id: 'notes', label: 'Notes', minWidth: 100, maxWidth: 500, defaultWidth: 200, resizable: true, filterable: false, sortable: false },
 };
 
 // Default column order: what a DJ scans first (title, artist, genre, BPM, key)
-// leads; saved layouts keep their own order.
+// leads; saved layouts keep their own order. The default widths of the first
+// nine columns (through Time) add up to fit the 872px main area at 1440px
+// with the player panel docked.
 const DEFAULT_COLUMN_ORDER = [
   'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
   'subgenres', 'energy', 'danceability', 'social', 'album', 'rootFolder',

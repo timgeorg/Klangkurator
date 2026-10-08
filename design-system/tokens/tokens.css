@@ -82,6 +82,11 @@
   /* texture */
   --grain-opacity: 0.55;
 
+  /* the orange cut: opacity of the flat disc laid over the multiplied one.
+   * High enough that the disc reads as signal orange on a black cover; the
+   * rest lets the image's lights and darks show through. */
+  --cut-tint: 0.8;
+
   /* paper theme (light) */
   --background: 37 32% 92%;  /* page ground */
   --foreground: 240 3% 7%;  /* primary text */
