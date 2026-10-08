@@ -44,6 +44,10 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   the desktop dialog is now saved as the root (it was only scanned). The
   browser folder dialog opens folders on click or Enter, shows `~/…` paths
   and keyboard focus follows. Errors show the backend's reason.
+- **Editing (11, 21)**: Cancel in the Edit track and Lyrics dialogs discards
+  the edits (reopening showed them before); emptying a field clears it — the
+  dialog sends `null` and the backend now applies an explicit `null` to
+  optional fields. Regression tests in `backend/tests/`.
 - **Settings (17)**: an Appearance section (theme, cover style, player dock);
   tags show their track counts; genre edits no longer change the built-in
   defaults in memory; edit and delete are visible without hovering.
