@@ -192,7 +192,10 @@ export function SongTableHeader({
                   )}
                 />
               )}
-              <ResizeHandle onMouseDown={(e) => handleResizeStart(columnId, e)} />
+              {/* The last Notes column fills the remaining width, so it has no edge to drag. */}
+              {!(columnId === "notes" && columnId === visibleColumns[visibleColumns.length - 1]) && (
+                <ResizeHandle onMouseDown={(e) => handleResizeStart(columnId, e)} />
+              )}
             </div>
           );
         })}

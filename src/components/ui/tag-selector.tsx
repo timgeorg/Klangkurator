@@ -84,7 +84,7 @@ export function TagSelector({
 
   return (
     <div className={cn("flex min-w-0 items-center gap-1", className)}>
-      <div className="flex min-w-0 flex-nowrap items-center gap-1">
+      <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden" title={selectedTags.map((t) => t.name).join(", ") || undefined}>
         {selectedTags.map((tag) => (
           <ColorChip key={tag.id} color={tag.color} label={tag.name} size={size} onRemove={() => removeTag(tag.id)} />
         ))}
@@ -106,32 +106,11 @@ export function TagSelector({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          <Command>
+          {/* Filtered here, not by cmdk, so existing matches stay above Create and Enter picks them first. */}
+          <Command shouldFilter={false}>
             <CommandInput placeholder="Find or create a tag" value={searchValue} onValueChange={setSearchValue} />
             <CommandList>
-              <CommandEmpty>
-                {canCreateNew ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateAndAdd}
-                    className="mx-auto flex items-center gap-2 rounded-sm px-2 py-1 text-[13px] text-foreground hover:bg-accent"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create “{searchValue.trim()}”
-                  </button>
-                ) : (
-                  "No tags yet. Type a name to create one."
-                )}
-              </CommandEmpty>
-
-              {canCreateNew && filteredTags.length > 0 && (
-                <CommandGroup heading="New">
-                  <CommandItem onSelect={handleCreateAndAdd}>
-                    <Plus className="mr-2 h-3.5 w-3.5" />
-                    Create “{searchValue.trim()}”
-                  </CommandItem>
-                </CommandGroup>
-              )}
+              <CommandEmpty>{searchValue.trim() ? "That tag is already on this track." : "No tags yet. Type a name to create one."}</CommandEmpty>
 
               {filteredTags.length > 0 && (
                 <CommandGroup heading="Tags">
@@ -145,6 +124,16 @@ export function TagSelector({
                       {tag.name}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+
+              {/* After the existing matches, so Enter picks a similar existing tag first. */}
+              {canCreateNew && (
+                <CommandGroup heading="New">
+                  <CommandItem value={`create:${searchValue.trim()}`} onSelect={handleCreateAndAdd}>
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    Create “{searchValue.trim()}”
+                  </CommandItem>
                 </CommandGroup>
               )}
             </CommandList>

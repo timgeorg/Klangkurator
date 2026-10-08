@@ -72,32 +72,11 @@ export function SubgenreSelector({ mainGenre, selectedSubgenres, onSubgenresChan
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          <Command>
+          {/* Filtered here, not by cmdk, so existing matches stay above Create and Enter picks them first. */}
+          <Command shouldFilter={false}>
             <CommandInput placeholder={`${mainGenre} subgenres`} value={searchValue} onValueChange={setSearchValue} />
             <CommandList>
-              <CommandEmpty>
-                {canCreate ? (
-                  <button
-                    type="button"
-                    onClick={createAndAdd}
-                    className="mx-auto flex items-center gap-2 rounded-sm px-2 py-1 text-[13px] text-foreground hover:bg-accent"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Create “{searchValue.trim()}”
-                  </button>
-                ) : (
-                  "No subgenre matches."
-                )}
-              </CommandEmpty>
-
-              {canCreate && filtered.length > 0 && (
-                <CommandGroup heading="New">
-                  <CommandItem onSelect={createAndAdd}>
-                    <Plus className="mr-2 h-3.5 w-3.5" />
-                    Create “{searchValue.trim()}”
-                  </CommandItem>
-                </CommandGroup>
-              )}
+              <CommandEmpty>{searchValue.trim() ? "That subgenre is already on this track." : "No subgenres left to add."}</CommandEmpty>
 
               {filtered.length > 0 && (
                 <CommandGroup heading={mainGenre}>
@@ -107,6 +86,15 @@ export function SubgenreSelector({ mainGenre, selectedSubgenres, onSubgenresChan
                       {subgenre}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+
+              {canCreate && (
+                <CommandGroup heading="New">
+                  <CommandItem value={`create:${searchValue.trim()}`} onSelect={createAndAdd}>
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    Create “{searchValue.trim()}”
+                  </CommandItem>
                 </CommandGroup>
               )}
             </CommandList>

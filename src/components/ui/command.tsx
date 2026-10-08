@@ -39,10 +39,15 @@ const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+  // The field has no box of its own; focus shows as an orange rule under it.
+  <div
+    className="flex items-center border-b px-3 transition-shadow duration-fast focus-within:shadow-[inset_0_-2px_0_0_hsl(var(--ring))]"
+    cmdk-input-wrapper=""
+  >
     <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
     <CommandPrimitive.Input
       ref={ref}
+      aria-label={props.placeholder}
       className={cn(
         "flex h-10 w-full rounded-md bg-transparent py-3 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
         className,

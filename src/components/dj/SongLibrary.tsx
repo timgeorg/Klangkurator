@@ -69,6 +69,8 @@ export function SongLibrary() {
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const editingNotesRef = useRef(editingNotes);
   editingNotesRef.current = editingNotes;
+  const songsRef = useRef(songs);
+  songsRef.current = songs;
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [sort, setSort] = useState<SortState>(null);
 
@@ -162,11 +164,16 @@ export function SongLibrary() {
       return next;
     });
 
+  // Saves the mixing note: trimmed, cleared when empty, untouched when unchanged.
   const handleNotesBlur = useCallback(async (songId: string) => {
-    const notes = editingNotesRef.current[songId];
-    if (notes === undefined) return;
-    await storage.updateSong(songId, { mixing_notes: notes });
-    setSongs(await storage.getSongs());
+    const draft = editingNotesRef.current[songId];
+    if (draft === undefined) return;
+    const note = draft.trim();
+    const before = songsRef.current.find((s) => s.id === songId)?.mixing_notes?.trim() ?? "";
+    if (note !== before) {
+      await storage.updateSong(songId, { mixing_notes: note || null });
+      setSongs(await storage.getSongs());
+    }
     dropDraft(songId);
   }, []);
 

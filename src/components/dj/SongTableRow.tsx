@@ -34,7 +34,9 @@ interface SongTableRowProps {
   onNotesKeyDown: (e: React.KeyboardEvent, songId: string) => void;
 }
 
-const currentNotes = (song: Song) => song.mixing_notes || song.drum_notes || song.element_notes || "";
+/** The other notes, shown as a hint while the mixing note (the editable one) is empty. */
+const otherNote = (song: Song) =>
+  song.drum_notes ? `Drums: ${song.drum_notes}` : song.element_notes ? `Elements: ${song.element_notes}` : "";
 
 function SongTableRowImpl({
   song,
@@ -58,7 +60,7 @@ function SongTableRowImpl({
     switch (columnId) {
       case "play":
         return (
-          <div className="relative flex h-full items-center justify-center">
+          <div className="relative flex h-full w-full items-center justify-center">
             <span
               className={cn(
                 "k-num pointer-events-none text-xs transition-opacity duration-fast group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0",
@@ -227,14 +229,15 @@ function SongTableRowImpl({
         ) : (
           <button
             type="button"
-            onClick={() => onNotesEdit(song.id, currentNotes(song))}
-            title={currentNotes(song) || "Add a note"}
+            onClick={() => onNotesEdit(song.id, song.mixing_notes ?? "")}
+            title={song.mixing_notes || (otherNote(song) ? `${otherNote(song)} (click to add a mixing note)` : "Add a mixing note")}
             className={cn(
               "flex h-7 w-full max-w-[500px] items-center truncate rounded-sm px-2 text-left text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              currentNotes(song) ? "text-foreground/80" : "text-muted-foreground/70",
+              song.mixing_notes ? "text-foreground/80" : "text-muted-foreground/70",
+              !song.mixing_notes && otherNote(song) && "italic",
             )}
           >
-            <span className="truncate">{currentNotes(song) || "Add a note…"}</span>
+            <span className="truncate">{song.mixing_notes || otherNote(song) || "Add a note…"}</span>
           </button>
         );
 
