@@ -11,7 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { SubgenreSelector } from "@/components/ui/subgenre-selector";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Song, storage } from "@/lib/storage";
+import { type Song, type SongPatch, storage } from "@/lib/storage";
 
 import { LyricsDialog } from "./LyricsDialog";
 import { SongRelationshipsDialog } from "./SongRelationshipsDialog";
@@ -88,9 +88,9 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
   const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
   const [currentSong, setCurrentSong] = useState<Song | null>(song);
 
-  // Reset the form when the song changes (unsaved edits survive Cancel + reopen of the same song)
+  // Fill the form from the song each time the dialog opens: Cancel discards edits.
   useEffect(() => {
-    if (!song) return;
+    if (!song || !open) return;
     setCurrentSong(song);
     setFormData({
       title: song.title || "",
@@ -109,7 +109,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
       element_notes: song.element_notes || "",
       mixing_notes: song.mixing_notes || "",
     });
-  }, [song]);
+  }, [song, open]);
 
   const set = <K extends keyof FormState>(field: K, value: FormState[K]) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -119,25 +119,28 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
     setSaving(true);
     try {
       const bpm = parseFloat(formData.bpm);
-      const updates: Partial<Song> = {
+      const year = parseInt(formData.year, 10);
+      // The form holds every field it shows, so an emptied field is sent as
+      // null and cleared; the legacy genre fields follow the main genre.
+      const updates: SongPatch = {
         title: formData.title.trim(),
         artist: formData.artist.trim(),
-        album: formData.album.trim() || undefined,
+        album: formData.album.trim() || null,
         // parseFloat keeps analysed decimals (127.8); parseInt used to truncate them on every save
-        bpm: isFinite(bpm) ? Math.round(bpm * 10) / 10 : undefined,
-        musical_key: formData.musical_key || undefined,
-        mainGenre: formData.mainGenre || undefined,
-        subgenres: formData.subgenres.length > 0 ? formData.subgenres : undefined,
+        bpm: isFinite(bpm) ? Math.round(bpm * 10) / 10 : null,
+        musical_key: formData.musical_key || null,
+        mainGenre: formData.mainGenre || null,
+        subgenres: formData.subgenres,
         // Legacy support
-        genres: formData.mainGenre ? [formData.mainGenre, ...formData.subgenres] : undefined,
-        genre: formData.mainGenre || undefined,
-        year: formData.year ? parseInt(formData.year, 10) : undefined,
+        genres: formData.mainGenre ? [formData.mainGenre, ...formData.subgenres] : null,
+        genre: formData.mainGenre || null,
+        year: isFinite(year) ? year : null,
         energy: formData.energy,
         danceability: formData.danceability,
         social_acceptance: formData.social_acceptance,
-        drum_notes: formData.drum_notes.trim() || undefined,
-        element_notes: formData.element_notes.trim() || undefined,
-        mixing_notes: formData.mixing_notes.trim() || undefined,
+        drum_notes: formData.drum_notes.trim() || null,
+        element_notes: formData.element_notes.trim() || null,
+        mixing_notes: formData.mixing_notes.trim() || null,
       };
 
       const updatedSong = await storage.updateSong(song.id, updates);

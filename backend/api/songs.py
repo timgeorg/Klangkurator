@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.models.song import Song, SongCreate, SongUpdate
+from backend.models.song import Song, SongBase, SongCreate, SongUpdate
 from backend.models.tag import Tag
 from backend.storage import get_library_store
 
@@ -43,12 +43,19 @@ def create_song(body: SongCreate):
     return store.add_song(data)
 
 
+# Fields a client may clear by sending an explicit null: the optional ones
+# (default None). Required fields and lists ignore a null instead of being
+# blanked. Fields left out of the request are never touched.
+_CLEARABLE = {
+    field.alias or name for name, field in SongBase.model_fields.items() if field.default is None
+}
+
+
 @router.put("/{song_id}", response_model=Song)
 def update_song(song_id: str, body: SongUpdate):
     store = get_library_store()
     updates = body.model_dump(by_alias=True, exclude_unset=True)
-    # Remove None values — don't overwrite with None
-    updates = {k: v for k, v in updates.items() if v is not None}
+    updates = {k: v for k, v in updates.items() if v is not None or k in _CLEARABLE}
     song = store.update_song(song_id, updates)
     if song is None:
         raise HTTPException(404, "Song not found")

@@ -18,15 +18,16 @@ export function LyricsDialog({ song, open, onOpenChange, onSave }: LyricsDialogP
   const [lyrics, setLyrics] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Fill from the song each time the dialog opens: Cancel discards edits.
   useEffect(() => {
-    if (song) setLyrics(song.lyrics || "");
-  }, [song]);
+    if (song && open) setLyrics(song.lyrics || "");
+  }, [song, open]);
 
   const handleSave = async () => {
     if (!song) return;
     setSaving(true);
     try {
-      const updatedSong = await storage.updateSong(song.id, { lyrics: lyrics.trim() || undefined });
+      const updatedSong = await storage.updateSong(song.id, { lyrics: lyrics.trim() || null });
       if (!updatedSong) throw new Error("Failed to update song");
       toast({ title: "Lyrics saved", description: `Lyrics for “${updatedSong.title}” have been saved.` });
       onSave(updatedSong);

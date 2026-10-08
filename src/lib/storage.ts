@@ -39,6 +39,13 @@ export interface Song {
   updated_at: string;
 }
 
+/**
+ * A partial song update. A field set to null clears it (optional fields
+ * only; the backend ignores null for required ones); a field left out is not
+ * touched.
+ */
+export type SongPatch = { [K in keyof Song]?: Song[K] | null };
+
 export interface Tag {
   id: string;
   name: string;
@@ -146,7 +153,7 @@ export interface StorageInterface {
   getSongs(): Promise<Song[]>;
   getSong(id: string): Promise<Song | null>;
   addSong(song: Omit<Song, 'id' | 'created_at' | 'updated_at'>): Promise<Song>;
-  updateSong(id: string, updates: Partial<Song>): Promise<Song | null>;
+  updateSong(id: string, updates: SongPatch): Promise<Song | null>;
   deleteSong(id: string): Promise<boolean>;
   getTags(): Promise<Tag[]>;
   addTag(tag: Omit<Tag, 'id' | 'created_at'>): Promise<Tag>;
@@ -197,9 +204,9 @@ class LocalStorageImpl implements StorageInterface {
     const s: Song = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     this.setData('songs', [...this.getData<Song>('songs'), s]); return s;
   }
-  async updateSong(id: string, u: Partial<Song>) {
+  async updateSong(id: string, u: SongPatch) {
     const a = this.getData<Song>('songs'); const i = a.findIndex(s => s.id === id);
-    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() }; this.setData('songs', a); return a[i];
+    if (i < 0) return null; a[i] = { ...a[i], ...u, updated_at: new Date().toISOString() } as Song; this.setData('songs', a); return a[i];
   }
   async deleteSong(id: string) {
     const b = this.getData<Song>('songs').length;
@@ -342,7 +349,7 @@ class RemoteStorageImpl implements StorageInterface {
   async getSongs() { return api.get<Song[]>('/songs'); }
   async getSong(id: string) { return api.get<Song>(`/songs/${id}`); }
   async addSong(data: Omit<Song, 'id' | 'created_at' | 'updated_at'>) { return api.post<Song>('/songs', data); }
-  async updateSong(id: string, u: Partial<Song>) { return api.put<Song>(`/songs/${id}`, u); }
+  async updateSong(id: string, u: SongPatch) { return api.put<Song>(`/songs/${id}`, u); }
   async deleteSong(id: string) { await api.delete(`/songs/${id}`); return true; }
   async getTags() { return api.get<Tag[]>('/tags'); }
   async addTag(data: Omit<Tag, 'id' | 'created_at'>) { return api.post<Tag>('/tags', data); }
