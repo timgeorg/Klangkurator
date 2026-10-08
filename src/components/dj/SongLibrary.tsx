@@ -77,7 +77,6 @@ export function SongLibrary() {
   const [selectedSongForEdit, setSelectedSongForEdit] = useState<Song | null>(null);
 
   // Right-edge fade when the table is wider than its container
-  const [tableOverflows, setTableOverflows] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const loadAllData = useCallback(async () => {
@@ -283,16 +282,50 @@ export function SongLibrary() {
     setSearchQuery("");
   };
 
-  // Detect horizontal overflow (content wider than the scroll container)
+  // The table's right edge while more columns lie beyond it. A sliver of a
+  // cut column is covered by the page ground, so the visible table ends on a
+  // whole column; a wider partial column only fades. Updated in the DOM on
+  // scroll and resize, never through React state.
   const { visibleColumns, gridTemplate } = columnConfig;
+  const edgeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = tableScrollRef.current;
-    if (!el) return;
-    const check = () => setTableOverflows(el.scrollWidth > el.clientWidth + 1);
-    check();
-    const observer = new ResizeObserver(check);
+    const edge = edgeRef.current;
+    if (!el || !edge) return;
+    const update = () => {
+      const scrollbarW = el.offsetWidth - el.clientWidth;
+      edge.style.right = `${scrollbarW}px`;
+      edge.style.bottom = `${el.offsetHeight - el.clientHeight}px`;
+      const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      edge.hidden = !more;
+      if (!more) return;
+      const box = el.getBoundingClientRect();
+      const visibleRight = el.clientWidth;
+      let cover = 0;
+      for (const cell of el.querySelectorAll<HTMLElement>('[role="columnheader"]')) {
+        const r = cell.getBoundingClientRect();
+        const left = r.left - box.left;
+        if (left < visibleRight && r.right - box.left > visibleRight) {
+          if (visibleRight - left < 64) cover = visibleRight - left + 8;
+          break;
+        }
+      }
+      const mask = cover
+        ? "linear-gradient(to right, transparent, #000 10px)"
+        : "linear-gradient(to left, #000, transparent)";
+      edge.style.width = `${cover || 40}px`;
+      edge.style.maskImage = mask;
+      edge.style.webkitMaskImage = mask;
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
   }, [filteredSongs.length, gridTemplate, initialLoadDone]);
 
   const crateTotal = filterOptions.rootFolders.length;
@@ -454,9 +487,7 @@ export function SongLibrary() {
           )}
         </div>
 
-        {tableOverflows && filteredSongs.length > 0 && (
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
-        )}
+        <div ref={edgeRef} aria-hidden hidden className="k-ground pointer-events-none absolute top-0 z-20" />
       </div>
 
       <ColumnSettingsDialog open={columnSettingsOpen} onOpenChange={setColumnSettingsOpen} columnConfig={columnConfig} />

@@ -218,8 +218,10 @@ function PanelView(props: ViewProps & { onDock: () => void }) {
         <div className="mt-5">
           <h2 className="line-clamp-3 font-serif text-[1.4375rem] leading-[1.16] tracking-[-0.01em] [text-wrap:balance]">
             {titleParts.main}
-            {titleParts.version && <span className="text-muted-foreground"> {titleParts.version}</span>}
           </h2>
+          {titleParts.version && (
+            <p className="mt-0.5 truncate font-serif text-[15px] text-muted-foreground">{titleParts.version}</p>
+          )}
           <p className="mt-1 truncate text-[15px] text-foreground/80">{song.artist}</p>
           {(genre || song.year) && (
             <p className="mt-1 truncate text-[13px] text-muted-foreground">
