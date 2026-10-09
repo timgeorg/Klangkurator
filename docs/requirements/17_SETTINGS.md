@@ -1,21 +1,29 @@
 # Settings
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-08
 Source: Requirements.md section 11
 
 ## Tags Management
 
 - Add / rename / edit color (20-color palette) / delete with confirmation
 - Deleting a tag removes it from all songs
+- Each tag shows how many tracks use it; the delete confirmation repeats the
+  number. Names are unique (case-insensitive), checked in the dialog
 
 ## Genres & Subgenres Management
 
 - Add / rename / edit color / delete
-- Collapsible per main genre
+- Collapsible per main genre (the row is a disclosure button); subgenres
+  show as chips: the name renames, the × deletes after a confirmation
+- Renaming or deleting does not touch tracks: they keep the old name until
+  they are edited (the dialogs say so). Duplicate names are refused
+- Edit and delete are always visible, never only on hover
 - **No "Reset to Defaults" button** — user changes are permanent
 
 ## Root Folder
+
+Lives on the Import page, not in Settings (see 10_LIBRARY_AND_FILE_LOADING):
 
 - View current root folder path
 - Change root folder (triggers re-scan)
@@ -34,4 +42,9 @@ Source: Requirements.md section 11
 - Default phase names for new sets (e.g. "Opening, Building, Sunset, Peak, Closing")
 - Default target set duration
 - Column layout persistence (order, visibility, widths) — saved to localStorage
-- Theme settings (dark only for now, future: accent color picker)
+- **Appearance** (built 2026-10-08): theme Ink (dark, default) / Paper (light) /
+  System; covers in black and white (default) or original colour; on wide
+  screens the player as a right-hand panel or a bottom bar. All stored in
+  localStorage (`klangkurator.theme.v1`, `klangkurator.covers.v1`,
+  `klangkurator.player.dock.v1`). No accent picker: orange carries meaning
+  ("this one") and is not a preference.

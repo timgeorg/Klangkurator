@@ -1,122 +1,140 @@
-import { useState, useEffect } from 'react';
-import { DJSet, Block, Song, storage } from '@/lib/storage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Music, ArrowRight, Boxes, GitBranch } from 'lucide-react';
+import { Pencil, Trash2 } from "lucide-react";
+
+import { Shape } from "@/components/brand";
+import { Button } from "@/components/ui/button";
+import type { DJSet } from "@/lib/storage";
+import { formatDuration, formatTotal } from "@/lib/trackFormat";
+import { TrackTitle } from "@/components/dj/TrackTitle";
+import { cn } from "@/lib/utils";
+
+import { CoverMosaic } from "./CoverMosaic";
+import { plural, totalSeconds, tracksOf, type ResolvedItem } from "./setModel";
+
+const PREVIEW_ROWS = 6;
 
 interface SetCardProps {
-  djSet: DJSet;
-  onEdit: (djSet: DJSet) => void;
-  onDelete: (djSet: DJSet) => void;
+  set: DJSet;
+  /** The set's items, in order, resolved against the library. */
+  items: ResolvedItem[];
+  onOpen: () => void;
+  onDelete: () => void;
 }
 
-export function SetCard({ djSet, onEdit, onDelete }: SetCardProps) {
-  const [allSongs, setAllSongs] = useState<Song[]>([]);
-  const [allBlocks, setAllBlocks] = useState<Block[]>([]);
-
-  useEffect(() => {
-    storage.getSongs().then(setAllSongs);
-    storage.getBlocks().then(setAllBlocks);
-  }, []);
-
-  // Count songs and blocks
-  const songCount = djSet.items.filter(i => i.type === 'song').length;
-  const blockCount = djSet.items.filter(i => i.type === 'block').length;
-  
-  // Count total songs (including those in blocks)
-  let totalSongs = songCount;
-  djSet.items.forEach(item => {
-    if (item.type === 'block') {
-      const block = allBlocks.find(b => b.id === item.block_id);
-      if (block) totalSongs += block.songs.length;
-    }
-  });
-
-  // Count alternatives
-  const altCount = djSet.items.reduce((sum, item) => 
-    sum + (item.alternative_transitions?.length || 0), 0);
-
-  // Get first few item labels for preview
-  const previewItems = djSet.items.slice(0, 4).map(item => {
-    if (item.type === 'song') {
-      const song = allSongs.find(s => s.id === item.song_id);
-      return { type: 'song' as const, label: song?.title || 'Unknown' };
-    } else {
-      const block = allBlocks.find(b => b.id === item.block_id);
-      return { type: 'block' as const, label: block?.name || 'Unknown' };
-    }
-  });
+/**
+ * One set on the Sets page, laid out like a contents page: the mosaic, the
+ * name in the serif, its totals, and the start of the running order.
+ * Lives in a container with container-type: inline-size.
+ */
+export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
+  const tracks = tracksOf(items);
+  const seconds = totalSeconds(tracks);
+  const target = (set.target_duration_min ?? 0) * 60;
+  const phaseTracks = (set.phases ?? []).reduce((n, phase) => n + (phase.items?.length ?? 0), 0);
+  const headingId = `set-${set.id}`;
 
   return (
-    <Card className="group hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: djSet.color }}
-            />
-            <CardTitle className="text-lg">{djSet.name}</CardTitle>
-          </div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="sm" onClick={() => onEdit(djSet)}>
-              <Edit2 className="w-4 h-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-destructive hover:text-destructive"
-              onClick={() => onDelete(djSet)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-        {djSet.description && (
-          <p className="text-sm text-muted-foreground">{djSet.description}</p>
+    <article
+      aria-labelledby={headingId}
+      className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-5 gap-y-6 py-7 [@container_(min-width:34rem)]:grid-cols-[9rem_minmax(0,1fr)] [@container_(min-width:34rem)]:gap-x-8 [@container_(min-width:56rem)]:grid-cols-[10rem_minmax(0,0.8fr)_minmax(0,1.2fr)]"
+    >
+      <CoverMosaic tracks={tracks} color={set.color} layout="grid" className="w-full" />
+
+      <div className="flex min-w-0 flex-col">
+        <h3 id={headingId} className="k-headline">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="rounded-sm text-left underline-offset-[0.18em] [overflow-wrap:anywhere] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {set.name}
+          </button>
+        </h3>
+        {set.description && (
+          <p className="mt-2 line-clamp-3 max-w-[52ch] text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+            {set.description}
+          </p>
         )}
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <Badge variant="secondary">
-            <Music className="w-3 h-3 mr-1" />
-            {totalSongs} songs
-          </Badge>
-          {blockCount > 0 && (
-            <Badge variant="outline">
-              <Boxes className="w-3 h-3 mr-1" />
-              {blockCount} blocks
-            </Badge>
-          )}
-          {altCount > 0 && (
-            <Badge variant="outline" className="text-primary border-primary/50">
-              <GitBranch className="w-3 h-3 mr-1" />
-              {altCount} alternatives
-            </Badge>
-          )}
+        <p className="k-num mt-3 text-xs text-muted-foreground">
+          {plural(tracks.length, "track")} · {formatTotal(seconds)}
+          {target > 0 && <> of {formatTotal(target)}</>}
+        </p>
+        {phaseTracks > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Also {plural(phaseTracks, "track")} stored in phases, not listed here.
+          </p>
+        )}
+        <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-5">
+          <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${set.name}`}>
+            <Pencil />
+            Edit
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete} aria-label={`Delete ${set.name}`} title="Delete set">
+            <Trash2 />
+          </Button>
         </div>
-        
-        {/* Item chain preview */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1">
-          {previewItems.map((item, index) => (
-            <div key={index} className="flex items-center gap-1 flex-shrink-0">
-              <div className={`px-2 py-1 rounded text-xs truncate max-w-[100px] flex items-center gap-1 ${
-                item.type === 'block' ? 'bg-primary/20 text-primary' : 'bg-muted'
-              }`}>
-                {item.type === 'block' && <Boxes className="w-3 h-3" />}
-                {item.label}
-              </div>
-              {index < Math.min(djSet.items.length - 1, 3) && (
-                <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              )}
-            </div>
-          ))}
-          {djSet.items.length > 4 && (
-            <span className="text-xs text-muted-foreground">+{djSet.items.length - 4} more</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <RunningOrderPreview
+        items={items}
+        className="col-span-2 [@container_(min-width:56rem)]:col-span-1"
+      />
+    </article>
+  );
+}
+
+function RunningOrderPreview({ items, className }: { items: ResolvedItem[]; className?: string }) {
+  if (items.length === 0) {
+    return <p className={cn("self-center text-[13px] text-muted-foreground", className)}>The running order is empty.</p>;
+  }
+  const shown = items.slice(0, PREVIEW_ROWS);
+  const rest = items.length - shown.length;
+
+  return (
+    <div className={className}>
+      <ol aria-label="Running order" className="border-t border-border">
+        {shown.map((entry, index) => (
+          <li
+            key={entry.item.id}
+            className="grid h-10 grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/70 text-[13px]"
+          >
+            <span className="k-num text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+            <EntryTitle entry={entry} />
+            <span className="k-num text-xs text-muted-foreground">
+              {entry.kind === "song"
+                ? formatDuration(entry.song.duration)
+                : entry.kind === "block"
+                  ? formatDuration(totalSeconds(entry.tracks))
+                  : "--:--"}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {rest > 0 && <p className="k-num mt-2.5 text-xs text-muted-foreground">+ {plural(rest, "more item")}</p>}
+    </div>
+  );
+}
+
+function EntryTitle({ entry }: { entry: ResolvedItem }) {
+  if (entry.kind === "song") {
+    return (
+      <span className="flex min-w-0 items-baseline gap-2">
+        <TrackTitle title={entry.song.title} className="truncate font-medium" />
+        <span className="hidden min-w-0 shrink-[2] truncate text-muted-foreground sm:inline">{entry.song.artist}</span>
+      </span>
+    );
+  }
+  if (entry.kind === "block") {
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <Shape kind="half" className="w-3" style={{ color: entry.block.color }} />
+        <span className="truncate font-medium">{entry.block.name}</span>
+        <span className="shrink-0 text-muted-foreground">{plural(entry.tracks.length, "track")}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="truncate italic text-muted-foreground">
+      {entry.item.type === "block" ? "Deleted block" : "Track no longer in the library"}
+    </span>
   );
 }

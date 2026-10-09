@@ -1,7 +1,80 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-08
+
+## 2026-10-08
+
+### Editorial redesign and design system (02, 10, 13, 14, 15, 16, 17; issue #1)
+
+The stock dark "Lexicon-style" skin is replaced by an editorial design
+system built from the user's moodboard ("editorial magazine look with shapes,
+layouts and textures, no roughness"). Source of truth: `design-system/`;
+product record: `PRODUCT.md`; built world: `DESIGN.md`.
+
+- **Themes**: ink (dark, default) and paper (light); the rail stays ink.
+- **Orange means "this one"**: current track, selection, focus, primary
+  action, the mark. Genre/tag colours move to a print-ink palette without it.
+- **Signature**: the orange cut on the current track's cover, in the table,
+  the player and the song detail page.
+- **Player (PF-16)**: same single-track preview, now a right-hand panel on
+  screens ≥ 1280px (bottom bar below, or when docked); the waveform is the
+  scrubber.
+- **Navigation**: the rail lists Library, Sets, Import, Settings; the five
+  links to unbuilt pages are gone; the active link is marked again.
+- **Library (13)**: crate tabs, active-filter chips, a no-match state that
+  keeps the header, working sort on the sortable columns, play/edit on
+  keyboard focus, the real crate name in the Crate column, three requests
+  instead of one per track on load.
+- **Song detail and relationships (14)**: an editorial detail page (serif
+  title, spec sheet, notes as liner notes); the relationships dialog opens
+  from it directly and no longer crashes when re-centring on a related song;
+  the graph follows the theme, draws black-and-white cover nodes and gives
+  each relationship type its own line; BPM keeps its decimal on save.
+- **Sets and blocks (15, 16)**: the Sets page reads like a contents page
+  (cover mosaic in the set's colour, serif name, totals, numbered running
+  order). Set items now resolve by `ref_id` (before, every item showed
+  "Unknown"); alternatives are saved as `{ref_id, label}` (before, saving a
+  set with an alternative failed); suggestions from saved `transition`
+  relationships load again. Tracks and blocks are added from a searchable
+  picker; deleted tracks and blocks keep their slot, marked, until removed;
+  deleting a block says how many sets use it; a description can be cleared.
+- **Import (10)**: the page is called Import; without a root folder it opens
+  on "Start with your music folder." and the three steps. A folder picked in
+  the desktop dialog is now saved as the root (it was only scanned). The
+  browser folder dialog opens folders on click or Enter, shows `~/…` paths
+  and keyboard focus follows. Errors show the backend's reason.
+- **Library details (13)**: the Notes cell edits the mixing note only (other
+  notes show as a hint and are never copied into it); the tag picker puts
+  existing matches before Create and creates on Enter; crowded tag cells
+  clip; the last, width-filling Notes column has no dead resize handle.
+- **Validator round 4 (11, 13)**: the phone menu sheet is named and Tab
+  reaches every destination (rail tooltips are portaled and only rendered
+  when the rail is collapsed); walking the table backwards keeps focus below
+  the sticky header; toast close buttons are named; the Edit dialog writes
+  keys in the analyser's notation ("Cm", shown as "Cm · C minor"), so edited
+  and analysed keys filter alike; highlighted list options take the Signal
+  Wash, orange text and the rail's half-disc marker; the picker says when a block is already in the running order; the
+  table's right edge covers slivers up to 120px and adds nothing when the
+  table already ends on a whole column; the more-columns button only shows
+  where it has room, never over a column's header or filter button, and
+  snaps each press so it stays available; a header control near the edge
+  opens on the first mouse click (the keyboard focus scroll no longer runs
+  for mouse focus).
+- **Validator round 3 (13, 16)**: dialogs return focus to their opener;
+  track lists in Sets keep versions; long unbroken names wrap (no sideways
+  scrolling at 375px); the Edit dialog keeps typed edits across a nested
+  lyrics or relationship save; a hand-resized Tags column survives reloads;
+  tag cells show whole chips plus "+N"; a "more columns" button and focus
+  that stays clear of the table's right edge; phases are counted where they
+  cannot be shown.
+- **Editing (11, 21)**: Cancel in the Edit track and Lyrics dialogs discards
+  the edits (reopening showed them before); emptying a field clears it — the
+  dialog sends `null` and the backend now applies an explicit `null` to
+  optional fields. Regression tests in `backend/tests/`.
+- **Settings (17)**: an Appearance section (theme, cover style, player dock);
+  tags show their track counts; genre edits no longer change the built-in
+  defaults in memory; edit and delete are visible without hovering.
 
 ## 2026-09-24 (v2)
 

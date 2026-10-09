@@ -1,7 +1,7 @@
 # Library And File Loading
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-08
 Source: Requirements.md sections 4, 12; new set-planning workflow
 
 ## Root Folder Concept
@@ -17,7 +17,8 @@ The root folder is **the unit of import**. Loading individual audio files
 is explicitly not an import mode — a library is built from folders, never
 from loose file picks.
 
-- The "Load Files" page is the single import surface
+- The Import page (route `/load-files`, formerly "Load Files") is the single
+  import surface
 - Folder selection happens in a **native OS folder picker** (a real
   directory dialog — never a browser file-input dialog and never manual
   path typing as the primary flow)
@@ -31,7 +32,9 @@ from loose file picks.
 - A root with **no subfolders** is valid: all audio files in the root
   itself are imported; the crate name is the root folder's own name
 - The root path is persisted in settings; re-scans only add new files
-  (idempotent — INV-5)
+  (idempotent — INV-5). A folder chosen in the desktop dialog is saved as the
+  root before it is scanned (fixed 2026-10-08: it was scanned but not saved,
+  so the page forgot it after a reload)
 
 ### Folder → Crate Mapping
 - Each **subfolder** inside the root becomes a **crate** (selectable collection)
@@ -79,6 +82,9 @@ from loose file picks.
   is rejected
 - Used by the browser-mode folder dialog; desktop mode uses the PyWebView
   native dialog directly
+- In the dialog a folder opens on click or Enter (focus moves to its first
+  subfolder); the use button takes the folder that is open. Paths inside the
+  home folder show as `~/…`; a folder without subfolders says so
 
 ### Re-scan
 - Re-scanning the same root folder only adds new files — existing songs are
@@ -101,7 +107,9 @@ from loose file picks.
 
 ### Library view — empty-library redirect
 - Opening the Library view with **zero songs** auto-redirects to the
-  Load Files page (the import entry point)
-- Load Files shows what is already configured (root folder, crates)
-  and the picker/scan actions
+  Import page (the import entry point)
+- Without a root folder, Import opens on "Start with your music folder." with
+  "Choose folder & scan" and the three steps (choose, scan, analyze); with a
+  root it shows the folder, BPM/key analysis, the crates and the path
+  fallback
 - No redirect when the library has at least one song

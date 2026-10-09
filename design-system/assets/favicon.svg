@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#FD6402" role="img" aria-label="Klangkurator">
+  <!-- The Klangkurator asterisk: two heavy diagonals, a thin vertical and
+       horizontal, and a diamond cut out of the centre. One colour, crisp
+       edges; fill follows currentColor (signal orange by default in use). -->
+  <defs>
+    <mask id="k-mark-cut">
+      <rect width="64" height="64" fill="#fff"/>
+      <rect x="28.6" y="28.6" width="6.8" height="6.8" transform="rotate(45 32 32)" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#k-mark-cut)">
+    <rect x="26.4" y="3.5" width="11.2" height="57" transform="rotate(45 32 32)"/>
+    <rect x="26.4" y="3.5" width="11.2" height="57" transform="rotate(-45 32 32)"/>
+    <rect x="29.8" y="2" width="4.4" height="60"/>
+    <rect x="2" y="29.8" width="60" height="4.4"/>
+  </g>
+</svg>

@@ -1,0 +1,85 @@
+{
+  "$comment": "User-pickable entity colours (tags, genres, blocks, sets). Signal orange is excluded on purpose; it means 'this one'. Source of truth for the app: src/lib/palette.ts.",
+  "colors": [
+    {
+      "name": "Carmine",
+      "hex": "#C8102E"
+    },
+    {
+      "name": "Rose",
+      "hex": "#E0607E"
+    },
+    {
+      "name": "Plum",
+      "hex": "#7B3F8C"
+    },
+    {
+      "name": "Lavender",
+      "hex": "#B4A7F2"
+    },
+    {
+      "name": "Violet",
+      "hex": "#6B5BD6"
+    },
+    {
+      "name": "Indigo",
+      "hex": "#3B4BA8"
+    },
+    {
+      "name": "Ink blue",
+      "hex": "#2B3A67"
+    },
+    {
+      "name": "Cobalt",
+      "hex": "#2F6BD8"
+    },
+    {
+      "name": "Sky",
+      "hex": "#6FA8DC"
+    },
+    {
+      "name": "Teal",
+      "hex": "#1E8C8C"
+    },
+    {
+      "name": "Mint",
+      "hex": "#6CC3A0"
+    },
+    {
+      "name": "Green",
+      "hex": "#4E9A2A"
+    },
+    {
+      "name": "Moss",
+      "hex": "#5C7A3A"
+    },
+    {
+      "name": "Olive",
+      "hex": "#8A9A3B"
+    },
+    {
+      "name": "Ochre",
+      "hex": "#C9A227"
+    },
+    {
+      "name": "Sand",
+      "hex": "#CDB891"
+    },
+    {
+      "name": "Clay",
+      "hex": "#B3684A"
+    },
+    {
+      "name": "Brown",
+      "hex": "#7A5236"
+    },
+    {
+      "name": "Silver",
+      "hex": "#A1A2B3"
+    },
+    {
+      "name": "Slate",
+      "hex": "#6D7480"
+    }
+  ]
+}

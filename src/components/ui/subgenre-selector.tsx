@@ -1,157 +1,100 @@
-import React, { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Plus, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { getSubgenresForMainGenre, getMainGenreColor, addSubgenre } from '@/lib/genreData';
+import { useState } from "react";
+import { Plus } from "lucide-react";
+
+import { ColorChip } from "@/components/ui/color-chip";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { addSubgenre, getMainGenreColor, getSubgenresForMainGenre } from "@/lib/genreData";
+import { cn } from "@/lib/utils";
 
 interface SubgenreSelectorProps {
   mainGenre: string | undefined;
   selectedSubgenres: string[];
   onSubgenresChange: (subgenres: string[]) => void;
-  size?: 'sm' | 'md';
+  size?: "sm" | "md";
 }
 
-export function SubgenreSelector({ 
-  mainGenre, 
-  selectedSubgenres, 
-  onSubgenresChange, 
-  size = 'sm' 
-}: SubgenreSelectorProps) {
+/**
+ * Subgenres of the chosen main genre as chips in its colour. New names are
+ * added to the song and to the genre's list (SEL-2).
+ */
+export function SubgenreSelector({ mainGenre, selectedSubgenres, onSubgenresChange, size = "sm" }: SubgenreSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState("");
 
-  // Get available subgenres for the main genre
-  const availableSubgenres = mainGenre ? getSubgenresForMainGenre(mainGenre) : [];
-  const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
+  if (!mainGenre) {
+    return <p className="text-xs text-muted-foreground">Choose a main genre first.</p>;
+  }
 
-  const addSubgenreToSong = (subgenre: string) => {
-    if (!selectedSubgenres.includes(subgenre)) {
-      onSubgenresChange([...selectedSubgenres, subgenre]);
-    }
-    setSearchValue('');
+  const available = getSubgenresForMainGenre(mainGenre);
+  const color = getMainGenreColor(mainGenre);
+
+  const add = (subgenre: string) => {
+    if (!selectedSubgenres.includes(subgenre)) onSubgenresChange([...selectedSubgenres, subgenre]);
+    setSearchValue("");
   };
 
-  const removeSubgenre = (subgenre: string) => {
-    onSubgenresChange(selectedSubgenres.filter(s => s !== subgenre));
-  };
+  const remove = (subgenre: string) => onSubgenresChange(selectedSubgenres.filter((s) => s !== subgenre));
 
-  const handleCreateAndAdd = () => {
-    const trimmedName = searchValue.trim();
-    if (trimmedName && mainGenre && !availableSubgenres.some(s => s.toLowerCase() === trimmedName.toLowerCase())) {
-      // Add to genre config
-      addSubgenre(mainGenre, trimmedName);
-      addSubgenreToSong(trimmedName);
+  const createAndAdd = () => {
+    const name = searchValue.trim();
+    if (name && !available.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      addSubgenre(mainGenre, name);
+      add(name);
       setIsOpen(false);
     }
   };
 
-  const filteredSubgenres = availableSubgenres.filter(sub => 
-    !selectedSubgenres.includes(sub) &&
-    sub.toLowerCase().includes(searchValue.toLowerCase())
+  const filtered = available.filter(
+    (sub) => !selectedSubgenres.includes(sub) && sub.toLowerCase().includes(searchValue.toLowerCase()),
   );
-
-  const canCreateNew = searchValue.trim() && 
-    !availableSubgenres.some(sub => sub.toLowerCase() === searchValue.trim().toLowerCase());
-
-  if (!mainGenre) {
-    return (
-      <span className="text-muted-foreground text-xs italic">Select main genre first</span>
-    );
-  }
+  const canCreate = searchValue.trim() && !available.some((s) => s.toLowerCase() === searchValue.trim().toLowerCase());
 
   return (
-    <div className="flex items-center gap-1 min-w-0 flex-wrap">
-      {/* Selected Subgenres */}
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {selectedSubgenres.map((subgenre) => (
-        <Badge
-          key={subgenre}
-          variant="outline"
-          className={cn(
-            "flex items-center gap-1 flex-shrink-0",
-            size === 'sm' ? "px-1.5 py-0 h-5 text-[10px]" : "px-2 py-0.5 h-6 text-xs"
-          )}
-          style={{ 
-            borderColor: `${color}60`,
-            color: color
-          }}
-        >
-          <span>{subgenre}</span>
-          <X 
-            className="w-2.5 h-2.5 cursor-pointer hover:opacity-70"
-            onClick={(e) => {
-              e.stopPropagation();
-              removeSubgenre(subgenre);
-            }}
-          />
-        </Badge>
+        <ColorChip key={subgenre} size={size} color={color} label={subgenre} onRemove={() => remove(subgenre)} />
       ))}
 
-      {/* Add Subgenre Button */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
+            aria-label="Add a subgenre"
+            title="Add a subgenre"
             className={cn(
-              "transition-opacity",
-              size === 'sm' ? "w-4 h-4 p-0" : "w-5 h-5 p-0"
+              "inline-flex shrink-0 items-center justify-center gap-1 rounded-chip border border-dashed border-input text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              size === "sm" ? "h-5 px-1.5 text-[11px]" : "h-6 px-2 text-xs",
             )}
           >
-            <Plus className="w-3 h-3" />
-          </Button>
+            <Plus className="h-3 w-3" />
+            {selectedSubgenres.length === 0 && <span>Add</span>}
+          </button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          <Command>
-            <CommandInput
-              placeholder={`Search ${mainGenre} subgenres...`}
-              value={searchValue}
-              onValueChange={setSearchValue}
-            />
+          {/* Filtered here, not by cmdk, so existing matches stay above Create and Enter picks them first. */}
+          <Command shouldFilter={false}>
+            <CommandInput placeholder={`${mainGenre} subgenres`} value={searchValue} onValueChange={setSearchValue} />
             <CommandList>
-              <CommandEmpty>
-                {canCreateNew && (
-                  <div className="p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={handleCreateAndAdd}
-                    >
-                      <Plus className="w-3 h-3 mr-2" />
-                      Create "{searchValue.trim()}"
-                    </Button>
-                  </div>
-                )}
-                {!canCreateNew && <span className="text-sm text-muted-foreground p-2">No subgenres found</span>}
-              </CommandEmpty>
-              
-              {canCreateNew && filteredSubgenres.length > 0 && (
-                <CommandGroup heading="Create New">
-                  <CommandItem onSelect={handleCreateAndAdd}>
-                    <Plus className="w-3 h-3 mr-2" />
-                    Create "{searchValue.trim()}"
-                  </CommandItem>
-                </CommandGroup>
-              )}
-              
-              {filteredSubgenres.length > 0 && (
-                <CommandGroup heading={`${mainGenre} Subgenres`}>
-                  {filteredSubgenres.map((subgenre) => (
-                    <CommandItem
-                      key={subgenre}
-                      value={subgenre}
-                      onSelect={() => addSubgenreToSong(subgenre)}
-                    >
-                      <div 
-                        className="w-2 h-2 rounded-full mr-2" 
-                        style={{ backgroundColor: `${color}80` }}
-                      />
+              <CommandEmpty>{searchValue.trim() ? "That subgenre is already on this track." : "No subgenres left to add."}</CommandEmpty>
+
+              {filtered.length > 0 && (
+                <CommandGroup heading={mainGenre}>
+                  {filtered.map((subgenre) => (
+                    <CommandItem key={subgenre} value={subgenre} onSelect={() => add(subgenre)}>
+                      <span aria-hidden className="mr-2 h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                       {subgenre}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+
+              {canCreate && (
+                <CommandGroup heading="New">
+                  <CommandItem value={`create:${searchValue.trim()}`} onSelect={createAndAdd}>
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    Create “{searchValue.trim()}”
+                  </CommandItem>
                 </CommandGroup>
               )}
             </CommandList>

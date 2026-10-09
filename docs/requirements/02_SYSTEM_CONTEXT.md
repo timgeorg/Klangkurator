@@ -59,8 +59,22 @@ library/
 
 ## Design System
 
-- Dark professional DJ theme
-- Lexicon-style dark + **orange/red accents**
-- Compact, data-dense table aesthetic
-- Color-coded BPM badges, key indicators, energy/dance/social rating dots
-- Static SVG waveforms (not animated)
+Replaced on 2026-10-08 by the editorial design system (issue #1). The
+source of truth is [`design-system/`](../../design-system/README.md) at the
+repo root; `DESIGN.md` records the built world.
+
+- **Editorial look** from the user's moodboard: ink (dark, default) and paper
+  (light) themes, one signal orange, black-and-white covers, a small
+  vocabulary of geometric shapes, fine paper grain without roughness
+- **Orange means "this one"**: the playing/current track, selection, focus,
+  the one primary action, the brand mark. Never a category colour; users'
+  genre and tag colours come from a print-ink palette that leaves it out
+- **Signature: the orange cut** on the current track's cover (an orange disc
+  multiplied over the black-and-white image), in the table and the player
+- **Type**: Inter for the interface, Literata for editorial moments (empty
+  states, detail titles, notes), Geist Mono for data; all self-hosted
+  (offline desktop app)
+- **Dense where it works**: the library stays a dense, filterable table;
+  hairlines instead of boxes; numbers in mono, right-aligned
+- **Static SVG waveforms** (not animated); the player's waveform is the
+  scrubber

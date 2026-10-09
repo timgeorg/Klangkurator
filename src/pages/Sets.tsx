@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { 
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader, SectionHeader } from "@/components/layout/PageHeader";
+import { BlockCard } from "@/components/sets/BlockCard";
+import { BlockEditor } from "@/components/sets/BlockEditor";
+import { SetCard } from "@/components/sets/SetCard";
+import { SetEditor } from "@/components/sets/SetEditor";
+import { blockTracks, byPosition, indexById, itemRef, plural, resolveItem } from "@/components/sets/setModel";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -10,237 +17,267 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Plus, LayoutDashboard, Boxes } from 'lucide-react';
-import { Block, DJSet, storage } from '@/lib/storage';
-import { BlockEditor } from '@/components/sets/BlockEditor';
-import { BlockCard } from '@/components/sets/BlockCard';
-import { SetEditor } from '@/components/sets/SetEditor';
-import { SetCard } from '@/components/sets/SetCard';
-import { toast } from '@/hooks/use-toast';
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
+import { type Block, type DJSet, type Song, storage } from "@/lib/storage";
+
+interface PendingDelete {
+  kind: "set" | "block";
+  id: string;
+  name: string;
+  /** Sets that use the block. */
+  usedIn: number;
+}
 
 export default function Sets() {
+  const [songs, setSongs] = useState<Song[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [djSets, setDJSets] = useState<DJSet[]>([]);
-  
-  // Block editor state
-  const [blockEditorOpen, setBlockEditorOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
-  const [deleteBlock, setDeleteBlock] = useState<Block | null>(null);
-  
-  // Set editor state
-  const [setEditorOpen, setSetEditorOpen] = useState(false);
-  const [editingSet, setEditingSet] = useState<DJSet | null>(null);
-  const [deleteSet, setDeleteSet] = useState<DJSet | null>(null);
+  const [sets, setSets] = useState<DJSet[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [loadError, setLoadError] = useState("");
 
-  const loadData = async () => {
-    const [loadedBlocks, loadedSets] = await Promise.all([
-      storage.getBlocks(),
-      storage.getSets(),
-    ]);
-    setBlocks(loadedBlocks);
-    setDJSets(loadedSets);
-  };
+  // Editors and the delete confirmation keep their subject while they animate closed.
+  const [setEditor, setSetEditor] = useState<{ open: boolean; set: DJSet | null }>({ open: false, set: null });
+  const [blockEditor, setBlockEditor] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
+  const [pending, setPending] = useState<PendingDelete | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    loadData();
+  const load = useCallback(async () => {
+    try {
+      const [loadedSongs, loadedBlocks, loadedSets] = await Promise.all([
+        storage.getSongs(),
+        storage.getBlocks(),
+        storage.getSets(),
+      ]);
+      setSongs(loadedSongs);
+      setBlocks(loadedBlocks);
+      setSets(loadedSets);
+      setStatus("ready");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "unknown error");
+      setStatus("error");
+    }
   }, []);
 
-  // Block handlers
-  const handleCreateBlock = () => {
-    setEditingBlock(null);
-    setBlockEditorOpen(true);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const songIndex = useMemo(() => indexById(songs), [songs]);
+  const blockIndex = useMemo(() => indexById(blocks), [blocks]);
+
+  const blockUsage = useMemo(() => {
+    const usage = new Map<string, number>();
+    for (const set of sets) {
+      const ids = new Set(set.items.filter((item) => item.type === "block").map(itemRef));
+      ids.forEach((id) => usage.set(id, (usage.get(id) ?? 0) + 1));
+    }
+    return usage;
+  }, [sets]);
+
+  const askDelete = (next: PendingDelete) => {
+    setPending(next);
+    setConfirmOpen(true);
   };
 
-  const handleEditBlock = (block: Block) => {
-    setEditingBlock(block);
-    setBlockEditorOpen(true);
-  };
-
-  const handleDeleteBlock = (block: Block) => {
-    setDeleteBlock(block);
-  };
-
-  const confirmDeleteBlock = async () => {
-    if (deleteBlock) {
-      await storage.deleteBlock(deleteBlock.id);
-      toast({ title: "Block deleted", description: "The block has been removed." });
-      loadData();
-      setDeleteBlock(null);
+  const confirmDelete = async () => {
+    if (!pending) return;
+    try {
+      if (pending.kind === "set") await storage.deleteSet(pending.id);
+      else await storage.deleteBlock(pending.id);
+      await load();
+    } catch (error) {
+      toast({
+        title: `“${pending.name}” wasn't deleted`,
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  // Set handlers
-  const handleCreateSet = () => {
-    setEditingSet(null);
-    setSetEditorOpen(true);
-  };
+  const newSet = () => setSetEditor({ open: true, set: null });
+  const newBlock = () => setBlockEditor({ open: true, block: null });
 
-  const handleEditSet = (djSet: DJSet) => {
-    setEditingSet(djSet);
-    setSetEditorOpen(true);
-  };
-
-  const handleDeleteSet = (djSet: DJSet) => {
-    setDeleteSet(djSet);
-  };
-
-  const confirmDeleteSet = async () => {
-    if (deleteSet) {
-      await storage.deleteSet(deleteSet.id);
-      toast({ title: "Set deleted", description: "The set has been removed." });
-      loadData();
-      setDeleteSet(null);
-    }
-  };
+  const ready = status === "ready";
+  const nothingYet = ready && sets.length === 0 && blocks.length === 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <LayoutDashboard className="w-8 h-8" />
-            Sets
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Build DJ sets by organizing songs into blocks and arranging them together
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCreateBlock}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Block
+    <div className="min-h-full">
+      <PageHeader
+        title="Sets"
+        meta={ready ? `${plural(sets.length, "set")} · ${plural(blocks.length, "block")}` : undefined}
+        actions={
+          <Button onClick={newSet} disabled={status !== "ready"}>
+            <Plus />
+            New set
           </Button>
-          <Button onClick={handleCreateSet}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Set
-          </Button>
-        </div>
-      </div>
-
-      {/* Sets Section */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <LayoutDashboard className="w-5 h-5" />
-          <h2 className="text-xl font-semibold">Sets</h2>
-          <span className="text-muted-foreground">({djSets.length})</span>
-        </div>
-
-        {djSets.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <LayoutDashboard className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
-              <h3 className="text-lg font-medium mb-2">No sets yet</h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                Create a set to arrange songs and blocks into a complete DJ performance.
-              </p>
-              <Button onClick={handleCreateSet}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Set
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {djSets.map(djSet => (
-              <SetCard 
-                key={djSet.id} 
-                djSet={djSet}
-                onEdit={handleEditSet}
-                onDelete={handleDeleteSet}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Blocks Section */}
-      <div className="space-y-4 pt-6 border-t">
-        <div className="flex items-center gap-2">
-          <Boxes className="w-5 h-5" />
-          <h2 className="text-xl font-semibold">Blocks</h2>
-          <span className="text-muted-foreground">({blocks.length})</span>
-        </div>
-
-        {blocks.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <Boxes className="w-10 h-10 mx-auto text-muted-foreground/50 mb-3" />
-              <h3 className="text-lg font-medium mb-2">No blocks yet</h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                Create blocks to chain songs with transitions, then use them in sets.
-              </p>
-              <Button variant="outline" onClick={handleCreateBlock}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Block
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {blocks.map(block => (
-              <BlockCard 
-                key={block.id} 
-                block={block}
-                onEdit={handleEditBlock}
-                onDelete={handleDeleteBlock}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Block Editor Dialog */}
-      <BlockEditor
-        block={editingBlock}
-        open={blockEditorOpen}
-        onOpenChange={setBlockEditorOpen}
-        onSave={loadData}
+        }
       />
 
-      {/* Set Editor Dialog */}
+      {status === "error" ? (
+        <EmptyState
+          title="Sets didn't load."
+          body={`Klangkurator couldn't reach its backend: ${loadError}. Check that the app is running (./run.sh status), then try again.`}
+          action={<Button onClick={() => load()}>Try again</Button>}
+          arrangement="split"
+        />
+      ) : status === "loading" ? (
+        <div className="max-w-6xl px-5 md:px-8">
+          <SetsSkeleton />
+        </div>
+      ) : nothingYet ? (
+        <EmptyState
+          title="No sets yet."
+          body="A set is the running order for a night: tracks and blocks in the order you plan to play them. A block is two or more tracks that mix well, saved so you can reuse the run in any set."
+          action={
+            <>
+              <Button onClick={newSet}>
+                <Plus />
+                New set
+              </Button>
+              <Button variant="outline" onClick={newBlock}>
+                <Plus />
+                New block
+              </Button>
+            </>
+          }
+          arrangement="stack"
+        />
+      ) : (
+        <div className="max-w-6xl px-5 pb-20 md:px-8">
+          <section aria-label="Sets" className="[container-type:inline-size]">
+            {sets.length === 0 ? (
+              <EmptyState
+                size="inline"
+                arrangement="orbit"
+                title="No sets yet."
+                body="Arrange tracks and blocks into the running order for a night."
+                action={
+                  <Button size="sm" onClick={newSet}>
+                    <Plus />
+                    New set
+                  </Button>
+                }
+                className="mt-8"
+              />
+            ) : (
+              <div className="divide-y divide-border">
+                {sets.map((set) => (
+                  <SetCard
+                    key={set.id}
+                    set={set}
+                    items={byPosition(set.items).map((item) => resolveItem(item, songIndex, blockIndex))}
+                    onOpen={() => setSetEditor({ open: true, set })}
+                    onDelete={() => askDelete({ kind: "set", id: set.id, name: set.name, usedIn: 0 })}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="blocks-heading" className="mt-6 border-t border-border pt-10 [container-type:inline-size]">
+            <SectionHeader
+              title={<span id="blocks-heading">Blocks</span>}
+              count={blocks.length}
+              actions={
+                <Button variant="outline" size="sm" onClick={newBlock}>
+                  <Plus />
+                  New block
+                </Button>
+              }
+            />
+            <p className="mt-1.5 max-w-[60ch] text-[13px] text-muted-foreground">
+              Runs of two or more tracks that mix well. Add a block to any set as one item.
+            </p>
+            {blocks.length === 0 ? (
+              <EmptyState
+                size="inline"
+                arrangement="split"
+                title="No blocks yet."
+                body="Save a run of tracks that mix well, then drop it into any set."
+                action={
+                  <Button size="sm" variant="outline" onClick={newBlock}>
+                    <Plus />
+                    New block
+                  </Button>
+                }
+                className="mt-6"
+              />
+            ) : (
+              <div className="mt-4 divide-y divide-border border-t border-border">
+                {blocks.map((block) => (
+                  <BlockCard
+                    key={block.id}
+                    block={block}
+                    tracks={blockTracks(block, songIndex)}
+                    usedIn={blockUsage.get(block.id) ?? 0}
+                    onOpen={() => setBlockEditor({ open: true, block })}
+                    onDelete={() =>
+                      askDelete({ kind: "block", id: block.id, name: block.name, usedIn: blockUsage.get(block.id) ?? 0 })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
       <SetEditor
-        djSet={editingSet}
-        open={setEditorOpen}
-        onOpenChange={setSetEditorOpen}
-        onSave={loadData}
+        djSet={setEditor.set}
+        open={setEditor.open}
+        onOpenChange={(open) => setSetEditor((prev) => ({ ...prev, open }))}
+        onSave={load}
+        songs={songs}
+        blocks={blocks}
+      />
+      <BlockEditor
+        block={blockEditor.block}
+        open={blockEditor.open}
+        onOpenChange={(open) => setBlockEditor((prev) => ({ ...prev, open }))}
+        onSave={load}
+        songs={songs}
       />
 
-      {/* Delete Block Confirmation */}
-      <AlertDialog open={!!deleteBlock} onOpenChange={() => setDeleteBlock(null)}>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Block</AlertDialogTitle>
+            <AlertDialogTitle>Delete “{pending?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteBlock?.name}"? This action cannot be undone.
+              {pending?.kind === "set"
+                ? "The set and its running order are removed. Its tracks and blocks stay in your library."
+                : pending && pending.usedIn > 0
+                  ? `The block is used in ${plural(pending.usedIn, "set")}. Those sets keep its slot, marked as deleted, until you remove it. The tracks stay in your library.`
+                  : "The block is removed. Its tracks stay in your library."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteBlock} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
+              Delete {pending?.kind ?? ""}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
 
-      {/* Delete Set Confirmation */}
-      <AlertDialog open={!!deleteSet} onOpenChange={() => setDeleteSet(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Set</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deleteSet?.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteSet} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+function SetsSkeleton() {
+  return (
+    <div role="status" aria-label="Loading sets" className="divide-y divide-border">
+      {[0, 1].map((i) => (
+        <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-5 py-7 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-x-8">
+          <Skeleton className="aspect-square w-full" />
+          <div className="space-y-3 pt-1">
+            <Skeleton className="h-7 w-2/3 max-w-sm" />
+            <Skeleton className="h-4 w-1/2 max-w-xs" />
+            <Skeleton className="h-3 w-1/3 max-w-[10rem]" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

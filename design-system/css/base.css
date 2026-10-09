@@ -1,0 +1,290 @@
+/*
+ * Klangkurator base layer: element defaults, browser surfaces, type roles,
+ * shapes, the orange cut, grain. Plain CSS, no framework.
+ * Load order: fonts.css, tokens.css, base.css.
+ * Every class is prefixed k- so it can sit next to any utility framework.
+ */
+
+/* ---------- element defaults ---------- */
+
+html {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-feature-settings: "calt", "kern";
+}
+
+/* ---------- browser surfaces ---------- */
+
+::selection {
+  background-color: hsl(var(--signal) / 0.3);
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable] {
+  caret-color: hsl(var(--signal-text));
+}
+
+::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 1;
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+a {
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 1px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--foreground) / 0.22) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--foreground) / 0.2);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--foreground) / 0.36);
+}
+
+/* ---------- type roles ---------- */
+
+.k-display-lg,
+.k-display,
+.k-display-sm,
+.k-headline {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-optical-sizing: auto;
+  text-wrap: balance;
+}
+.k-display-lg { font-size: 4.5rem; line-height: 1; letter-spacing: -0.025em; }
+.k-display { font-size: 3.5rem; line-height: 1.02; letter-spacing: -0.02em; }
+.k-display-sm { font-size: 2.5rem; line-height: 1.06; letter-spacing: -0.015em; }
+.k-headline { font-size: 1.75rem; line-height: 1.15; letter-spacing: -0.01em; }
+
+.k-title {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.k-heading {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.k-body { font-size: 0.875rem; line-height: 1.5; }
+.k-small { font-size: 0.75rem; line-height: 1.4; }
+
+/* Mono only for data: numbers, keys, durations, paths, data labels. */
+.k-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.k-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Long-form reading: notes, lyrics, descriptions. */
+.k-prose {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  line-height: 1.65;
+  max-width: 68ch;
+}
+
+.k-wordmark {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+/* ---------- shapes (the board's geometric vocabulary) ---------- */
+
+.k-shape { display: block; flex: none; background-color: currentColor; }
+.k-shape--circle { aspect-ratio: 1; border-radius: 9999px; }
+/* Half disc, flat edge down. Rotate with transform for other edges. */
+.k-shape--half { aspect-ratio: 2 / 1; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+/* Quarter disc, the curve faces top-left. */
+.k-shape--quarter { aspect-ratio: 1; border-radius: 100% 0 0 0; }
+.k-shape--block { aspect-ratio: 1; }
+
+/* ---------- the orange cut (signature) ----------
+ * An orange disc, the height of the element, centred on its right edge:
+ * half of it shows over the black-and-white image. Two layers make a
+ * duotone that reads as signal orange on any artwork: a multiplied disc
+ * (keeps the image's lights and darks) under a flat disc at --cut-tint (so
+ * a black cover still turns orange instead of brown). Mark the current item
+ * with data-cut="on"; the disc sweeps in from the edge.
+ */
+
+.k-cut {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.k-cut::before,
+.k-cut::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  aspect-ratio: 1;
+  height: 100%;
+  border-radius: 9999px;
+  background-color: hsl(var(--signal));
+  transform: translateX(50%) scale(0);
+  transform-origin: 50% 50%;
+  transition: transform var(--dur-cut) var(--ease-out);
+  pointer-events: none;
+}
+
+.k-cut::before { mix-blend-mode: multiply; }
+.k-cut::after { opacity: var(--cut-tint, 0.8); }
+
+.k-cut[data-cut="on"]::before,
+.k-cut[data-cut="on"]::after { transform: translateX(0) scale(1); }
+
+/* Without an image underneath (fallback tile), draw the disc flat. */
+.k-cut--solid::before { mix-blend-mode: normal; }
+
+/* ---------- covers ---------- */
+
+.k-cover {
+  background-color: hsl(var(--surface-sunken));
+}
+
+.k-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.08);
+}
+
+[data-covers="original"] .k-cover img { filter: none; }
+
+/* ---------- grain (texture without roughness) ----------
+ * Use on editorial grounds (headers, empty states, panels), not on tables.
+ */
+
+.k-grain {
+  position: relative;
+  isolation: isolate;
+}
+
+.k-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: url("../assets/grain-dark.png");
+  background-size: 256px 256px;
+  opacity: var(--grain-opacity);
+  pointer-events: none;
+}
+
+.dark .k-grain::before,
+[data-theme="ink"] .k-grain::before,
+.k-grain--ink::before {
+  background-image: url("../assets/grain-light.png");
+}
+
+/* For containers that are already positioned (fixed rails, panels):
+ * drop <div class="k-grain-layer"></div> in as the first child and give the
+ * siblings after it position: relative so they paint above the grain. */
+.k-grain-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("../assets/grain-dark.png");
+  background-size: 256px 256px;
+  opacity: var(--grain-opacity);
+}
+
+.dark .k-grain-layer,
+[data-theme="ink"] .k-grain-layer,
+.k-grain-layer--ink {
+  background-image: url("../assets/grain-light.png");
+}
+
+/* Grain on a working ground: the page behind tables, lists and forms. A
+ * background rather than a layer, so it costs no element and stays put while
+ * the content scrolls; the flat top layer thins the tile to --grain-opacity.
+ * Inside a ground, .k-grain bands don't add a second grain. */
+.k-ground {
+  --k-ground-veil: hsl(var(--background) / calc(1 - var(--grain-opacity)));
+  background-color: hsl(var(--background));
+  background-image: linear-gradient(var(--k-ground-veil), var(--k-ground-veil)), url("../assets/grain-dark.png");
+  background-size: auto, 256px 256px;
+}
+
+.dark .k-ground,
+[data-theme="ink"] .k-ground {
+  background-image: linear-gradient(var(--k-ground-veil), var(--k-ground-veil)), url("../assets/grain-light.png");
+}
+
+.k-ground .k-grain::before { content: none; }
+
+/* ---------- rules ---------- */
+
+.k-rule { height: 1px; background-color: hsl(var(--border)); border: 0; }
+
+/* ---------- motion preferences ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
