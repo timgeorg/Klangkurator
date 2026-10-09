@@ -27,7 +27,7 @@ export function MainGenreSelector({ selectedGenre, onGenreChange, size = "sm", s
         <SelectTrigger aria-label="Main genre" className={cn(size === "sm" && "h-7 text-xs")}>
           <SelectValue placeholder="Choose a genre" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent aria-label="Genres">
           {options.map((genre) => (
             <SelectItem key={genre.name} value={genre.name}>
               <span className="flex items-center gap-2">

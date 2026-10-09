@@ -16,8 +16,9 @@ const SONG_LIMIT = 50;
 interface TrackPickerProps {
   /** Tracks that can be added (already-added ones left out by the caller). */
   songs: Song[];
-  /** Tracks already in the running order, so a search for one can say so. */
+  /** Tracks and blocks already in the running order, so a search for one can say so. */
   alreadyAdded?: Song[];
+  alreadyAddedBlocks?: Block[];
   /** Blocks that can be added; omit for tracks only. */
   blocks?: Block[];
   onPickSong: (song: Song) => void;
@@ -37,6 +38,7 @@ interface TrackPickerProps {
 export function TrackPicker({
   songs,
   alreadyAdded = [],
+  alreadyAddedBlocks = [],
   blocks = [],
   onPickSong,
   onPickBlock,
@@ -55,7 +57,10 @@ export function TrackPicker({
     [songs, q],
   );
   const shownSongs = matchedSongs.slice(0, SONG_LIMIT);
-  const addedMatch = q ? alreadyAdded.find((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q)) : undefined;
+  const addedMatch = q
+    ? (alreadyAdded.find((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q))?.title ??
+      alreadyAddedBlocks.find((b) => b.name.toLowerCase().includes(q))?.name)
+    : undefined;
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
@@ -77,7 +82,7 @@ export function TrackPicker({
               {!q
                 ? "Everything is already in the running order."
                 : addedMatch
-                  ? `“${addedMatch.title}” is already in the running order.`
+                  ? `“${addedMatch}” is already in the running order.`
                   : `Nothing in the library matches “${query.trim()}”.`}
             </CommandEmpty>
 

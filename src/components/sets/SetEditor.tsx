@@ -255,6 +255,7 @@ function SetForm({
             <TrackPicker
               songs={availableSongs}
               alreadyAdded={songs.filter((s) => usedSongs.has(s.id))}
+              alreadyAddedBlocks={blocks.filter((b) => usedBlocks.has(b.id))}
               blocks={availableBlocks}
               onPickSong={(song) => append("song", song.id)}
               onPickBlock={(block) => append("block", block.id)}

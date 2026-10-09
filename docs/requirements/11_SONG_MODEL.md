@@ -24,7 +24,7 @@ Each song stores:
 | Field | Type | Description |
 |---|---|---|
 | `bpm` | number? | Beats per minute |
-| `musical_key` | string? | Musical key (e.g. `Am`, `C#`, `7A` — Camelot or standard) |
+| `musical_key` | string? | Musical key (e.g. `Am`, `C#`, `7A` — Camelot or standard). Analysis and the Edit dialog write the short standard form (`Am`, `F#`); a key in another notation from file tags is kept as it is |
 
 ### Genre Hierarchy
 | Field | Type | Description |

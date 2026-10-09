@@ -114,6 +114,7 @@ export function ColumnFilter({
           {type === "text" && (
             <Input
               autoFocus
+              aria-label={`Filter ${title}`}
               placeholder={placeholder || `Search ${title.toLowerCase()}…`}
               value={(value as string) || ""}
               onChange={(e) => onChange(e.target.value)}

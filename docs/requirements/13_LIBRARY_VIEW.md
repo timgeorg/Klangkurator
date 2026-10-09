@@ -78,7 +78,7 @@ and keep their own order.
 - **Reorder**: drag-and-drop in the header (insert before/after) or in the
   Column Settings dialog
 - **Auto-grow**: the Tags column widens with the widest tag list, until the user resizes it by hand (that choice is saved with the layout)
-- **Right edge**: while columns lie beyond the visible area, a sliver of a cut column is covered and a "more columns" button scrolls right; keyboard focus inside the table is scrolled clear of the edge. On touch screens (coarse pointer) the button is left out (it would be a target under 44px) and the edge always fades, the usual "swipe for more" hint
+- **Right edge**: while columns lie beyond the visible area, a cut column showing less than 120px is covered (a wider one fades), so the table ends on a whole column, and a "more columns" button scrolls right. The button is a mouse convenience outside the tab order: keyboard focus inside the table scrolls the table itself, clear of the edge and below the sticky header (also when walking backwards with Shift+Tab). On touch screens (coarse pointer) the button is left out (it would be a target under 44px) and the edge always fades, the usual "swipe for more" hint
 - Layout (order, visibility, widths) persists in localStorage
   (`klangkurator.columnConfig.v1`)
 

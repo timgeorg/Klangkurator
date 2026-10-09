@@ -321,19 +321,25 @@ export function SongLibrary() {
       moreButton.style.right = `${scrollbarW + 6}px`;
       const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
       edge.hidden = !more;
-      if (!more && document.activeElement === moreButton) document.getElementById("main")?.focus();
       moreButton.hidden = !more || coarse;
       if (!more) return;
       const box = el.getBoundingClientRect();
       const visibleRight = el.clientWidth;
       let cover = 0;
+      let straddles = false;
       for (const cell of coarse ? [] : el.querySelectorAll<HTMLElement>('[role="columnheader"]')) {
         const r = cell.getBoundingClientRect();
         const left = r.left - box.left;
         if (left < visibleRight && r.right - box.left > visibleRight) {
-          if (visibleRight - left < 64) cover = visibleRight - left + 8;
+          straddles = true;
+          if (visibleRight - left < 120) cover = visibleRight - left + 8;
           break;
         }
+      }
+      // The visible table already ends on a whole column: nothing to cover.
+      if (!coarse && !straddles) {
+        edge.hidden = true;
+        return;
       }
       const mask = cover
         ? "linear-gradient(to right, transparent, #000 10px)"
@@ -446,7 +452,7 @@ export function SongLibrary() {
       <div className="relative min-h-0 flex-1">
         <div
           ref={tableScrollRef}
-          className="absolute inset-0 overflow-auto"
+          className="absolute inset-0 overflow-auto [scroll-padding:2.75rem_3.5rem_0_0.5rem]"
           // Keyboard focus inside the table (header buttons, cells) lands clear
           // of the right-edge fade instead of under it or past the edge.
           onFocusCapture={(e) => {
@@ -458,6 +464,14 @@ export function SongLibrary() {
             const rightLimit = box.left + el.clientWidth - 56;
             if (r.right > rightLimit) el.scrollLeft += Math.min(r.right - rightLimit, r.left - box.left - 8);
             else if (r.left < box.left + 8) el.scrollLeft -= box.left + 8 - r.left;
+            // After the browser's own scroll-into-view: nothing ends up under
+            // the sticky header (Shift+Tab walks upwards through the rows).
+            requestAnimationFrame(() => {
+              const header = el.querySelector<HTMLElement>('[role="rowgroup"]');
+              const below = el.getBoundingClientRect().top + (header?.offsetHeight ?? 37) + 4;
+              const top = target.getBoundingClientRect().top;
+              if (top < below && !header?.contains(target)) el.scrollTop -= below - top;
+            });
           }}
         >
           {loadError ? (
@@ -532,11 +546,13 @@ export function SongLibrary() {
           ref={moreRef}
           type="button"
           hidden
+          tabIndex={-1}
+          aria-hidden
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
             const el = tableScrollRef.current;
             if (el) el.scrollBy({ left: el.clientWidth * 0.7, behavior: "smooth" });
           }}
-          aria-label="Scroll to more columns"
           title="More columns"
           // [&[hidden]]:hidden: inline-flex would otherwise win over the hidden attribute
           className="absolute top-1.5 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground shadow-1 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&[hidden]]:hidden"

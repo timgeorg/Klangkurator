@@ -48,6 +48,15 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   notes show as a hint and are never copied into it); the tag picker puts
   existing matches before Create and creates on Enter; crowded tag cells
   clip; the last, width-filling Notes column has no dead resize handle.
+- **Validator round 4 (11, 13)**: the phone menu sheet is named and Tab
+  reaches every destination (rail tooltips are portaled and only rendered
+  when the rail is collapsed); walking the table backwards keeps focus below
+  the sticky header; toast close buttons are named; the Edit dialog writes
+  keys in the analyser's notation ("Cm", shown as "Cm · C minor"), so edited
+  and analysed keys filter alike; highlighted list options get an orange
+  bar; the picker says when a block is already in the running order; the
+  table's right edge covers slivers up to 120px and adds nothing when the
+  table already ends on a whole column.
 - **Validator round 3 (13, 16)**: dialogs return focus to their opener;
   track lists in Sets keep versions; long unbroken names wrap (no sideways
   scrolling at 375px); the Edit dialog keeps typed edits across a nested

@@ -12,6 +12,7 @@ import { SubgenreSelector } from "@/components/ui/subgenre-selector";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { type Song, type SongPatch, storage } from "@/lib/storage";
+import { keyName } from "@/lib/trackFormat";
 
 import { LyricsDialog } from "./LyricsDialog";
 import { SongRelationshipsDialog } from "./SongRelationshipsDialog";
@@ -25,14 +26,12 @@ interface EditSongDialogProps {
   onDataChange?: () => void;
 }
 
+// The analyser's notation ("Am", "F#"), so an edited key filters and searches
+// like an analysed one; the full name is shown beside it. A key stored in
+// another notation (file tags) stays selectable as it is.
 const MUSICAL_KEYS = [
-  "C major", "C minor", "C# major", "C# minor",
-  "D major", "D minor", "D# major", "D# minor",
-  "E major", "E minor",
-  "F major", "F minor", "F# major", "F# minor",
-  "G major", "G minor", "G# major", "G# minor",
-  "A major", "A minor", "A# major", "A# minor",
-  "B major", "B minor",
+  "C", "Cm", "C#", "C#m", "D", "Dm", "D#", "D#m", "E", "Em", "F", "Fm",
+  "F#", "F#m", "G", "Gm", "G#", "G#m", "A", "Am", "A#", "A#m", "B", "Bm",
 ];
 
 const RATINGS = [
@@ -237,10 +236,11 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
                   <SelectTrigger id="key">
                     <SelectValue placeholder="Choose a key" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent aria-label="Keys">
                     {keyOptions.map((key) => (
                       <SelectItem key={key} value={key}>
                         {key}
+                        {keyName(key) !== key && <span className="text-muted-foreground"> · {keyName(key)}</span>}
                       </SelectItem>
                     ))}
                   </SelectContent>

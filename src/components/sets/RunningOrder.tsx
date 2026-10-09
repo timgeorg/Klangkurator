@@ -66,7 +66,12 @@ export function RunningOrderList({ rows, onMove, onRemove, renderTransition }: R
             <span className="k-num text-center text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
             {row.art}
             <div className="min-w-0">
-              <p className={cn("truncate text-[13px] font-medium", row.missing && "font-normal italic text-muted-foreground")}>
+              <p
+                className={cn(
+                  "line-clamp-2 text-[13px] font-medium [overflow-wrap:anywhere]",
+                  row.missing && "font-normal italic text-muted-foreground",
+                )}
+              >
                 {row.title}
               </p>
               {row.subtitle && <p className="truncate text-xs text-muted-foreground">{row.subtitle}</p>}
