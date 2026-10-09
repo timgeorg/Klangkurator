@@ -41,3 +41,4 @@ The backend derives its data directory from `$HOME`; `KLANGKURATOR_API` points t
 - Every hover-revealed action is also revealed on keyboard focus and has an accessible name.
 - Covers go through `CoverArt`, waveforms through `Waveform`, user colours through `ColorChip` / `SwatchPicker`.
 - Fonts and assets are self-hosted; never load anything from a CDN (the app runs offline).
+- An element with both the `hidden` attribute and a display utility (`flex`, `inline-flex`, `grid`) stays visible, because the utility wins over the attribute. Add `[&[hidden]]:hidden` to such elements.
