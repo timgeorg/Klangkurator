@@ -53,8 +53,8 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   when the rail is collapsed); walking the table backwards keeps focus below
   the sticky header; toast close buttons are named; the Edit dialog writes
   keys in the analyser's notation ("Cm", shown as "Cm · C minor"), so edited
-  and analysed keys filter alike; highlighted list options get an orange
-  bar; the picker says when a block is already in the running order; the
+  and analysed keys filter alike; highlighted list options take the Signal
+  Wash, orange text and the rail's half-disc marker; the picker says when a block is already in the running order; the
   table's right edge covers slivers up to 120px and adds nothing when the
   table already ends on a whole column.
 - **Validator round 3 (13, 16)**: dialogs return focus to their opener;

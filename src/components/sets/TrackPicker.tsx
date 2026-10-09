@@ -120,7 +120,7 @@ export function TrackPicker({
                   >
                     <CoverArt src={song.artwork_url} className="h-8 w-8 rounded-[3px]" />
                     <span className="min-w-0 flex-1">
-                      <TrackTitle title={song.title} className="block font-medium" />
+                      <TrackTitle title={song.title} className="block truncate font-medium" />
                       <span className="block truncate text-xs text-muted-foreground">{song.artist}</span>
                     </span>
                     <span className="k-num shrink-0 text-[11px] text-muted-foreground">

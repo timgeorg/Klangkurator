@@ -79,7 +79,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground focus:shadow-[inset_2px_0_0_hsl(var(--ring))]",
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-signal-soft focus:text-signal-text before:pointer-events-none before:absolute before:left-0 before:top-1/2 before:h-3 before:w-1.5 before:-translate-y-1/2 before:rounded-r-full before:bg-ring before:opacity-0 before:content-[''] focus:before:opacity-100",
       inset && "pl-8",
       className,
     )}
@@ -95,7 +95,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground focus:shadow-[inset_2px_0_0_hsl(var(--ring))]",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-signal-soft focus:text-signal-text before:pointer-events-none before:absolute before:left-0 before:top-1/2 before:h-3 before:w-1.5 before:-translate-y-1/2 before:rounded-r-full before:bg-ring before:opacity-0 before:content-[''] focus:before:opacity-100",
       className,
     )}
     checked={checked}
@@ -118,7 +118,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground focus:shadow-[inset_2px_0_0_hsl(var(--ring))]",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-[13px] outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-signal-soft focus:text-signal-text before:pointer-events-none before:absolute before:left-0 before:top-1/2 before:h-3 before:w-1.5 before:-translate-y-1/2 before:rounded-r-full before:bg-ring before:opacity-0 before:content-[''] focus:before:opacity-100",
       className,
     )}
     {...props}

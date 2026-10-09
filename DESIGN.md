@@ -384,7 +384,7 @@ This is the preview player. As a 320px panel it shows a grained card surface, a 
 A page-level empty state is a grained band holding a Display SM serif line, one 15px sentence in muted text, the resolving action, and one of three shape compositions (orbit, stack, split). The inline variant is a dashed hairline box with an 18px serif line.
 
 ### Overlays
-Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Closing a dialog returns focus to whatever opened it. A search field inside a picker has no box; its focus shows as a 2px orange rule under it. The highlighted option in a list (keyboard or pointer) gets the hover tint plus a 2px orange bar on its left edge, since the tint alone is too faint to follow. Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.
+Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Closing a dialog returns focus to whatever opened it. A search field inside a picker has no box; its focus shows as a 2px orange rule under it. The highlighted option in a list (keyboard or pointer) speaks the same "this one" grammar as the active tab and the current row: Signal Wash fill, orange text, and the rail's small orange half-disc at its left edge (in the focus color, at least 5.7:1 against the popover in both themes). Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.
 
 ## Do's and Don'ts
 

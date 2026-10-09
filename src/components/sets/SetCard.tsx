@@ -118,7 +118,7 @@ function EntryTitle({ entry }: { entry: ResolvedItem }) {
   if (entry.kind === "song") {
     return (
       <span className="flex min-w-0 items-baseline gap-2">
-        <TrackTitle title={entry.song.title} className="font-medium" />
+        <TrackTitle title={entry.song.title} className="truncate font-medium" />
         <span className="hidden min-w-0 shrink-[2] truncate text-muted-foreground sm:inline">{entry.song.artist}</span>
       </span>
     );

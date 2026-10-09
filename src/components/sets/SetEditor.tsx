@@ -330,7 +330,7 @@ function SetForm({
                               >
                                 <GitBranch aria-hidden className="h-3 w-3 shrink-0 text-muted-foreground" />
                                 <span className="text-muted-foreground">or</span>
-                                {song ? <TrackTitle title={title} /> : <span className="truncate">{title}</span>}
+                                {song ? <TrackTitle title={title} className="truncate" /> : <span className="truncate">{title}</span>}
                                 {alt.label && <span className="truncate text-muted-foreground">({alt.label})</span>}
                                 <button
                                   type="button"
@@ -368,7 +368,7 @@ function SetForm({
                     className="max-w-full"
                   >
                     <Plus />
-                    <TrackTitle title={song.title} />
+                    <TrackTitle title={song.title} className="truncate" />
                   </Button>
                 ))}
               </div>
