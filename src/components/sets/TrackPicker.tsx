@@ -4,7 +4,8 @@ import { CoverArt } from "@/components/brand";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Block, Song } from "@/lib/storage";
-import { formatBpm, splitTitle } from "@/lib/trackFormat";
+import { formatBpm } from "@/lib/trackFormat";
+import { TrackTitle } from "@/components/dj/TrackTitle";
 
 import { EntityTile } from "./CoverMosaic";
 import { plural } from "./setModel";
@@ -15,6 +16,8 @@ const SONG_LIMIT = 50;
 interface TrackPickerProps {
   /** Tracks that can be added (already-added ones left out by the caller). */
   songs: Song[];
+  /** Tracks already in the running order, so a search for one can say so. */
+  alreadyAdded?: Song[];
   /** Blocks that can be added; omit for tracks only. */
   blocks?: Block[];
   onPickSong: (song: Song) => void;
@@ -33,6 +36,7 @@ interface TrackPickerProps {
  */
 export function TrackPicker({
   songs,
+  alreadyAdded = [],
   blocks = [],
   onPickSong,
   onPickBlock,
@@ -51,6 +55,7 @@ export function TrackPicker({
     [songs, q],
   );
   const shownSongs = matchedSongs.slice(0, SONG_LIMIT);
+  const addedMatch = q ? alreadyAdded.find((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q)) : undefined;
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
@@ -64,11 +69,17 @@ export function TrackPicker({
   return (
     <Popover modal open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align={align} className="w-[min(26rem,calc(100vw-2rem))] p-0">
+      <PopoverContent align={align} aria-label={placeholder} className="w-[min(26rem,calc(100vw-2rem))] p-0">
         <Command shouldFilter={false}>
           <CommandInput value={query} onValueChange={setQuery} placeholder={placeholder} />
           <CommandList className="max-h-[min(22rem,50vh)]">
-            <CommandEmpty>{q ? `Nothing matches “${query.trim()}”.` : "Everything is already in the running order."}</CommandEmpty>
+            <CommandEmpty>
+              {!q
+                ? "Everything is already in the running order."
+                : addedMatch
+                  ? `“${addedMatch.title}” is already in the running order.`
+                  : `Nothing in the library matches “${query.trim()}”.`}
+            </CommandEmpty>
 
             {onPickBlock && matchedBlocks.length > 0 && (
               <CommandGroup heading="Blocks">
@@ -104,7 +115,7 @@ export function TrackPicker({
                   >
                     <CoverArt src={song.artwork_url} className="h-8 w-8 rounded-[3px]" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{splitTitle(song.title).main}</span>
+                      <TrackTitle title={song.title} className="block font-medium" />
                       <span className="block truncate text-xs text-muted-foreground">{song.artist}</span>
                     </span>
                     <span className="k-num shrink-0 text-[11px] text-muted-foreground">

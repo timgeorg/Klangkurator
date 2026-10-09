@@ -2,7 +2,7 @@ import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { Block, Song } from "@/lib/storage";
-import { formatDuration, splitTitle } from "@/lib/trackFormat";
+import { formatDuration } from "@/lib/trackFormat";
 
 import { CoverMosaic } from "./CoverMosaic";
 import { plural, totalSeconds } from "./setModel";
@@ -23,7 +23,8 @@ interface BlockCardProps {
  */
 export function BlockCard({ block, tracks, usedIn, onOpen, onDelete }: BlockCardProps) {
   const headingId = `block-${block.id}`;
-  const chain = tracks.map((song) => splitTitle(song.title).main).join("  →  ");
+  const chain = tracks.map((song) => song.title).join("  →  ");
+  const missing = block.songs.length - tracks.length;
 
   return (
     <article
@@ -37,14 +38,14 @@ export function BlockCard({ block, tracks, usedIn, onOpen, onDelete }: BlockCard
           <button
             type="button"
             onClick={onOpen}
-            className="rounded-sm text-left underline-offset-[0.2em] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-sm text-left underline-offset-[0.2em] [overflow-wrap:anywhere] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {block.name}
           </button>
         </h3>
         {block.description && <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{block.description}</p>}
         {chain && (
-          <p className="mt-0.5 truncate text-[13px] text-foreground/75" title={chain}>
+          <p className="mt-0.5 line-clamp-2 text-[13px] text-foreground/75 [overflow-wrap:anywhere]" title={chain}>
             {chain}
           </p>
         )}
@@ -53,10 +54,11 @@ export function BlockCard({ block, tracks, usedIn, onOpen, onDelete }: BlockCard
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 [@container_(min-width:36rem)]:col-start-2 [@container_(min-width:52rem)]:col-start-3 [@container_(min-width:52rem)]:justify-end">
         <p className="k-num whitespace-nowrap text-xs text-muted-foreground">
           {plural(tracks.length, "track")} · {formatDuration(totalSeconds(tracks))}
+          {missing > 0 && <span className="italic"> · {missing} missing</span>}
           {usedIn > 0 && <> · in {plural(usedIn, "set")}</>}
         </p>
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={onOpen}>
+          <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${block.name}`}>
             <Pencil />
             Edit
           </Button>

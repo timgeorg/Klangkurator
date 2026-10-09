@@ -14,5 +14,6 @@ tags:
 - [[SongRelationshipGraph.tsx]] — Canvas graph of a song's relationships: cover nodes, one line style per relationship type, re-centres on click; follows the theme.
 - [[SongRelationshipsDialog.tsx]] — Modal dialog for managing song relationships (add, edit, delete links to other songs by type).
 - [[SongTableHeader.tsx]] — Table header row component with sortable column headers and filter inputs.
+- [[TrackTitle.tsx]] — A track title with its version or catalogue part set quieter, so two versions of one track never read the same in lists.
 - [[SongTableRow.tsx]] — Individual table row component for a song entry; displays cover, waveform, metadata, and actions (edit, play, view detail).
 - [[libraryTable.ts]] — Shared types, filter config, and constants for the library table (FilterState, SortState, FilterValue, FILTER_CONFIG, etc.).

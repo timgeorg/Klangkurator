@@ -11,6 +11,7 @@ tags:
 - [[palette.ts]] — Color palette for user-facing entities (tags, genres, blocks, sets) with a stable deterministic color-picker.
 - [[PlayerContext.tsx]] — React context providing single-track player state (current track, play/pause, dock position) across the app.
 - [[relationshipStyle.ts]] — Labels and line styles (colour, weight, dash) for the eight relationship types, shared by the graph, its legend and the lists.
+- [[returnFocus.ts]] — Hook that returns focus to the element that opened a controlled dialog when it closes (or to the main content if that element is gone).
 - [[storage.ts]] — Data model types (Song, Tag, Block, DJSet, SongPatch …) and the storage layer the components call: the backend API implementation plus a legacy localStorage one.
 - [[trackFormat.ts]] — Display formatting functions for track metadata (duration, BPM, musical key, crate name) shared across views.
 - [[utils.ts]] — Tailwind class name merging utility combining clsx and twMerge.

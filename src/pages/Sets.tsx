@@ -109,7 +109,7 @@ export default function Sets() {
         title="Sets"
         meta={ready ? `${plural(sets.length, "set")} · ${plural(blocks.length, "block")}` : undefined}
         actions={
-          <Button onClick={newSet}>
+          <Button onClick={newSet} disabled={status !== "ready"}>
             <Plus />
             New set
           </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { ColorChip } from "@/components/ui/color-chip";
@@ -37,6 +37,33 @@ export function TagSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const allTags = providedTags ?? ownTags;
+  const stripRef = useRef<HTMLDivElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const [hiddenNames, setHiddenNames] = useState<string[]>([]);
+
+  // One line of whole chips: chips that wrap to a second line are hidden
+  // (and out of the tab order) and counted in a "+N" pill instead of being
+  // cut mid-chip.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const measure = () => {
+      const chips = Array.from(strip.children) as HTMLElement[];
+      const top = chips[0]?.offsetTop ?? 0;
+      const hidden: string[] = [];
+      chips.forEach((chip, i) => {
+        const wrapped = chip.offsetTop > top;
+        chip.style.visibility = wrapped ? "hidden" : "";
+        if (wrapped && selectedTags[i]) hidden.push(selectedTags[i].name);
+      });
+      setHiddenNames((prev) => (prev.join("\u0000") === hidden.join("\u0000") ? prev : hidden));
+    };
+    measure();
+    if (selectedTags.length < 2) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [selectedTags]);
 
   useEffect(() => {
     if (providedTags || !isOpen) return;
@@ -63,7 +90,16 @@ export function TagSelector({
   };
 
   const removeTag = async (tagId: string) => {
+    const index = selectedTags.findIndex((t) => t.id === tagId);
+    const neighbour = selectedTags[index + 1] ?? selectedTags[index - 1];
     onTagsChange(selectedTags.filter((t) => t.id !== tagId));
+    // Keep keyboard focus in the cell: the neighbouring chip's ×, else the + button.
+    requestAnimationFrame(() => {
+      const next = neighbour
+        ? stripRef.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(`Remove ${neighbour.name}`)}"]`)
+        : null;
+      (next && next.closest<HTMLElement>("[style*='hidden']") === null ? next : addRef.current)?.focus();
+    });
     await storage.removeSongTag(songId, tagId);
   };
 
@@ -84,15 +120,29 @@ export function TagSelector({
 
   return (
     <div className={cn("flex min-w-0 items-center gap-1", className)}>
-      <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden" title={selectedTags.map((t) => t.name).join(", ") || undefined}>
+      <div
+        ref={stripRef}
+        className={cn("flex min-w-0 flex-wrap items-center gap-1 overflow-hidden", size === "sm" ? "h-5" : "h-6")}
+        title={selectedTags.map((t) => t.name).join(", ") || undefined}
+      >
         {selectedTags.map((tag) => (
           <ColorChip key={tag.id} color={tag.color} label={tag.name} size={size} onRemove={() => removeTag(tag.id)} />
         ))}
       </div>
+      {hiddenNames.length > 0 && (
+        <span
+          className="k-num inline-flex h-5 shrink-0 items-center rounded-chip border border-border px-1.5 text-[11px] text-muted-foreground"
+          title={hiddenNames.join(", ")}
+        >
+          +{hiddenNames.length}
+          <span className="sr-only"> more: {hiddenNames.join(", ")}</span>
+        </span>
+      )}
 
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <button
+            ref={addRef}
             type="button"
             aria-label="Add tag"
             title="Add tag"

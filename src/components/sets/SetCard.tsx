@@ -3,7 +3,8 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Shape } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import type { DJSet } from "@/lib/storage";
-import { formatDuration, formatTotal, splitTitle } from "@/lib/trackFormat";
+import { formatDuration, formatTotal } from "@/lib/trackFormat";
+import { TrackTitle } from "@/components/dj/TrackTitle";
 import { cn } from "@/lib/utils";
 
 import { CoverMosaic } from "./CoverMosaic";
@@ -28,6 +29,7 @@ export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
   const tracks = tracksOf(items);
   const seconds = totalSeconds(tracks);
   const target = (set.target_duration_min ?? 0) * 60;
+  const phaseTracks = (set.phases ?? []).reduce((n, phase) => n + (phase.items?.length ?? 0), 0);
   const headingId = `set-${set.id}`;
 
   return (
@@ -42,20 +44,27 @@ export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
           <button
             type="button"
             onClick={onOpen}
-            className="rounded-sm text-left underline-offset-[0.18em] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-sm text-left underline-offset-[0.18em] [overflow-wrap:anywhere] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {set.name}
           </button>
         </h3>
         {set.description && (
-          <p className="mt-2 line-clamp-3 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">{set.description}</p>
+          <p className="mt-2 line-clamp-3 max-w-[52ch] text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+            {set.description}
+          </p>
         )}
         <p className="k-num mt-3 text-xs text-muted-foreground">
           {plural(tracks.length, "track")} · {formatTotal(seconds)}
           {target > 0 && <> of {formatTotal(target)}</>}
         </p>
+        {phaseTracks > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Also {plural(phaseTracks, "track")} stored in phases, not listed here.
+          </p>
+        )}
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-5">
-          <Button variant="outline" size="sm" onClick={onOpen}>
+          <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${set.name}`}>
             <Pencil />
             Edit
           </Button>
@@ -109,7 +118,7 @@ function EntryTitle({ entry }: { entry: ResolvedItem }) {
   if (entry.kind === "song") {
     return (
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="truncate font-medium">{splitTitle(entry.song.title).main}</span>
+        <TrackTitle title={entry.song.title} className="font-medium" />
         <span className="hidden min-w-0 shrink-[2] truncate text-muted-foreground sm:inline">{entry.song.artist}</span>
       </span>
     );

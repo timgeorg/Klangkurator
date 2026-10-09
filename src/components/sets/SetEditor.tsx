@@ -11,7 +11,8 @@ import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { type AltTransition, type Block, type DJSet, type SetItem, type Song, storage } from "@/lib/storage";
-import { formatBpm, formatDuration, formatTotal, splitTitle } from "@/lib/trackFormat";
+import { formatBpm, formatDuration, formatTotal } from "@/lib/trackFormat";
+import { TrackTitle } from "@/components/dj/TrackTitle";
 
 import { EntityTile } from "./CoverMosaic";
 import { RunningOrderList, Transition, type OrderRow } from "./RunningOrder";
@@ -101,6 +102,7 @@ function SetForm({
   const resolved = useMemo(() => items.map((item) => resolveItem(item, songIndex, blockIndex)), [items, songIndex, blockIndex]);
   const tracks = tracksOf(resolved);
   const target = (djSet?.target_duration_min ?? 0) * 60;
+  const phaseTracks = (djSet?.phases ?? []).reduce((n, phase) => n + (phase.items?.length ?? 0), 0);
 
   const usedSongs = useMemo(() => new Set(items.filter((i) => i.type === "song").map((i) => i.ref_id)), [items]);
   const usedBlocks = useMemo(() => new Set(items.filter((i) => i.type === "block").map((i) => i.ref_id)), [items]);
@@ -252,6 +254,7 @@ function SetForm({
             </div>
             <TrackPicker
               songs={availableSongs}
+              alreadyAdded={songs.filter((s) => usedSongs.has(s.id))}
               blocks={availableBlocks}
               onPickSong={(song) => append("song", song.id)}
               onPickBlock={(block) => append("block", block.id)}
@@ -263,6 +266,13 @@ function SetForm({
               </Button>
             </TrackPicker>
           </div>
+
+          {phaseTracks > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              This set also has {plural(phaseTracks, "track")} stored in phases. The editor does not show phases yet;
+              saving leaves them as they are.
+            </p>
+          )}
 
           <div className="mt-4">
             {rows.length === 0 ? (
@@ -311,7 +321,7 @@ function SetForm({
                         <ul aria-label="Alternatives" className="mt-1.5 flex flex-wrap gap-1.5">
                           {alternatives.map((alt) => {
                             const song = songIndex.get(alt.ref_id);
-                            const title = song ? splitTitle(song.title).main : "Track no longer in the library";
+                            const title = song ? song.title : "Track no longer in the library";
                             return (
                               <li
                                 key={alt.ref_id}
@@ -319,7 +329,7 @@ function SetForm({
                               >
                                 <GitBranch aria-hidden className="h-3 w-3 shrink-0 text-muted-foreground" />
                                 <span className="text-muted-foreground">or</span>
-                                <span className="truncate">{title}</span>
+                                {song ? <TrackTitle title={title} /> : <span className="truncate">{title}</span>}
                                 {alt.label && <span className="truncate text-muted-foreground">({alt.label})</span>}
                                 <button
                                   type="button"
@@ -344,7 +354,7 @@ function SetForm({
           {lastSong && freshSuggestions.length > 0 && (
             <div className="mt-5 border-t border-dashed border-border pt-4">
               <p className="text-[13px] text-muted-foreground">
-                Saved transitions from <span className="text-foreground">{splitTitle(lastSong.title).main}</span>
+                Saved transitions from <TrackTitle title={lastSong.title} className="text-foreground" />
               </p>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {freshSuggestions.map(({ song, notes }) => (
@@ -357,7 +367,7 @@ function SetForm({
                     className="max-w-full"
                   >
                     <Plus />
-                    <span className="truncate">{splitTitle(song.title).main}</span>
+                    <TrackTitle title={song.title} />
                   </Button>
                 ))}
               </div>
@@ -385,12 +395,11 @@ function SetForm({
 
 function rowFor(entry: ResolvedItem): OrderRow {
   if (entry.kind === "song") {
-    const { main } = splitTitle(entry.song.title);
     return {
       key: entry.item.id,
-      name: main,
+      name: entry.song.title,
       art: <CoverArt src={entry.song.artwork_url} className="h-10 w-10 rounded-[3px]" />,
-      title: main,
+      title: <TrackTitle title={entry.song.title} />,
       subtitle: entry.song.artist,
       meta: (
         <>
@@ -406,7 +415,7 @@ function rowFor(entry: ResolvedItem): OrderRow {
       name: entry.block.name,
       art: <EntityTile color={entry.block.color} shape="half" className="h-10 w-10 rounded-[3px]" />,
       title: entry.block.name,
-      subtitle: `Block · ${entry.tracks.map((s) => splitTitle(s.title).main).join(" → ") || "no tracks"}`,
+      subtitle: `Block · ${entry.tracks.map((s) => s.title).join(" → ") || "no tracks"}`,
       meta: (
         <>
           {plural(entry.tracks.length, "track")} · {formatDuration(totalSeconds(entry.tracks))}

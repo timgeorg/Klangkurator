@@ -59,6 +59,8 @@ export interface ColumnConfig {
   order: string[];
   visibility: Record<string, boolean>;
   widths: Record<string, number>;
+  /** Columns the user resized by hand; auto-sizing (Tags) leaves them alone. */
+  sized?: string[];
 }
 
 // PF-15: the whole column config persists as one JSON blob under a single key
@@ -80,7 +82,7 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
     const parsed: unknown = JSON.parse(raw);
     if (!isPlainObject(parsed)) return null;
 
-    const { order, visibility, widths } = parsed;
+    const { order, visibility, widths, sized } = parsed;
     if (!isValidColumnOrder(order) || !isPlainObject(visibility) || !isPlainObject(widths)) {
       return null;
     }
@@ -100,6 +102,7 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
       order: migratedOrder,
       visibility: { ...vis, cover: vis.cover ?? true },
       widths: { ...wid, cover: wid.cover ?? 48 },
+      sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
     };
   } catch {
     return null;
@@ -116,7 +119,11 @@ export function useColumnConfig() {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
     () => loadPersistedColumnConfig()?.widths ?? DEFAULT_WIDTHS
   );
-  const [userResized, setUserResized] = useState<Record<string, boolean>>({});
+  // Persisted with the layout, so a hand-sized Tags column survives a reload
+  // instead of being auto-sized again.
+  const [userResized, setUserResized] = useState<Record<string, boolean>>(
+    () => Object.fromEntries((loadPersistedColumnConfig()?.sized ?? []).map(id => [id, true]))
+  );
 
   // Persistence bookkeeping: last written blob (dedupe) + skip flag for resets
   const lastSavedBlob = useRef<string | null>(null);
@@ -132,6 +139,7 @@ export function useColumnConfig() {
       order: columnOrder,
       visibility: columnVisibility,
       widths: columnWidths,
+      sized: Object.keys(userResized).filter(id => userResized[id]),
     });
     if (blob === lastSavedBlob.current) return;
     try {
@@ -140,7 +148,7 @@ export function useColumnConfig() {
     } catch {
       // Quota/serialization errors: keep in-memory state, skip persistence
     }
-  }, [columnOrder, columnVisibility, columnWidths]);
+  }, [columnOrder, columnVisibility, columnWidths, userResized]);
 
   // Get visible columns in order
   const visibleColumns = useMemo(() => {

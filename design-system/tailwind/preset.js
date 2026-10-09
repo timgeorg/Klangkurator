@@ -101,9 +101,9 @@ export default {
         "in-out": "var(--ease-in-out)",
       },
       transitionDuration: {
-        fast: "150ms",
-        base: "220ms",
-        cut: "220ms",
+        fast: "var(--dur-fast)",
+        base: "var(--dur-base)",
+        cut: "var(--dur-cut)",
       },
       keyframes: {
         "accordion-down": {

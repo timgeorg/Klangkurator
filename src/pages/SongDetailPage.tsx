@@ -139,9 +139,9 @@ export default function SongDetailPage() {
             iconClassName="h-16 w-16"
           />
           <div className="min-w-0">
-            <h1 className="k-display-sm break-words">{main}</h1>
+            <h1 className="k-display-sm [overflow-wrap:anywhere]">{main}</h1>
             {version && <p className="mt-2 break-words font-serif text-xl text-muted-foreground">{version}</p>}
-            <p className="mt-4 text-lg text-foreground/90">{song.artist}</p>
+            <p className="mt-4 text-lg text-foreground/90 [overflow-wrap:anywhere]">{song.artist}</p>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground">
               {genre && <ColorChip size="md" color={getMainGenreColor(genre)} label={genre} />}
               {song.year ? <span className="k-num">{song.year}</span> : null}
@@ -196,7 +196,7 @@ export default function SongDetailPage() {
           <Spec label="Updated">{formatDate(song.updated_at)}</Spec>
           <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-2">
             <dt className="k-label text-muted-foreground">File</dt>
-            <dd className="k-num mt-2 truncate text-xs text-foreground/80" title={song.file_path}>
+            <dd className="k-num mt-2 text-xs text-foreground/80 [overflow-wrap:anywhere]" title={song.file_path}>
               {song.file_path}
             </dd>
           </div>
@@ -332,7 +332,7 @@ function Spec({ label, children, mono = true }: { label: string; children: React
   return (
     <div className="min-w-0">
       <dt className="k-label text-muted-foreground">{label}</dt>
-      <dd className={mono ? "k-num mt-2 truncate text-[15px]" : "mt-2 truncate text-[15px]"}>{children}</dd>
+      <dd className={mono ? "k-num mt-2 text-[15px] [overflow-wrap:anywhere]" : "mt-2 text-[15px] [overflow-wrap:anywhere]"}>{children}</dd>
     </div>
   );
 }

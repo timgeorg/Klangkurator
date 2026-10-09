@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FolderInput, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronsRight, FolderInput, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { EmptyState } from "@/components/layout/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -177,13 +177,22 @@ export function SongLibrary() {
     dropDraft(songId);
   }, []);
 
+  // After Enter or Escape the editor closes; keep keyboard focus on the cell.
+  const focusNotesCell = (songId: string) =>
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-notes-for="${CSS.escape(songId)}"]`)?.focus(),
+    );
+
   const handleNotesKeyDown = useCallback(
     (e: React.KeyboardEvent, songId: string) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        handleNotesBlur(songId);
+        handleNotesBlur(songId).then(() => focusNotesCell(songId));
       }
-      if (e.key === "Escape") dropDraft(songId);
+      if (e.key === "Escape") {
+        dropDraft(songId);
+        focusNotesCell(songId);
+      }
     },
     [handleNotesBlur],
   );
@@ -295,16 +304,21 @@ export function SongLibrary() {
   // scroll and resize, never through React state.
   const { visibleColumns, gridTemplate } = columnConfig;
   const edgeRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const el = tableScrollRef.current;
     const edge = edgeRef.current;
-    if (!el || !edge) return;
+    const moreButton = moreRef.current;
+    if (!el || !edge || !moreButton) return;
     const update = () => {
       const scrollbarW = el.offsetWidth - el.clientWidth;
       edge.style.right = `${scrollbarW}px`;
       edge.style.bottom = `${el.offsetHeight - el.clientHeight}px`;
+      moreButton.style.right = `${scrollbarW + 6}px`;
       const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
       edge.hidden = !more;
+      if (!more && document.activeElement === moreButton) document.getElementById("main")?.focus();
+      moreButton.hidden = !more;
       if (!more) return;
       const box = el.getBoundingClientRect();
       const visibleRight = el.clientWidth;
@@ -426,7 +440,22 @@ export function SongLibrary() {
       </PageHeader>
 
       <div className="relative min-h-0 flex-1">
-        <div ref={tableScrollRef} className="absolute inset-0 overflow-auto">
+        <div
+          ref={tableScrollRef}
+          className="absolute inset-0 overflow-auto"
+          // Keyboard focus inside the table (header buttons, cells) lands clear
+          // of the right-edge fade instead of under it or past the edge.
+          onFocusCapture={(e) => {
+            const el = tableScrollRef.current;
+            const target = e.target as HTMLElement;
+            if (!el || target === el) return;
+            const box = el.getBoundingClientRect();
+            const r = target.getBoundingClientRect();
+            const rightLimit = box.left + el.clientWidth - 56;
+            if (r.right > rightLimit) el.scrollLeft += Math.min(r.right - rightLimit, r.left - box.left - 8);
+            else if (r.left < box.left + 8) el.scrollLeft -= box.left + 8 - r.left;
+          }}
+        >
           {loadError ? (
             <EmptyState
               title="The library didn't load."
@@ -495,6 +524,20 @@ export function SongLibrary() {
         </div>
 
         <div ref={edgeRef} aria-hidden hidden className="k-ground pointer-events-none absolute top-0 z-20" />
+        <button
+          ref={moreRef}
+          type="button"
+          hidden
+          onClick={() => {
+            const el = tableScrollRef.current;
+            if (el) el.scrollBy({ left: el.clientWidth * 0.7, behavior: "smooth" });
+          }}
+          aria-label="Scroll to more columns"
+          title="More columns"
+          className="absolute top-1.5 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground shadow-1 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <ColumnSettingsDialog open={columnSettingsOpen} onOpenChange={setColumnSettingsOpen} columnConfig={columnConfig} />

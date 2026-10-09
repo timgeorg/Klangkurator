@@ -229,6 +229,7 @@ function SongTableRowImpl({
         ) : (
           <button
             type="button"
+            data-notes-for={song.id}
             onClick={() => onNotesEdit(song.id, song.mixing_notes ?? "")}
             title={song.mixing_notes || (otherNote(song) ? `${otherNote(song)} (click to add a mixing note)` : "Add a mixing note")}
             className={cn(

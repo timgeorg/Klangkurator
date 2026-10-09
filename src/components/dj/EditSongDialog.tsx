@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -88,10 +88,22 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
   const [relationshipsDialogOpen, setRelationshipsDialogOpen] = useState(false);
   const [currentSong, setCurrentSong] = useState<Song | null>(song);
 
-  // Fill the form from the song each time the dialog opens: Cancel discards edits.
+  // The nested lyrics and relationships dialogs read the latest saved song.
   useEffect(() => {
-    if (!song || !open) return;
-    setCurrentSong(song);
+    if (song) setCurrentSong(song);
+  }, [song]);
+
+  // Fill the form when the dialog opens or switches to another song, so Cancel
+  // discards edits, but not when the same song is refreshed after a nested
+  // lyrics or relationship save (that would throw away what was typed here).
+  const filledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      filledFor.current = null;
+      return;
+    }
+    if (!song || filledFor.current === song.id) return;
+    filledFor.current = song.id;
     setFormData({
       title: song.title || "",
       artist: song.artist || "",

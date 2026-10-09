@@ -11,7 +11,8 @@ import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { type Block, type Song, storage } from "@/lib/storage";
-import { formatBpm, formatDuration, splitTitle } from "@/lib/trackFormat";
+import { formatBpm, formatDuration } from "@/lib/trackFormat";
+import { TrackTitle } from "@/components/dj/TrackTitle";
 
 import { RunningOrderList, Transition, type OrderRow } from "./RunningOrder";
 import { byPosition, indexById, plural, totalSeconds } from "./setModel";
@@ -84,7 +85,7 @@ function BlockForm({
 
   const labelOf = (songId: string) => {
     const song = songIndex.get(songId);
-    return song ? splitTitle(song.title).main : "missing track";
+    return song ? song.title : "missing track";
   };
 
   const add = (song: Song) => {
@@ -152,12 +153,11 @@ function BlockForm({
         missing: true,
       };
     }
-    const { main } = splitTitle(song.title);
     return {
       key: entry.song_id,
-      name: main,
+      name: song.title,
       art: <CoverArt src={song.artwork_url} className="h-10 w-10 rounded-[3px]" />,
-      title: main,
+      title: <TrackTitle title={song.title} />,
       subtitle: song.artist,
       meta: (
         <>
@@ -218,7 +218,12 @@ function BlockForm({
                 {plural(tracks.length, "track")} · {formatDuration(totalSeconds(tracks))}
               </span>
             </div>
-            <TrackPicker songs={available} onPickSong={add} placeholder="Search title, artist, album">
+            <TrackPicker
+              songs={available}
+              alreadyAdded={tracks}
+              onPickSong={add}
+              placeholder="Search title, artist, album"
+            >
               <Button variant="outline" size="sm">
                 <Plus />
                 Add track
