@@ -473,7 +473,9 @@ export function SongLibrary() {
           onFocusCapture={(e) => {
             const el = tableScrollRef.current;
             const target = e.target as HTMLElement;
-            if (!el || target === el) return;
+            // Keyboard focus only: scrolling under a mouse click would move the
+            // control away from the pointer and swallow the click.
+            if (!el || target === el || !target.matches(":focus-visible")) return;
             const box = el.getBoundingClientRect();
             const r = target.getBoundingClientRect();
             const rightLimit = box.left + el.clientWidth - 56;
@@ -566,7 +568,16 @@ export function SongLibrary() {
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
             const el = tableScrollRef.current;
-            if (el) el.scrollBy({ left: el.clientWidth * 0.7, behavior: "smooth" });
+            if (!el) return;
+            // Snap so that a column starts 40px before the edge: it lands on the
+            // covered strip and the button keeps its room for the next press.
+            const room = 40;
+            const box = el.getBoundingClientRect();
+            const target = el.scrollLeft + el.clientWidth * 0.7;
+            const lefts = Array.from(el.querySelectorAll<HTMLElement>('[role="columnheader"]'), (h) => h.getBoundingClientRect().left - box.left + el.scrollLeft);
+            const snapped = lefts.filter((left) => left <= target + el.clientWidth - room).pop();
+            const next = snapped === undefined ? target : snapped - (el.clientWidth - room);
+            el.scrollTo({ left: next > el.scrollLeft + room ? next : target, behavior: "smooth" });
           }}
           title="More columns"
           // [&[hidden]]:hidden: inline-flex would otherwise win over the hidden attribute
