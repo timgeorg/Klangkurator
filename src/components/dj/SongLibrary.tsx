@@ -300,8 +300,11 @@ export function SongLibrary() {
 
   // The table's right edge while more columns lie beyond it. A sliver of a
   // cut column is covered by the page ground, so the visible table ends on a
-  // whole column; a wider partial column only fades. Updated in the DOM on
-  // scroll and resize, never through React state.
+  // whole column; a wider partial column only fades. A small button scrolls
+  // to the hidden columns. On touch screens the button would be a target
+  // under 44px, so it is left out there and the edge always fades instead,
+  // the usual "swipe for more" hint. Updated in the DOM on scroll and resize,
+  // never through React state.
   const { visibleColumns, gridTemplate } = columnConfig;
   const edgeRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
@@ -311,6 +314,7 @@ export function SongLibrary() {
     const moreButton = moreRef.current;
     if (!el || !edge || !moreButton) return;
     const update = () => {
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
       const scrollbarW = el.offsetWidth - el.clientWidth;
       edge.style.right = `${scrollbarW}px`;
       edge.style.bottom = `${el.offsetHeight - el.clientHeight}px`;
@@ -318,12 +322,12 @@ export function SongLibrary() {
       const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
       edge.hidden = !more;
       if (!more && document.activeElement === moreButton) document.getElementById("main")?.focus();
-      moreButton.hidden = !more;
+      moreButton.hidden = !more || coarse;
       if (!more) return;
       const box = el.getBoundingClientRect();
       const visibleRight = el.clientWidth;
       let cover = 0;
-      for (const cell of el.querySelectorAll<HTMLElement>('[role="columnheader"]')) {
+      for (const cell of coarse ? [] : el.querySelectorAll<HTMLElement>('[role="columnheader"]')) {
         const r = cell.getBoundingClientRect();
         const left = r.left - box.left;
         if (left < visibleRight && r.right - box.left > visibleRight) {
@@ -534,7 +538,8 @@ export function SongLibrary() {
           }}
           aria-label="Scroll to more columns"
           title="More columns"
-          className="absolute top-1.5 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground shadow-1 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          // [&[hidden]]:hidden: inline-flex would otherwise win over the hidden attribute
+          className="absolute top-1.5 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground shadow-1 transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&[hidden]]:hidden"
         >
           <ChevronsRight className="h-3.5 w-3.5" />
         </button>
