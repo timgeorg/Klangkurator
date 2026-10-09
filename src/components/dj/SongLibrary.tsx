@@ -341,9 +341,11 @@ export function SongLibrary() {
         edge.hidden = true;
         return;
       }
+      // An alpha mask: only the black's opacity counts, it is never seen as a color.
+      const solid = "#000"; // impeccable-disable-line design-system-color
       const mask = cover
-        ? "linear-gradient(to right, transparent, #000 10px)"
-        : "linear-gradient(to left, #000, transparent)";
+        ? `linear-gradient(to right, transparent, ${solid} 10px)`
+        : `linear-gradient(to left, ${solid}, transparent)`;
       edge.style.width = `${cover || 40}px`;
       edge.style.maskImage = mask;
       edge.style.webkitMaskImage = mask;

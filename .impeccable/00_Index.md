@@ -6,6 +6,7 @@ tags:
 # Index — .impeccable
 
 - [[build/]] — Working spec from the design process (spec.json) (local only, not committed).
+- [[config.json]] — Team settings for the design tools; the detector skips the unused legacy mock data (src/services/MockupDataService.ts).
 - [[decision-direction.json]] — Design decision record for current direction (local-only working file, not committed).
 - [[design.json]] — Machine-readable sidecar of DESIGN.md (tokens, ramps, component snippets) for design tools; regenerate it with DESIGN.md rather than editing it by hand.
 - [[live/]] — Live design-tool configuration: config.json holds the active design tool settings and state.

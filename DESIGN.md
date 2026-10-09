@@ -30,6 +30,26 @@ colors:
   warning-paper: "#7D6200"
   destructive-ink: "#F26B5E"
   destructive-paper: "#B42318"
+  entity-carmine: "#C8102E"
+  entity-rose: "#E0607E"
+  entity-plum: "#7B3F8C"
+  entity-lavender: "#B4A7F2"
+  entity-violet: "#6B5BD6"
+  entity-indigo: "#3B4BA8"
+  entity-ink-blue: "#2B3A67"
+  entity-cobalt: "#2F6BD8"
+  entity-sky: "#6FA8DC"
+  entity-teal: "#1E8C8C"
+  entity-mint: "#6CC3A0"
+  entity-green: "#4E9A2A"
+  entity-moss: "#5C7A3A"
+  entity-olive: "#8A9A3B"
+  entity-ochre: "#C9A227"
+  entity-sand: "#CDB891"
+  entity-clay: "#B3684A"
+  entity-brown: "#7A5236"
+  entity-silver: "#A1A2B3"
+  entity-slate: "#6D7480"
 typography:
   display-lg:
     fontFamily: "Literata Variable, Literata, Iowan Old Style, Georgia, serif"
@@ -55,6 +75,12 @@ typography:
     fontWeight: 400
     lineHeight: 1.15
     letterSpacing: "-0.01em"
+  headline-sm:
+    fontFamily: "Literata Variable, Literata, Iowan Old Style, Georgia, serif"
+    fontSize: "1.4375rem"
+    fontWeight: 400
+    lineHeight: 1.16
+    letterSpacing: "-0.01em"
   title:
     fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.5rem"
@@ -77,6 +103,11 @@ typography:
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
+  lead:
+    fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.6
   small:
     fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.75rem"
@@ -99,9 +130,15 @@ typography:
     letterSpacing: "0.12em"
   wordmark:
     fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1.1875rem"
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "-0.045em"
+  wordmark-mark:
+    fontFamily: "Inter Variable, Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1.375rem"
+    fontWeight: 700
+    lineHeight: 1
 rounded:
   cover-thumb: "3px"
   sm: "6px"
@@ -240,7 +277,7 @@ Warm-neutral ink and paper grounds with one hot signal, plus a small cool set re
 ### Status
 - **Success, Warning, Destructive** (`success-*`, `warning-*`, `destructive-*`): each has a lighter variant for ink and a deeper variant for paper. They are used as text and icons, plus the fill of the destructive button.
 
-User-pickable entity colors (tags, genres, blocks, sets) are user data, not system roles. The 20-swatch palette lives in `design-system/tokens/palette.json` and deliberately leaves out orange.
+User-pickable entity colors (tags, genres, blocks, sets) are user data, not system roles. The 20-swatch palette lives in `design-system/tokens/palette.json` and deliberately leaves out orange; it is listed above as `entity-*` so tools recognize the swatches. The default genre colors and the relationship line colors are drawn from the same palette.
 
 ### Named Rules
 **The This-One Rule.** Orange marks state: current, playing, selected, focused, primary. It is never a category, a decoration or the fill of a whole region. Only one item carries the orange cut at a time.
@@ -262,14 +299,16 @@ All three are self-hosted woff2 variable files with latin and latin-ext subsets.
 ### Hierarchy
 - **Display LG / Display / Display SM** (Literata 400; 72 / 56 / 40px; line-height 1–1.06; balanced): the 404, the import start screen, page-level empty states, and the track title on the song page (Display SM).
 - **Headline** (Literata 400, 28px, 1.15): set names on set cards.
+- **Headline SM** (Literata 400, 23px, 1.16, balanced): the track title in the now-playing panel.
 - **Title** (Inter 700, 24px, 1.15, -0.025em): every page title in the page header.
 - **Heading** (Inter 600, 17px, 1.3): section and card titles.
 - **UI** (Inter 400–500, 13px): the working size for buttons, inputs, tabs, table cells and descriptions. It is the most-used size in the app.
+- **Lead** (Inter 400, 15px, 1.6): the one sentence under a display line (empty states, the 404, the import start screen), block names and spec-sheet values on the song page.
 - **Body / Small** (Inter, 14px / 12px): the document default and secondary text. Data cells such as BPM, key, duration and the row index use the 12px step.
 - **Prose** (Literata 16px, 1.65, max 68ch): track notes and lyrics.
 - **Num** (Geist Mono, tabular, inherits size): counts beside titles, BPM, key, durations, times and index numbers.
 - **Label** (Geist Mono 500, 11px, 0.12em, uppercase): only the term of a data pair (BPM, KEY, FILE), set as a `<dt>` beside its value.
-- **Wordmark** (Inter 700, -0.045em): the name in the lockup with the asterisk mark.
+- **Wordmark** (Inter 700, 19px, -0.045em): the name in the lockup with the asterisk mark; the mark alone is set at 22px in the collapsed rail.
 
 ### Named Rules
 **The Three Jobs Rule.** Inter is for anything you operate, Literata for editorial moments and long reading, and Geist Mono only for data. A serif page title or a mono sentence is out of system.

@@ -423,6 +423,106 @@
           "oklch(0.84 0.178 29.5)",
           "oklch(0.95 0.158 29.5)"
         ]
+      },
+      "entity-carmine": {
+        "role": "entity",
+        "displayName": "Carmine",
+        "canonical": "#C8102E"
+      },
+      "entity-rose": {
+        "role": "entity",
+        "displayName": "Rose",
+        "canonical": "#E0607E"
+      },
+      "entity-plum": {
+        "role": "entity",
+        "displayName": "Plum",
+        "canonical": "#7B3F8C"
+      },
+      "entity-lavender": {
+        "role": "entity",
+        "displayName": "Lavender",
+        "canonical": "#B4A7F2"
+      },
+      "entity-violet": {
+        "role": "entity",
+        "displayName": "Violet",
+        "canonical": "#6B5BD6"
+      },
+      "entity-indigo": {
+        "role": "entity",
+        "displayName": "Indigo",
+        "canonical": "#3B4BA8"
+      },
+      "entity-ink-blue": {
+        "role": "entity",
+        "displayName": "Ink blue",
+        "canonical": "#2B3A67"
+      },
+      "entity-cobalt": {
+        "role": "entity",
+        "displayName": "Cobalt",
+        "canonical": "#2F6BD8"
+      },
+      "entity-sky": {
+        "role": "entity",
+        "displayName": "Sky",
+        "canonical": "#6FA8DC"
+      },
+      "entity-teal": {
+        "role": "entity",
+        "displayName": "Teal",
+        "canonical": "#1E8C8C"
+      },
+      "entity-mint": {
+        "role": "entity",
+        "displayName": "Mint",
+        "canonical": "#6CC3A0"
+      },
+      "entity-green": {
+        "role": "entity",
+        "displayName": "Green",
+        "canonical": "#4E9A2A"
+      },
+      "entity-moss": {
+        "role": "entity",
+        "displayName": "Moss",
+        "canonical": "#5C7A3A"
+      },
+      "entity-olive": {
+        "role": "entity",
+        "displayName": "Olive",
+        "canonical": "#8A9A3B"
+      },
+      "entity-ochre": {
+        "role": "entity",
+        "displayName": "Ochre",
+        "canonical": "#C9A227"
+      },
+      "entity-sand": {
+        "role": "entity",
+        "displayName": "Sand",
+        "canonical": "#CDB891"
+      },
+      "entity-clay": {
+        "role": "entity",
+        "displayName": "Clay",
+        "canonical": "#B3684A"
+      },
+      "entity-brown": {
+        "role": "entity",
+        "displayName": "Brown",
+        "canonical": "#7A5236"
+      },
+      "entity-silver": {
+        "role": "entity",
+        "displayName": "Silver",
+        "canonical": "#A1A2B3"
+      },
+      "entity-slate": {
+        "role": "entity",
+        "displayName": "Slate",
+        "canonical": "#6D7480"
       }
     },
     "typographyMeta": {
@@ -477,6 +577,18 @@
       "wordmark": {
         "displayName": "Wordmark",
         "purpose": "The name beside the asterisk mark."
+      },
+      "headline-sm": {
+        "displayName": "Headline SM",
+        "purpose": "The track title in the now-playing panel."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "The sentence under a display line; block names; spec-sheet values."
+      },
+      "wordmark-mark": {
+        "displayName": "Mark",
+        "purpose": "The asterisk mark alone in the collapsed rail."
       }
     },
     "shadows": [
