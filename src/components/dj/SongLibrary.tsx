@@ -318,24 +318,37 @@ export function SongLibrary() {
       const scrollbarW = el.offsetWidth - el.clientWidth;
       edge.style.right = `${scrollbarW}px`;
       edge.style.bottom = `${el.offsetHeight - el.clientHeight}px`;
-      moreButton.style.right = `${scrollbarW + 6}px`;
+      moreButton.style.right = `${scrollbarW + 2}px`;
       const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
       edge.hidden = !more;
-      moreButton.hidden = !more || coarse;
+      moreButton.hidden = true;
       if (!more) return;
       const box = el.getBoundingClientRect();
       const visibleRight = el.clientWidth;
+      // Where the visible table ends: the last whole column, and the column
+      // cut by the edge, if any.
+      let lastRight = 0;
       let cover = 0;
       let straddles = false;
       for (const cell of coarse ? [] : el.querySelectorAll<HTMLElement>('[role="columnheader"]')) {
         const r = cell.getBoundingClientRect();
         const left = r.left - box.left;
-        if (left < visibleRight && r.right - box.left > visibleRight) {
+        const right = r.right - box.left;
+        if (right <= visibleRight) {
+          lastRight = Math.max(lastRight, right);
+          continue;
+        }
+        if (left < visibleRight) {
           straddles = true;
           if (visibleRight - left < 120) cover = visibleRight - left + 8;
-          break;
         }
+        break;
       }
+      // The button (24px, 2px from the edge) only shows where it has room of
+      // its own: on the covered strip, over a wide faded column, or in an
+      // empty gap after the last whole column. Never on a column's header.
+      const room = cover || (straddles ? Infinity : visibleRight - lastRight);
+      moreButton.hidden = coarse || room < 28;
       // The visible table already ends on a whole column: nothing to cover.
       if (!coarse && !straddles) {
         edge.hidden = true;

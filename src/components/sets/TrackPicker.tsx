@@ -132,6 +132,12 @@ export function TrackPicker({
               </CommandGroup>
             )}
 
+            {addedMatch && (shownSongs.length > 0 || (onPickBlock && matchedBlocks.length > 0)) && (
+              <p className="border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
+                “{addedMatch}” is already in the running order.
+              </p>
+            )}
+
             {matchedSongs.length > SONG_LIMIT && (
               <p className="border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
                 Showing {SONG_LIMIT} of {matchedSongs.length} tracks. Type to narrow the list.

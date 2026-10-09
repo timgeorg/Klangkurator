@@ -56,7 +56,8 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   and analysed keys filter alike; highlighted list options take the Signal
   Wash, orange text and the rail's half-disc marker; the picker says when a block is already in the running order; the
   table's right edge covers slivers up to 120px and adds nothing when the
-  table already ends on a whole column.
+  table already ends on a whole column; the more-columns button only shows
+  where it has room, never over a column's header or filter button.
 - **Validator round 3 (13, 16)**: dialogs return focus to their opener;
   track lists in Sets keep versions; long unbroken names wrap (no sideways
   scrolling at 375px); the Edit dialog keeps typed edits across a nested
