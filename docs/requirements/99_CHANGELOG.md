@@ -48,6 +48,13 @@ product record: `PRODUCT.md`; built world: `DESIGN.md`.
   notes show as a hint and are never copied into it); the tag picker puts
   existing matches before Create and creates on Enter; crowded tag cells
   clip; the last, width-filling Notes column has no dead resize handle.
+- **Validator round 3 (13, 16)**: dialogs return focus to their opener;
+  track lists in Sets keep versions; long unbroken names wrap (no sideways
+  scrolling at 375px); the Edit dialog keeps typed edits across a nested
+  lyrics or relationship save; a hand-resized Tags column survives reloads;
+  tag cells show whole chips plus "+N"; a "more columns" button and focus
+  that stays clear of the table's right edge; phases are counted where they
+  cannot be shown.
 - **Editing (11, 21)**: Cancel in the Edit track and Lyrics dialogs discards
   the edits (reopening showed them before); emptying a field clears it — the
   dialog sends `null` and the backend now applies an explicit `null` to

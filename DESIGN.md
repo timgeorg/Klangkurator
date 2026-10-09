@@ -336,7 +336,7 @@ Quiet and exact. The one primary action in view is the only orange object.
 - **Page header:** a bold Inter title, a mono count beside it, actions on the right, and an optional tab row. A hairline separates it from the content.
 
 ### Library Table (signature)
-The table has 44px rows with hairline separators and mono 12px index numbers. Covers are 32px grayscale thumbnails, and each row has a compact waveform. The current row gets the Signal Wash fill, an orange index, an orange title, a cut cover and an all-orange waveform. Hover or keyboard focus swaps the index for play and edit buttons, so nothing is hover-only. Notes edit inline in place.
+The table has 44px rows with hairline separators and mono 12px index numbers. Covers are 32px grayscale thumbnails, and each row has a compact waveform. The current row gets the Signal Wash fill, an orange index, an orange title, a cut cover and an all-orange waveform. Hover or keyboard focus swaps the index for play and edit buttons, so nothing is hover-only. Notes edit inline in place. The table never ends on a cut sliver: while columns lie beyond the right edge, the grained ground covers the sliver and a small round "more columns" button scrolls right. Tag cells show whole chips and a mono "+N" pill for the rest. Track titles in lists keep their version or catalogue part in the muted color.
 
 ### Now Playing (signature)
 This is the preview player. As a 320px panel it shows a grained card surface, a full-width square cover carrying the orange cut, the title in Literata at about 23px, the artist and genre in Inter, a waveform scrubber with the played part in orange, mono times, and a BPM / KEY data list using the Label role. As a 64px bar it carries the same information condensed. Switching between the two never interrupts playback.
@@ -345,7 +345,7 @@ This is the preview player. As a 320px panel it shows a grained card surface, a 
 A page-level empty state is a grained band holding a Display SM serif line, one 15px sentence in muted text, the resolving action, and one of three shape compositions (orbit, stack, split). The inline variant is a dashed hairline box with an 18px serif line.
 
 ### Overlays
-Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.
+Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Closing a dialog returns focus to whatever opened it. A search field inside a picker has no box; its focus shows as a 2px orange rule under it. Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.
 
 ## Do's and Don'ts
 

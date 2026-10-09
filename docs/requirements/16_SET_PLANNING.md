@@ -84,7 +84,11 @@ not used by the UI):
   `block_id` resolves too, and saving writes `ref_id`
 - A deleted track or block keeps its slot as "Track no longer in the
   library" / "Deleted block" until removed (no title is stored, so the last
-  known title cannot be shown)
+  known title cannot be shown); a block card counts its missing tracks
+- Track lists keep a track's version or catalogue part ("(Club Remix)
+  [CAT01]"), set quieter, so two versions of one track stay distinguishable
+- Tracks stored in `phases` are not shown by this editor yet: the card and
+  the editor say how many there are, and saving leaves them untouched
 
 ## Set Planning UI
 

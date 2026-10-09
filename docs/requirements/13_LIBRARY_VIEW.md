@@ -63,7 +63,7 @@ removed earlier — the table handles all of it.
 | Social | rating (0–5) | Five rising bars |
 | Album | text | |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
-| Tags | chips | Side-by-side, auto-grow, inline add/remove; a list wider than the column clips (all names in the tooltip) |
+| Tags | chips | Side-by-side, auto-grow, inline add/remove; whole chips only, the rest as a "+N" count (names in its tooltip and for screen readers) |
 | Lyrics | preview | First 50 characters, 200 in the tooltip |
 | Notes | text | The mixing note; flex-fills remaining width, inline-editable. While it is empty, a drum or element note shows as a muted italic hint ("Drums: …") |
 
@@ -77,7 +77,8 @@ and keep their own order.
 - **Show/Hide**: switches in the Column Settings dialog
 - **Reorder**: drag-and-drop in the header (insert before/after) or in the
   Column Settings dialog
-- **Auto-grow**: the Tags column widens with the widest tag list
+- **Auto-grow**: the Tags column widens with the widest tag list, until the user resizes it by hand (that choice is saved with the layout)
+- **Right edge**: while columns lie beyond the visible area, a sliver of a cut column is covered and a "more columns" button scrolls right; keyboard focus inside the table is scrolled clear of the edge
 - Layout (order, visibility, widths) persists in localStorage
   (`klangkurator.columnConfig.v1`)
 
@@ -119,4 +120,6 @@ Planned, not built — additional filters for set planning:
   hover or keyboard focus
 - Tags: remove with the chip's ×, add with the + button (shows on hover and
   focus). The picker lists existing matches first and "Create “…”" last, so
-  Enter picks a similar existing tag; with no match, Enter creates the tag
+  Enter picks a similar existing tag; with no match, Enter creates the tag.
+  Removing a chip by keyboard moves focus to the next chip (or the + button);
+  saving or discarding a note keeps focus on its cell
