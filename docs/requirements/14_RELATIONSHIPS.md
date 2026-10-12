@@ -1,7 +1,7 @@
 # Relationships (Knowledge Graph)
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-08
 Source: Requirements.md section 7
 
 ## Relationship Types
@@ -19,7 +19,8 @@ Source: Requirements.md section 7
 
 ## Unified Relationships Dialog
 
-One component used from both: (a) clicking a song title, (b) the Edit Song dialog.
+One component, opened from the song detail page's "Relationships" action and
+from the Edit track dialog.
 
 ### List View
 - Existing relationships with delete buttons
@@ -27,12 +28,20 @@ One component used from both: (a) clicking a song title, (b) the Edit Song dialo
 - "In Playlists" section: shows which playlists contain the song + position
 
 ### Graph View
-- HTML canvas, nodes = songs, edges = color-coded by relationship type
-- Center/base node always rendered in a neutral color
-- Song titles visible by default (no hover required)
+- HTML canvas, nodes = songs as black-and-white cover discs, related songs on
+  an ellipse around the centre song; the centre song carries the orange cut
+- Each relationship type has its own line, so the graph also reads in
+  grayscale: `transition` solid and heavier in the foreground colour; `remix`,
+  `edit`, `cover` solid in violet, green, cobalt; `mashup`, `bootleg` dashed
+  in rose, clay; `same_sample`, `in_playlist` dotted in ochre, slate
+  (source of truth: `src/lib/relationshipStyle.ts`)
+- A legend lists all eight types with their line
+- Song titles visible by default (no hover required); edge labels sit off
+  the node so they don't overlap
 - Clicking another node **navigates** — that song becomes the new center,
-  canvas updates instantly (via `key` remount), with back-button history
-- Dark background + subtle grid, gradient fills, glow, generous spacing
+  with back-button history; this works the same from the list view
+- Follows the theme (ink or paper): colours come from the design tokens, and
+  the canvas redraws when the theme changes; no grid, glow or gradients
 
 ## Transition Relationships And Set Planning
 

@@ -1,69 +1,53 @@
-import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Waveform } from '@/components/ui/waveform';
-import { TagSelector } from '@/components/ui/tag-selector';
-import { Play, Pencil, Music2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Song, Tag } from '@/lib/storage';
-import { usePlayer } from '@/lib/PlayerContext';
-import { getMainGenreColor } from '@/lib/genreData';
-import { UseColumnConfigReturn } from '@/hooks/useColumnConfig';
+import React, { memo } from "react";
+import { Link } from "react-router-dom";
+import { Pause, Pencil, Play } from "lucide-react";
+
+import { CoverArt } from "@/components/brand";
+import { ColorChip } from "@/components/ui/color-chip";
+import { TagSelector } from "@/components/ui/tag-selector";
+import { Waveform } from "@/components/ui/waveform";
+import { UseColumnConfigReturn } from "@/hooks/useColumnConfig";
+import { getMainGenreColor } from "@/lib/genreData";
+import { Song, Tag } from "@/lib/storage";
+import { crateOf, formatBpm, formatDuration, isMinorKey, keyName, splitTitle } from "@/lib/trackFormat";
+import { cn } from "@/lib/utils";
+
+import { NUMERIC_COLUMNS } from "./libraryTable";
 
 interface SongTableRowProps {
   song: Song;
   index: number;
   songTags: Tag[];
-  columnConfig: UseColumnConfigReturn;
+  allTags: Tag[];
+  visibleColumns: string[];
+  gridTemplate: string;
   editingNotes?: string;
-  onSongClick: (song: Song) => void;
+  /** The loaded track (playing or paused): carries the orange cut. */
+  isCurrent: boolean;
+  isPlaying: boolean;
   onPlaySong: (song: Song) => void;
-  onEditSong: (song: Song, e: React.MouseEvent) => void;
+  onEditSong: (song: Song) => void;
   onTagsChange: (songId: string, tags: Tag[]) => void;
   onTagCreated: () => void;
   onNotesEdit: (songId: string, notes: string) => void;
   onNotesBlur: (songId: string) => void;
   onNotesKeyDown: (e: React.KeyboardEvent, songId: string) => void;
-  getCurrentNotes: (song: Song) => string;
 }
 
-// Utility functions
-// PF-12 (revised): duration renders as mm:ss — minutes WITHOUT leading zeroes
-// (e.g. "5:37", "12:04"); seconds zero-padded to 2 digits; "--:--" for missing/0.
-// Round the TOTAL first so float durations never produce a "0:60" second.
-export const formatDuration = (seconds?: number) => {
-  if (!seconds) return '--:--';
-  const total = Math.round(seconds);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-};
+/** The other notes, shown as a hint while the mixing note (the editable one) is empty. */
+const otherNote = (song: Song) =>
+  song.drum_notes ? `Drums: ${song.drum_notes}` : song.element_notes ? `Elements: ${song.element_notes}` : "";
 
-const getBpmColor = (bpm?: number) => {
-  if (!bpm) return 'text-muted-foreground';
-  if (bpm < 100) return 'text-bpm-slow bg-bpm-slow/20';
-  if (bpm < 130) return 'text-bpm-medium bg-bpm-medium/20';
-  return 'text-bpm-fast bg-bpm-fast/20';
-};
-
-// Extract root folder from file path
-const getRootFolder = (filePath: string): string => {
-  if (!filePath) return '';
-  const parts = filePath.replace(/\\/g, '/').split('/');
-  if (parts.length >= 2) {
-    const nonEmptyParts = parts.filter(p => p && !p.includes(':'));
-    return nonEmptyParts[0] || '';
-  }
-  return '';
-};
-
-export function SongTableRow({
+function SongTableRowImpl({
   song,
   index,
   songTags,
-  columnConfig,
+  allTags,
+  visibleColumns,
+  gridTemplate,
   editingNotes,
-  onSongClick,
+  isCurrent,
+  isPlaying,
   onPlaySong,
   onEditSong,
   onTagsChange,
@@ -71,319 +55,240 @@ export function SongTableRow({
   onNotesEdit,
   onNotesBlur,
   onNotesKeyDown,
-  getCurrentNotes,
 }: SongTableRowProps) {
-  const { visibleColumns, gridTemplate, columnVisibility } = columnConfig;
-  // Row highlight: this track is loaded AND actually audible (paused ≠ playing)
-  const player = usePlayer();
-  const isPlayingRow = player.current?.id === song.id && player.isPlaying;
-
   const renderCell = (columnId: string) => {
     switch (columnId) {
-      case 'play':
+      case "play":
         return (
-          <div className="flex items-center justify-center gap-1">
-            <Button size="sm" variant="ghost" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => { e.stopPropagation(); onPlaySong(song); }}
-              title="Play song"
+          <div className="relative flex h-full w-full items-center justify-center">
+            <span
+              className={cn(
+                "k-num pointer-events-none text-xs transition-opacity duration-fast group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0",
+                isCurrent ? "text-signal-text" : "text-muted-foreground",
+              )}
             >
-              <Play className="w-3 h-3" />
-            </Button>
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
-              onClick={(e) => onEditSong(song, e)}
-              title="Edit song"
-            >
-              <Pencil className="w-3 h-3" />
-            </Button>
-          </div>
-        );
-        
-      case 'cover':
-        return (
-          <div className="flex items-center">
-            {song.artwork_url ? (
-              <img
-                src={song.artwork_url}
-                alt=""
-                className="w-8 h-8 rounded object-cover bg-muted"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-                <Music2 className="w-4 h-4 text-muted-foreground" />
-              </div>
-            )}
-          </div>
-        );
-        
-      case 'preview':
-        return (
-          <div className="flex items-center">
-            <Waveform className="w-16 h-6" variant="compact" peaks={song.waveform_peaks} />
-          </div>
-        );
-        
-      case 'title':
-        return (
-          <div 
-            className="flex items-center font-medium text-foreground truncate hover:text-primary cursor-pointer transition-colors"
-            onClick={() => onSongClick(song)}
-            title="Click to view track details"
-          >
-            {song.title}
-          </div>
-        );
-        
-      case 'artist':
-        return (
-          <div className="flex items-center text-foreground truncate">
-            {song.artist}
-          </div>
-        );
-        
-      case 'album':
-        return (
-          <div className="flex items-center text-muted-foreground truncate">
-            {song.album || '-'}
-          </div>
-        );
-        
-      case 'rootFolder':
-        const folder = getRootFolder(song.file_path);
-        return (
-          <div className="flex items-center text-muted-foreground truncate" title={song.file_path}>
-            {folder || '-'}
-          </div>
-        );
-        
-      case 'bpm':
-        return (
-          <div className="flex items-center">
-            {song.bpm ? (
-              <Badge variant="secondary" className={cn("text-xs px-1 py-0 h-5", getBpmColor(song.bpm))}>
-                {song.bpm}
-              </Badge>
-            ) : (
-              <span className="text-muted-foreground">-</span>
-            )}
-          </div>
-        );
-        
-      case 'key':
-        return (
-          <div className="flex items-center">
-            {song.musical_key ? (
-              <Badge 
-                variant="outline" 
-                className={cn(
-                  "text-xs px-1 py-0 h-5 border-key-major",
-                  song.musical_key.includes('minor') ? "border-key-minor text-key-minor" : "text-key-major"
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div className="absolute inset-0 flex items-center justify-center gap-0.5 opacity-0 transition-opacity duration-fast group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlaySong(song);
+                }}
+                aria-label={isCurrent && isPlaying ? `Pause ${song.title}` : `Play ${song.title}`}
+                title={isCurrent && isPlaying ? "Pause" : "Play"}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-foreground transition-colors hover:bg-accent hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {isCurrent && isPlaying ? (
+                  <Pause className="h-3.5 w-3.5" fill="currentColor" strokeWidth={0} />
+                ) : (
+                  <Play className="h-3.5 w-3.5" fill="currentColor" strokeWidth={0} />
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditSong(song);
+                }}
+                aria-label={`Edit ${song.title}`}
+                title="Edit"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {song.musical_key.replace(' major', '').replace(' minor', 'm')}
-              </Badge>
-            ) : (
-              <span className="text-muted-foreground">-</span>
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        );
+
+      case "cover":
+        return <CoverArt src={song.artwork_url} current={isCurrent} className="h-8 w-8 rounded-[3px]" />;
+
+      case "preview":
+        return <Waveform variant="compact" peaks={song.waveform_peaks} active={isCurrent} className="h-6 w-full" />;
+
+      case "title": {
+        const { main, version } = splitTitle(song.title);
+        return (
+          <Link
+            to={`/song/${song.id}`}
+            title={song.title}
+            className={cn(
+              "min-w-0 truncate rounded-sm font-medium transition-colors hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isCurrent ? "text-signal-text" : "text-foreground",
             )}
-          </div>
+          >
+            {main}
+            {version && <span className="font-normal text-muted-foreground"> {version}</span>}
+          </Link>
         );
-        
-      case 'genre':
-        return <GenreCell song={song} />;
-        
-      case 'subgenres':
-        return <SubgenresCell song={song} />;
-        
-      case 'energy':
-        return <RatingCell value={song.energy} colorClass="bg-energy-high" />;
-        
-      case 'danceability':
-        return <RatingCell value={song.danceability} colorClass="bg-accent" />;
-        
-      case 'social':
-        return <RatingCell value={song.social_acceptance} colorClass="bg-secondary" />;
-        
-      case 'duration':
+      }
+
+      case "artist":
+        return <span className="truncate text-foreground/85">{song.artist}</span>;
+
+      case "album":
+        return <span className="truncate text-muted-foreground">{song.album || "–"}</span>;
+
+      case "rootFolder": {
+        const crate = crateOf(song);
         return (
-          <div className="flex items-center text-muted-foreground font-mono">
-            {formatDuration(song.duration)}
-          </div>
+          <span className="truncate text-muted-foreground" title={song.file_path}>
+            {crate || "–"}
+          </span>
         );
-        
-      case 'tags':
+      }
+
+      case "bpm":
         return (
-          <div className="flex items-center min-w-0">
-            <TagSelector
-              songId={song.id}
-              selectedTags={songTags}
-              onTagsChange={(tags) => onTagsChange(song.id, tags)}
-              onTagCreated={onTagCreated}
-              size="sm"
-            />
-          </div>
+          <span className={cn("k-num text-xs", song.bpm ? "text-foreground/85" : "text-muted-foreground")}>
+            {formatBpm(song.bpm)}
+          </span>
         );
-        
-      case 'lyrics':
+
+      case "key":
+        return song.musical_key ? (
+          <span
+            className={cn("k-num text-xs", isMinorKey(song.musical_key) ? "text-info" : "text-foreground")}
+            title={keyName(song.musical_key)}
+          >
+            {song.musical_key.replace(" major", "").replace(" minor", "m")}
+          </span>
+        ) : (
+          <span className="k-num text-xs text-muted-foreground">–</span>
+        );
+
+      case "genre": {
+        const genre = song.mainGenre || song.genres?.[0] || song.genre;
+        return genre ? <ColorChip color={getMainGenreColor(genre)} label={genre} /> : <Dash />;
+      }
+
+      case "subgenres": {
+        const subs = song.subgenres || [];
+        if (subs.length === 0) return <Dash />;
         return (
-          <div className="flex items-center min-w-0">
-            {song.lyrics ? (
-              <div 
-                className="text-xs text-muted-foreground truncate cursor-pointer hover:text-foreground"
-                title={song.lyrics.substring(0, 200) + (song.lyrics.length > 200 ? '...' : '')}
-              >
-                {song.lyrics.substring(0, 50)}{song.lyrics.length > 50 ? '...' : ''}
-              </div>
-            ) : (
-              <span className="text-xs text-muted-foreground/50">No lyrics</span>
+          <span className="truncate text-muted-foreground" title={subs.join(", ")}>
+            {subs.slice(0, 3).join(" · ")}
+            {subs.length > 3 && <span className="k-num text-[11px]"> +{subs.length - 3}</span>}
+          </span>
+        );
+      }
+
+      case "energy":
+        return <RatingMeter value={song.energy} label="Energy" />;
+
+      case "danceability":
+        return <RatingMeter value={song.danceability} label="Danceability" />;
+
+      case "social":
+        return <RatingMeter value={song.social_acceptance} label="Social acceptance" />;
+
+      case "duration":
+        return <span className="k-num text-xs text-muted-foreground">{formatDuration(song.duration)}</span>;
+
+      case "tags":
+        return (
+          <TagSelector
+            songId={song.id}
+            selectedTags={songTags}
+            allTags={allTags}
+            onTagsChange={(tags) => onTagsChange(song.id, tags)}
+            onTagCreated={onTagCreated}
+            size="sm"
+          />
+        );
+
+      case "lyrics":
+        return song.lyrics ? (
+          <span
+            className="truncate text-xs text-muted-foreground"
+            title={song.lyrics.substring(0, 200) + (song.lyrics.length > 200 ? "…" : "")}
+          >
+            {song.lyrics.substring(0, 50)}
+            {song.lyrics.length > 50 ? "…" : ""}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/60">No lyrics</span>
+        );
+
+      case "notes":
+        // max-w caps the cell so a trailing 1fr track keeps its configured
+        // max-content, not the raw note length (the table wrapper is w-max).
+        return editingNotes !== undefined ? (
+          <textarea
+            value={editingNotes}
+            onChange={(e) => onNotesEdit(song.id, e.target.value)}
+            onBlur={() => onNotesBlur(song.id)}
+            onKeyDown={(e) => onNotesKeyDown(e, song.id)}
+            aria-label={`Notes for ${song.title}`}
+            className="h-7 w-full max-w-[500px] resize-none overflow-hidden rounded-sm border border-ring bg-background px-2 py-1 text-xs leading-tight text-foreground outline-none ring-1 ring-ring"
+            autoFocus
+            placeholder="Add a note…"
+          />
+        ) : (
+          <button
+            type="button"
+            data-notes-for={song.id}
+            onClick={() => onNotesEdit(song.id, song.mixing_notes ?? "")}
+            title={song.mixing_notes || (otherNote(song) ? `${otherNote(song)} (click to add a mixing note)` : "Add a mixing note")}
+            className={cn(
+              "flex h-7 w-full max-w-[500px] items-center truncate rounded-sm px-2 text-left text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              song.mixing_notes ? "text-foreground/80" : "text-muted-foreground/70",
+              !song.mixing_notes && otherNote(song) && "italic",
             )}
-          </div>
+          >
+            <span className="truncate">{song.mixing_notes || otherNote(song) || "Add a note…"}</span>
+          </button>
         );
-        
-      case 'notes':
-        // max-w caps the cell so the trailing 1fr track keeps contributing its
-        // configured max-content (≤ notes maxWidth), not the raw note length —
-        // required now that the table wrapper is w-max (horizontal scroll).
-        return (
-          <div className="flex items-center min-w-0 max-w-[500px]">
-            {editingNotes !== undefined ? (
-              <textarea
-                value={editingNotes}
-                onChange={(e) => onNotesEdit(song.id, e.target.value)}
-                onBlur={() => onNotesBlur(song.id)}
-                onKeyDown={(e) => onNotesKeyDown(e, song.id)}
-                className="w-full h-6 text-xs bg-input border border-border rounded px-1 py-0 text-foreground resize-none overflow-hidden"
-                autoFocus
-                placeholder="Add notes..."
-              />
-            ) : (
-              <div 
-                className="w-full h-6 flex items-center text-xs text-muted-foreground cursor-text hover:bg-table-row-hover rounded px-1 truncate"
-                onClick={() => onNotesEdit(song.id, getCurrentNotes(song))}
-                title={getCurrentNotes(song) || 'Click to add notes'}
-              >
-                {getCurrentNotes(song) || 'Click to add notes...'}
-              </div>
-            )}
-          </div>
-        );
-        
+
       default:
         return null;
     }
   };
 
   return (
-    <div 
+    <div
+      role="row"
+      data-current={isCurrent || undefined}
+      aria-current={isCurrent ? "true" : undefined}
       className={cn(
-        "grid gap-2 px-3 py-2 text-xs border-b border-table-border hover:bg-table-row-hover transition-colors cursor-pointer group",
-        index % 2 === 0 ? "bg-table-row" : "bg-background",
-        isPlayingRow && "bg-orange-950/20"
+        "group/row grid h-11 items-center gap-2 border-b border-border/70 px-3 text-[13px] transition-colors duration-fast hover:bg-accent/60",
+        isCurrent && "bg-signal-soft hover:bg-signal-soft",
       )}
       style={{ gridTemplateColumns: gridTemplate }}
     >
       {visibleColumns.map((columnId) => (
-        <React.Fragment key={columnId}>
+        <div
+          key={columnId}
+          role="cell"
+          className={cn("flex min-w-0 items-center", NUMERIC_COLUMNS.has(columnId) && "justify-end")}
+        >
           {renderCell(columnId)}
-        </React.Fragment>
+        </div>
       ))}
     </div>
   );
 }
 
-// Sub-components for complex cells
-function GenreCell({ song }: { song: Song }) {
-  const mainGenre = song.mainGenre;
-  const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
-  
-  if (!mainGenre) {
-    const legacyGenre = song.genres?.[0] || song.genre;
-    if (!legacyGenre) {
-      return <span className="text-muted-foreground">-</span>;
-    }
-    return (
-      <div className="flex items-center gap-1 min-w-0 flex-wrap">
-        <Badge
-          variant="secondary"
-          className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-          style={{ 
-            backgroundColor: `${getMainGenreColor(legacyGenre)}20`, 
-            borderColor: getMainGenreColor(legacyGenre),
-            color: getMainGenreColor(legacyGenre)
-          }}
-        >
-          {legacyGenre}
-        </Badge>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="flex items-center gap-1 min-w-0 flex-wrap">
-      <Badge
-        variant="secondary"
-        className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-        style={{ 
-          backgroundColor: `${color}20`, 
-          borderColor: color,
-          color: color
-        }}
-      >
-        {mainGenre}
-      </Badge>
-    </div>
-  );
+export const SongTableRow = memo(SongTableRowImpl);
+
+function Dash() {
+  return <span className="text-muted-foreground">–</span>;
 }
 
-function SubgenresCell({ song }: { song: Song }) {
-  const subgenres = song.subgenres || [];
-  const mainGenre = song.mainGenre;
-  const color = mainGenre ? getMainGenreColor(mainGenre) : '#6366f1';
-  
-  if (subgenres.length === 0) {
-    return <span className="text-muted-foreground">-</span>;
-  }
-  
+/** 0–5 rating as five short bars; unrated (0) reads as five empty bars. */
+function RatingMeter({ value, label }: { value: number; label: string }) {
+  const v = Math.max(0, Math.min(5, value || 0));
   return (
-    <div className="flex items-center gap-1 min-w-0 flex-wrap">
-      {subgenres.slice(0, 3).map(sub => (
-        <Badge
-          key={sub}
-          variant="outline"
-          className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-          style={{ 
-            borderColor: `${color}60`,
-            color: color
-          }}
-        >
-          {sub}
-        </Badge>
+    <span role="img" aria-label={`${label} ${v} of 5`} className="flex items-end gap-[3px]" title={`${label} ${v}/5`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span
+          key={i}
+          className={cn("w-[3px] rounded-[1px]", i < v ? "bg-foreground/80" : "bg-foreground/15")}
+          style={{ height: 6 + i * 2 }}
+        />
       ))}
-      {subgenres.length > 3 && (
-        <span className="text-[10px] text-muted-foreground">
-          +{subgenres.length - 3}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function RatingCell({ value, colorClass }: { value: number; colorClass: string }) {
-  return (
-    <div className="flex items-center">
-      <div className="flex gap-[2px]">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div
-            key={i}
-            className={cn(
-              "w-2 h-2 rounded-full",
-              i < value ? colorClass : "bg-muted"
-            )}
-          />
-        ))}
-      </div>
-    </div>
+    </span>
   );
 }

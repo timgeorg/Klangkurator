@@ -1,7 +1,7 @@
 # Blocks
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-08
 Source: Requirements.md section 10.1
 
 ## Concept
@@ -33,10 +33,26 @@ as an opening sequence.
 
 ## Block Editor
 
-- Add/remove/reorder songs via drag-and-drop
-- Edit transition notes per song
-- Shows running total duration
-- Block card preview: name, song count, total duration, song-chain preview
+- Add tracks from a searchable picker (title, artist, album); a track is in a
+  block at most once
+- Reorder with move up / move down buttons (keyboard reachable; focus follows
+  the moved row); remove a track; drag-and-drop is not built
+- A transition note sits between each pair of tracks (`transition_notes` on
+  the earlier track)
+- Shows the track count and running total duration
+- A block needs a name and at least two tracks; both are checked on save with
+  an inline message
+- A track that left the library keeps its slot as "Track no longer in the
+  library" until it is removed
+
+## On the Sets page
+
+- One row per block: a strip of its colour tile (half disc) and up to four
+  black-and-white covers, the name, description, the chain of track titles,
+  track count, total duration and how many sets use it
+- Edit and delete are always visible; deleting asks first and says how many
+  sets use the block. Those sets keep the slot, marked "Deleted block", until
+  it is removed from them
 
 ## Reuse
 

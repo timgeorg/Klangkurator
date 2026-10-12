@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -63,28 +65,14 @@ export function ColumnSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh]">
+      <DialogContent className="max-h-[85vh] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Column Settings</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetToDefaults}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcw className="w-3 h-3 mr-1" />
-              Reset
-            </Button>
-          </DialogTitle>
+          <DialogTitle>Columns</DialogTitle>
+          <DialogDescription>Drag to reorder. Switch a column off to hide it.</DialogDescription>
         </DialogHeader>
-        
-        <div className="py-2">
-          <p className="text-xs text-muted-foreground mb-3">
-            Drag to reorder columns. Toggle visibility with the switch.
-          </p>
-          
-          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+
+        <div>
+          <div className="-mx-2 max-h-[58vh] space-y-0.5 overflow-y-auto px-2">
             {columnOrder.map((columnId, index) => {
               const def = COLUMN_DEFINITIONS[columnId];
               const isVisible = columnVisibility[columnId];
@@ -101,25 +89,23 @@ export function ColumnSettingsDialog({
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
                   className={cn(
-                    "flex items-center gap-3 px-2 py-2 rounded-md border transition-all",
-                    "bg-background hover:bg-muted/50 cursor-grab active:cursor-grabbing",
-                    isDragging && "opacity-50 border-dashed",
-                    isDragOver && "border-primary bg-primary/5",
-                    !isDragging && !isDragOver && "border-transparent"
+                    "flex cursor-grab items-center gap-3 rounded-md border px-2 py-1.5 transition-colors duration-fast active:cursor-grabbing",
+                    "hover:bg-accent",
+                    isDragging && "border-dashed opacity-50",
+                    isDragOver && "border-signal bg-signal-soft",
+                    !isDragging && !isDragOver && "border-transparent",
                   )}
                 >
-                  <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  
-                  <span className={cn(
-                    "flex-1 text-sm",
-                    !isVisible && "text-muted-foreground"
-                  )}>
-                    {def?.label || columnId}
+                  <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
+
+                  <span className={cn("flex-1 text-[13px]", !isVisible && "text-muted-foreground")}>
+                    {columnId === "play" ? "Number, play and edit" : columnId === "cover" ? "Cover" : def?.label || columnId}
                   </span>
-                  
+
                   <Switch
                     checked={isVisible}
                     onCheckedChange={() => toggleVisibility(columnId)}
+                    aria-label={`Show ${def?.label || columnId}`}
                     className="flex-shrink-0"
                   />
                 </div>
@@ -127,6 +113,15 @@ export function ColumnSettingsDialog({
             })}
           </div>
         </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" size="sm" onClick={resetToDefaults} className="text-muted-foreground">
+            <RotateCcw />
+            Reset to default
+          </Button>
+          <Button size="sm" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

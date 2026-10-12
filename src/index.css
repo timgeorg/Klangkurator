@@ -1,98 +1,11 @@
+/* Klangkurator: the design system lives in /design-system (fonts, tokens, base). */
+@import "../design-system/fonts/fonts.css";
+@import "../design-system/tokens/tokens.css";
+@import "../design-system/css/base.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
-@layer base {
-  :root {
-    /* Professional DJ Dark Theme - Lexicon Style */
-    --background: 218 15% 7%;
-    --foreground: 220 8% 92%;
-
-    --card: 218 12% 9%;
-    --card-foreground: 220 8% 92%;
-
-    --popover: 218 12% 11%;
-    --popover-foreground: 220 8% 92%;
-
-    /* Primary - Orange/Red accents like Lexicon */
-    --primary: 14 100% 57%;
-    --primary-foreground: 218 15% 7%;
-    --primary-glow: 14 100% 67%;
-
-    /* Secondary - Muted orange */
-    --secondary: 25 95% 53%;
-    --secondary-foreground: 218 15% 7%;
-
-    /* Muted tones for subtle elements */
-    --muted: 218 12% 12%;
-    --muted-foreground: 220 8% 60%;
-
-    /* Accent - Bright orange for waveforms */
-    --accent: 20 100% 60%;
-    --accent-foreground: 218 15% 7%;
-
-    /* Energy colors - Red/Orange spectrum */
-    --energy-low: 120 50% 45%;
-    --energy-medium: 38 95% 58%;
-    --energy-high: 14 100% 57%;
-
-    /* BPM color coding - Blue spectrum */
-    --bpm-slow: 240 80% 60%;
-    --bpm-medium: 220 90% 65%;
-    --bpm-fast: 200 95% 70%;
-
-    /* Key colors - Purple spectrum */
-    --key-major: 280 70% 65%;
-    --key-minor: 260 80% 70%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 220 8% 95%;
-
-    --border: 218 12% 15%;
-    --input: 218 12% 11%;
-    --ring: 14 100% 57%;
-
-    --radius: 0.25rem;
-
-    /* Table specific colors */
-    --table-header: 218 15% 8%;
-    --table-row: 218 12% 9%;
-    --table-row-hover: 218 12% 11%;
-    --table-border: 218 12% 13%;
-    
-    /* Waveform colors */
-    --waveform-primary: 14 100% 57%;
-    --waveform-secondary: 25 95% 53%;
-    --waveform-background: 218 12% 5%;
-
-    /* Sidebar styling for DJ interface */
-    --sidebar-background: 218 18% 5%;
-    --sidebar-foreground: 220 8% 80%;
-    --sidebar-primary: 14 100% 57%;
-    --sidebar-primary-foreground: 218 15% 7%;
-    --sidebar-accent: 218 12% 8%;
-    --sidebar-accent-foreground: 220 8% 90%;
-    --sidebar-border: 218 12% 10%;
-    --sidebar-ring: 14 100% 57%;
-
-    /* Professional DJ gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --gradient-waveform: linear-gradient(180deg, hsl(var(--waveform-primary)), hsl(var(--waveform-secondary)));
-    --gradient-table-row: linear-gradient(90deg, hsl(var(--table-row)), hsl(218 12% 10%));
-
-    /* Professional shadows */
-    --shadow-glow: 0 0 15px hsl(var(--primary) / 0.2);
-    --shadow-row: 0 1px 3px hsl(218 15% 3% / 0.3);
-
-    /* Animations */
-    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-}
 
 @layer base {
   * {
@@ -101,5 +14,48 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* App shell: rail (fixed, from the sidebar primitive) + this grid.
+ * The player sits in its own area: a bottom row by default, a right column
+ * on wide screens when docked as a panel (data-player="panel"). */
+@layer components {
+  .k-shell {
+    display: grid;
+    flex: 1 1 0%;
+    min-width: 0;
+    height: 100svh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "top" "main" "player";
+  }
+
+  .k-shell-top {
+    grid-area: top;
+  }
+
+  .k-shell-main {
+    grid-area: main;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .k-shell-player {
+    grid-area: player;
+    height: var(--space-player-bar);
+  }
+
+  @media (min-width: 1280px) {
+    .k-shell[data-player="panel"] {
+      grid-template-columns: minmax(0, 1fr) var(--space-player);
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas: "top top" "main player";
+    }
+
+    .k-shell[data-player="panel"] .k-shell-player {
+      height: auto;
+      min-height: 0;
+    }
   }
 }

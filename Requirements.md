@@ -172,9 +172,8 @@ Standard playlists with ordered song positions; smart-playlist scaffolding (`is_
 
 ## 13. Design System
 
-- Dark professional DJ theme; electric blue/purple originally, then refocused to **Lexicon-style dark + orange/red accents**.
-- Compact, data-dense table aesthetic.
-- Color-coded BPM badges, key indicators, energy/dance/social rating dots.
+- History: dark professional DJ theme, electric blue/purple at first, then Lexicon-style dark with orange/red accents.
+- **Since 2026-10-08:** the editorial design system in `design-system/` (ink and paper themes, signal orange for "this one", black-and-white covers, geometric shapes, Inter / Literata / Geist Mono). Details: `docs/requirements/02_SYSTEM_CONTEXT.md` and `design-system/README.md`.
 
 ---
 

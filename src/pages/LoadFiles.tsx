@@ -1,18 +1,18 @@
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { toast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, FolderOpen, Loader2, RefreshCw, ScanLine } from "lucide-react";
+
 import { FolderBrowserDialog } from "@/components/dj/FolderBrowserDialog";
-import {
-  FolderOpen, Music, Folder, ScanLine, XCircle,
-  ChevronDown, RefreshCw, Loader2,
-} from "lucide-react";
+import { ShapeCluster } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageSection } from "@/components/layout/PageSection";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
+import { api, apiStatus, describeApiError } from "@/lib/api";
 
 interface ScanResult {
   total: number;
@@ -49,8 +49,9 @@ interface AnalyzeAllResponse {
 }
 
 const describeAnalysisResult = (r: AnalysisSummary): string =>
-  `Analyzed ${r.analyzed} tracks, updated ${r.updated} with BPM/key.` +
-  (r.skipped > 0 ? ` Skipped ${r.skipped}.` : "");
+  `Analyzed ${r.analyzed} tracks, updated ${r.updated} with BPM/key.` + (r.skipped > 0 ? ` Skipped ${r.skipped}.` : "");
+
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function LoadFiles() {
   const [scanning, setScanning] = useState(false);
@@ -59,15 +60,31 @@ export default function LoadFiles() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisSummary | null>(null);
   const [crates, setCrates] = useState<Crate[]>([]);
   const [currentRoot, setCurrentRoot] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [loadError, setLoadError] = useState("");
   const [browserOpen, setBrowserOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [manualPath, setManualPath] = useState("");
-  const advancedRef = useRef<HTMLInputElement | null>(null);
+  const [manualError, setManualError] = useState("");
 
-  // Load current root folder and crates on mount
+  const loadCurrentState = useCallback(async () => {
+    try {
+      const [rootRes, cratesRes] = await Promise.all([
+        api.get<{ root_path: string | null }>("/library/root"),
+        api.get<Crate[]>("/library/crates"),
+      ]);
+      setCurrentRoot(rootRes.root_path);
+      setCrates(cratesRes);
+      setStatus("ready");
+    } catch (error) {
+      setLoadError(describeApiError(error));
+      setStatus("error");
+    }
+  }, []);
+
   useEffect(() => {
     loadCurrentState();
-  }, []);
+  }, [loadCurrentState]);
 
   // Poll analysis status every 500ms while a job is running. The interval
   // is cleaned up when `analysis` is cleared or the component unmounts;
@@ -90,12 +107,7 @@ export default function LoadFiles() {
         if (status.running) {
           // `done` may briefly repeat between polls (backend fires the
           // callback pre+post track) — harmless, the bar just pauses.
-          setAnalysis({
-            running: true,
-            done: status.done,
-            total: status.total,
-            currentTitle: status.current_title,
-          });
+          setAnalysis({ running: true, done: status.done, total: status.total, currentTitle: status.current_title });
         } else if (status.error) {
           setAnalysis(null);
           toast({ title: "Analysis failed", description: status.error, variant: "destructive" });
@@ -120,20 +132,7 @@ export default function LoadFiles() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [analysis?.running]);
-
-  const loadCurrentState = async () => {
-    try {
-      const [rootRes, cratesRes] = await Promise.all([
-        api.get<{ root_path: string | null }>("/library/root"),
-        api.get<Crate[]>("/library/crates"),
-      ]);
-      setCurrentRoot(rootRes.root_path);
-      setCrates(cratesRes);
-    } catch {
-      // Backend not reachable — show as is
-    }
-  };
+  }, [analysis?.running, loadCurrentState]);
 
   const scanRoot = async (root: string) => {
     setScanning(true);
@@ -141,95 +140,64 @@ export default function LoadFiles() {
     try {
       const result = await api.post<ScanResult>("/library/scan", { root_path: root });
       setScanResult(result);
-      toast({
-        title: "Scan complete",
-        description: `Found ${result.total} files, added ${result.added} tracks.`,
-      });
-    } catch (e: any) {
-      toast({
-        title: "Scan failed",
-        description: e.message || "Failed to scan folder.",
-        variant: "destructive",
-      });
+      toast({ title: "Scan complete", description: `Found ${result.total} files, added ${result.added} tracks.` });
+    } catch (error) {
+      toast({ title: "Scan failed", description: describeApiError(error), variant: "destructive" });
     } finally {
       setScanning(false);
       loadCurrentState();
     }
   };
 
-  /**
-   * Pick a folder (native OS dialog), set it as root, and scan it —
-   * one action. Works in desktop mode (PyWebView dialog) and browser
-   * mode against a local backend (GTK portal dialog).
-   */
-  const handlePickFolder = async () => {
-    // Desktop first: real native dialog.
-    try {
-      const result = await api.post<{ path: string | null }>("/library/pick-folder");
-      if (result.path) {
-        setCurrentRoot(result.path);
-        await scanRoot(result.path);
-        return;
-      }
-      return; // user cancelled the native dialog
-    } catch {
-      // Not in desktop mode — fall through to the in-app browser dialog.
-    }
-
-    setBrowserOpen(true);
-  };
-
-  const handleBrowserSelect = async (path: string) => {
+  /** Save a folder as the music folder, then scan it. */
+  const adoptFolder = async (path: string) => {
     try {
       await api.put("/library/root", { root_path: path });
       setCurrentRoot(path);
       await scanRoot(path);
-    } catch (e: any) {
-      toast({
-        title: "Could not use folder",
-        description: e.message || "Failed to set root folder.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      toast({ title: "That folder can't be used", description: describeApiError(error), variant: "destructive" });
     }
+  };
+
+  /**
+   * Pick a folder and scan it, in one action. The desktop app opens the
+   * system's folder dialog; in a browser tab the in-app folder browser opens.
+   */
+  const handlePickFolder = async () => {
+    try {
+      const result = await api.post<{ path: string | null }>("/library/pick-folder");
+      if (result.path) await adoptFolder(result.path);
+      return; // a null path means the dialog was cancelled
+    } catch {
+      // Not in desktop mode — fall through to the in-app browser dialog.
+    }
+    setBrowserOpen(true);
   };
 
   const handleRescan = async () => {
-    if (!currentRoot) return;
-    await scanRoot(currentRoot);
+    if (currentRoot) await scanRoot(currentRoot);
   };
 
   // Manual path entry — fallback only (headless/SSH setups).
-  const handleManualSave = async () => {
-    const p = manualPath.trim();
-    if (!p) return;
-    try {
-      await api.put("/library/root", { root_path: p });
-      setCurrentRoot(p);
-      setManualPath("");
-      toast({ title: "Root folder saved" });
-    } catch (e: any) {
-      toast({
-        title: "Invalid path",
-        description: e.message || "Could not save root folder.",
-        variant: "destructive",
-      });
+  const saveManualPath = async (scan: boolean) => {
+    const path = manualPath.trim();
+    if (!path) {
+      setManualError("Type the full path of the folder, e.g. /home/you/Music.");
+      return;
     }
-  };
-
-  const handleManualSaveAndScan = async () => {
-    const p = manualPath.trim();
-    if (!p) return;
     try {
-      await api.put("/library/root", { root_path: p });
-      setCurrentRoot(p);
+      await api.put("/library/root", { root_path: path });
+      setCurrentRoot(path);
       setManualPath("");
-      await scanRoot(p);
-    } catch (e: any) {
-      toast({
-        title: "Invalid path",
-        description: e.message || "Could not save root folder.",
-        variant: "destructive",
-      });
+      setManualError("");
+      if (scan) await scanRoot(path);
+      else {
+        toast({ title: "Music folder saved" });
+        loadCurrentState();
+      }
+    } catch (error) {
+      setManualError(describeApiError(error));
     }
   };
 
@@ -254,12 +222,11 @@ export default function LoadFiles() {
       };
       setAnalysisResult(summary);
       toast({ title: "Analysis complete", description: describeAnalysisResult(summary) });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("409")) {
-        toast({ title: "Analysis already running", variant: "destructive" });
+    } catch (error) {
+      if (apiStatus(error) === 409) {
+        toast({ title: "Analysis is already running", variant: "destructive" });
       } else {
-        toast({ title: "Analysis failed", description: msg, variant: "destructive" });
+        toast({ title: "Analysis failed", description: describeApiError(error), variant: "destructive" });
       }
     }
   };
@@ -267,216 +234,233 @@ export default function LoadFiles() {
   const analysisRunning = analysis?.running ?? false;
   // Busy covers scan + analysis so folder-pick/rescan can't run mid-analysis.
   const busy = scanning || analysisRunning;
+  const trackTotal = crates.reduce((sum, crate) => sum + crate.track_count, 0);
+
+  const advanced = (
+    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+      <CollapsibleTrigger className="group inline-flex items-center gap-1.5 rounded-sm text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <ChevronDown className="h-3.5 w-3.5 transition-transform duration-fast group-data-[state=open]:rotate-180" />
+        Set the folder by typing its path
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-4">
+        <div className="max-w-xl space-y-2">
+          <Label htmlFor="manual-path">Folder path</Label>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              id="manual-path"
+              placeholder="/home/you/Music"
+              value={manualPath}
+              onChange={(e) => {
+                setManualPath(e.target.value);
+                if (manualError) setManualError("");
+              }}
+              onKeyDown={(e) => e.key === "Enter" && saveManualPath(true)}
+              aria-invalid={!!manualError}
+              aria-describedby="manual-path-help"
+              className="k-num min-w-[14rem] flex-1 text-[13px]"
+            />
+            <Button variant="outline" onClick={() => saveManualPath(true)} disabled={busy}>
+              Save and scan
+            </Button>
+            <Button variant="ghost" onClick={() => saveManualPath(false)} disabled={busy}>
+              Save only
+            </Button>
+          </div>
+          <p id="manual-path-help" className={manualError ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+            {manualError || "For machines without a desktop, e.g. over SSH. On a desktop, the folder picker is quicker."}
+          </p>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h2 className="text-2xl font-bold text-orange-500 mb-1">Load Files</h2>
-        <p className="text-sm text-muted-foreground">
-          Pick your music root folder — it is scanned and imported automatically.
-        </p>
-      </div>
+    <div className="min-h-full">
+      <PageHeader
+        title="Import"
+        meta={status === "ready" && currentRoot ? `${count(trackTotal, "track")} · ${count(crates.length, "crate")}` : undefined}
+        actions={
+          status === "ready" && currentRoot ? (
+            <Button variant="outline" onClick={handleRescan} disabled={busy}>
+              {scanning ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {scanning ? "Scanning…" : "Re-scan"}
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {/* Root folder section */}
-      <Card className="bg-card/50 border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Folder className="h-4 w-4" />
-            Root Folder
-          </CardTitle>
-          <CardDescription>
-            The top-level folder containing all your music crates. All folders
-            and audio files inside it are loaded.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {currentRoot ? (
-            <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <FolderOpen className="h-4 w-4 shrink-0 text-orange-500" />
-                <code className="truncate text-xs bg-muted px-1.5 py-0.5 rounded" title={currentRoot}>
-                  {currentRoot}
-                </code>
+      {status === "loading" ? (
+        <div role="status" aria-label="Loading" className="max-w-4xl space-y-4 px-5 py-8 md:px-8">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-11 w-full max-w-xl" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+      ) : status === "error" ? (
+        <div className="k-grain px-5 py-14 md:px-8">
+          <h2 className="k-display-sm">Import isn't available.</h2>
+          <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+            Klangkurator couldn't reach its backend: {loadError}. Check that the app is running (./run.sh status), then try
+            again.
+          </p>
+          <Button className="mt-7" onClick={() => loadCurrentState()}>
+            Try again
+          </Button>
+        </div>
+      ) : !currentRoot ? (
+        <>
+          <section aria-labelledby="start-heading" className="k-grain border-b border-border px-5 py-12 md:px-8 md:py-16">
+            <div className="grid max-w-5xl items-center gap-12 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="max-w-xl">
+                <h2 id="start-heading" className="k-display-sm md:text-display">
+                  Start with your music folder.
+                </h2>
+                <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
+                  Klangkurator reads one folder on this computer and everything inside it. Each subfolder becomes a crate.
+                  Your files stay where they are.
+                </p>
+                <Button size="lg" className="mt-8" onClick={handlePickFolder} disabled={busy}>
+                  {scanning ? <Loader2 className="animate-spin" /> : <FolderOpen />}
+                  {scanning ? "Scanning…" : "Choose folder & scan"}
+                </Button>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  The desktop app opens your system's folder dialog; in a browser tab a folder browser opens.
+                </p>
               </div>
-              <Button
-                size="sm" variant="ghost" className="h-7 shrink-0"
-                disabled={busy}
-                onClick={handleRescan}
-                title="Re-scan this folder (only adds new files)"
-              >
-                {scanning ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                )}
-                Re-scan
+              <ShapeCluster arrangement="orbit" className="hidden h-44 w-44 md:block" />
+            </div>
+          </section>
+
+          <ol aria-label="How importing works" className="grid max-w-5xl gap-x-10 gap-y-6 px-5 py-10 md:grid-cols-3 md:px-8">
+            {[
+              ["Choose the folder", "The top folder that holds all your music, with a subfolder per crate."],
+              ["Scan", "Every audio file inside is added with its tags and cover art. A re-scan only adds new files."],
+              ["Analyze", "Fill in missing BPM and key from the audio itself, about 3–5 seconds per track."],
+            ].map(([title, body], i) => (
+              <li key={title} className="border-t border-border pt-4">
+                <h3 className="flex items-baseline gap-2.5 text-[15px] font-semibold">
+                  <span className="k-num text-xs font-normal text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                  {title}
+                </h3>
+                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{body}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="px-5 pb-16 md:px-8">{advanced}</div>
+        </>
+      ) : (
+        <div className="max-w-5xl px-5 pb-20 md:px-8">
+          <PageSection
+            id="folder"
+            title="Music folder"
+            description="Klangkurator reads this folder and everything inside it. Each subfolder is a crate."
+          >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-4 py-3">
+              <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <code className="k-num min-w-0 flex-1 truncate text-[13px]" title={currentRoot}>
+                {currentRoot}
+              </code>
+              <Button variant="ghost" size="sm" onClick={handlePickFolder} disabled={busy}>
+                Change folder
               </Button>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">No root folder set yet.</p>
-          )}
+            <p className="mt-2.5 text-xs text-muted-foreground">
+              Re-scan adds new files. Tracks already in the library keep their notes and tags.
+            </p>
+            {scanResult && <ScanSummary result={scanResult} />}
+          </PageSection>
 
-          <Button
-            onClick={handlePickFolder}
-            disabled={busy}
-            className="w-full bg-orange-600 hover:bg-orange-700"
-            size="lg"
+          <PageSection
+            id="analysis"
+            title="BPM and key"
+            description="Detects BPM and key from the audio for tracks that are missing them, about 3–5 seconds per track."
           >
-            {scanning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Scanning…
-              </>
-            ) : (
-              <>
-                <FolderOpen className="h-4 w-4 mr-2" />
-                Choose folder & scan
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Opens your operating system's folder picker. Selecting a folder sets
-            it as root and scans it immediately — including all subfolders.
-          </p>
-
-          {scanResult && (
-            <div className="space-y-3 pt-1">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center p-3 bg-muted/30 rounded">
-                  <div className="text-2xl font-bold text-orange-500">{scanResult.total}</div>
-                  <div className="text-xs text-muted-foreground">Found</div>
-                </div>
-                <div className="text-center p-3 bg-muted/30 rounded">
-                  <div className="text-2xl font-bold text-green-500">{scanResult.added}</div>
-                  <div className="text-xs text-muted-foreground">Added</div>
-                </div>
-                <div className="text-center p-3 bg-muted/30 rounded">
-                  <div className="text-2xl font-bold text-muted-foreground">{scanResult.skipped}</div>
-                  <div className="text-xs text-muted-foreground">Skipped</div>
-                </div>
-              </div>
-
-              {scanResult.errors.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-red-400 font-medium">Errors:</p>
-                  {scanResult.errors.map((err, i) => (
-                    <p key={i} className="text-xs text-red-400/80 flex items-start gap-1">
-                      <XCircle className="h-3 w-3 mt-0.5 shrink-0" /> {err}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Maintenance section — only relevant once a root exists */}
-      {currentRoot && crates.length > 0 && (
-        <Card className="bg-card/50 border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <ScanLine className="h-4 w-4" />
-              Audio Analysis
-            </CardTitle>
-            <CardDescription>
-              Fill in missing BPM and key for imported tracks.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              onClick={handleAnalyzeAll}
-              disabled={busy || analysisRunning}
-              variant="outline"
-              className="w-full"
-            >
-              {analysisRunning ? "Analyzing…" : "Analyze BPM/Key"}
+            <Button variant="outline" onClick={handleAnalyzeAll} disabled={busy}>
+              {analysisRunning ? <Loader2 className="animate-spin" /> : <ScanLine />}
+              {analysisRunning ? "Analyzing…" : "Analyze BPM and key"}
             </Button>
-
-            {analysisRunning && (
-              <div className="space-y-1.5">
+            {analysisRunning && analysis && (
+              <div className="mt-4 max-w-xl space-y-2">
                 <Progress
-                  value={analysis && analysis.total > 0 ? (analysis.done / analysis.total) * 100 : 0}
-                  className="h-2"
+                  value={analysis.total > 0 ? (analysis.done / analysis.total) * 100 : 0}
+                  aria-label="BPM and key analysis"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Analyzing ({analysis?.done ?? 0}/{analysis?.total ?? 0})…
-                  {analysis?.currentTitle && (
-                    <span className="block truncate" title={analysis.currentTitle}>
+                <p className="flex min-w-0 gap-2 text-xs text-muted-foreground">
+                  <span className="k-num shrink-0">
+                    {analysis.done} / {analysis.total}
+                  </span>
+                  {analysis.currentTitle && (
+                    <span className="truncate" title={analysis.currentTitle}>
                       {analysis.currentTitle}
                     </span>
                   )}
                 </p>
               </div>
             )}
-
             {analysisResult && !analysisRunning && (
-              <p className="text-xs text-muted-foreground">
-                Last run: {analysisResult.analyzed} analyzed, {analysisResult.updated} updated
-                {analysisResult.skipped > 0 ? `, ${analysisResult.skipped} skipped` : ""}.
+              <p className="mt-3 text-[13px] text-muted-foreground">
+                Last run: <span className="k-num text-foreground">{analysisResult.analyzed}</span> analyzed,{" "}
+                <span className="k-num text-foreground">{analysisResult.updated}</span> updated
+                {analysisResult.skipped > 0 && (
+                  <>
+                    , <span className="k-num text-foreground">{analysisResult.skipped}</span> skipped
+                  </>
+                )}
+                .
               </p>
             )}
+          </PageSection>
 
-            <p className="text-xs text-muted-foreground">
-              Runs librosa audio analysis to detect BPM and key for tracks missing them (~3-5s per track).
-            </p>
-          </CardContent>
-        </Card>
+          <PageSection id="crates" title="Crates" description="The subfolders of the music folder, with their track counts.">
+            {crates.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground">No tracks yet. Scan the folder to fill your crates.</p>
+            ) : (
+              <ul className="max-w-xl divide-y divide-border border-y border-border">
+                {crates.map((crate) => (
+                  <li key={crate.name} className="flex h-10 items-center justify-between gap-4 text-[13px]">
+                    <span className="truncate">{crate.name}</span>
+                    <span className="k-num shrink-0 text-xs text-muted-foreground">{crate.track_count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PageSection>
+
+          <PageSection id="advanced" title="Advanced">
+            {advanced}
+          </PageSection>
+        </div>
       )}
 
-      {/* Crates section */}
-      {crates.length > 0 && (
-        <Card className="bg-card/50 border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Crates</CardTitle>
-            <CardDescription>Your music folders detected in the library.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {crates.map((c) => (
-                <Badge key={c.name} variant="secondary" className="bg-orange-900/30 text-orange-300 border-orange-800">
-                  <Music className="h-3 w-3 mr-1" />
-                  {c.name} ({c.track_count})
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <FolderBrowserDialog open={browserOpen} onOpenChange={setBrowserOpen} onSelect={adoptFolder} />
+    </div>
+  );
+}
+
+function ScanSummary({ result }: { result: ScanResult }) {
+  const shownErrors = result.errors.slice(0, 5);
+  return (
+    <div role="status" className="mt-5 text-[13px]">
+      <p>
+        Scan finished: <span className="k-num">{result.added}</span> added,{" "}
+        <span className="k-num">{result.skipped}</span> already in the library
+        {result.errors.length > 0 && (
+          <>
+            , <span className="k-num text-destructive">{result.errors.length}</span> could not be read
+          </>
+        )}
+        . <span className="text-muted-foreground">{count(result.total, "audio file")} found.</span>
+      </p>
+      {shownErrors.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+          {shownErrors.map((error, i) => (
+            <li key={i} className="k-num break-all">
+              {error}
+            </li>
+          ))}
+          {result.errors.length > shownErrors.length && <li>and {result.errors.length - shownErrors.length} more</li>}
+        </ul>
       )}
-
-      <Separator />
-
-      {/* Manual path entry — fallback only */}
-      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="w-full">
-        <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-          Advanced — set root folder by path (headless setups)
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-3">
-          <div className="flex gap-2">
-            <Input
-              ref={advancedRef}
-              placeholder="/home/tim/Music"
-              value={manualPath}
-              onChange={(e) => setManualPath(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleManualSaveAndScan()}
-              className="flex-1"
-            />
-            <Button variant="secondary" onClick={handleManualSave}>Save</Button>
-            <Button variant="outline" onClick={handleManualSaveAndScan}>Save & scan</Button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            For machines without a GUI (SSH). On a desktop, use the folder
-            picker above.
-          </p>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <FolderBrowserDialog
-        open={browserOpen}
-        onOpenChange={setBrowserOpen}
-        onSelect={handleBrowserSelect}
-      />
     </div>
   );
 }

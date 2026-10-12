@@ -1,3 +1,5 @@
+import { FALLBACK_COLOR } from './palette';
+
 // Main genres with their subgenres and colors
 
 export interface GenreConfig {
@@ -10,67 +12,67 @@ export interface GenreConfig {
 export const DEFAULT_GENRES: GenreConfig[] = [
   {
     name: 'House',
-    color: '#22c55e',
+    color: '#4E9A2A',
     subgenres: ['Deep House', 'Tech House', 'Progressive House', 'Afro House', 'Melodic House', 'Minimal House', 'Organic House', 'Funky House', 'Soulful House', 'Jackin House', 'Bass House', 'Electro House', 'Future House', 'Groove']
   },
   {
     name: 'Techno',
-    color: '#8b5cf6',
+    color: '#6B5BD6',
     subgenres: ['Melodic Techno', 'Hard Techno', 'Industrial Techno', 'Minimal Techno', 'Acid Techno', 'Peak Time Techno', 'Hypnotic Techno', 'Bouncy', 'Schranz', 'Driving Techno', 'Atmospheric Techno', 'Raw Techno']
   },
   {
     name: 'Trance',
-    color: '#3b82f6',
+    color: '#2F6BD8',
     subgenres: ['Progressive Trance', 'Uplifting Trance', 'Psytrance', 'Tech Trance', 'Vocal Trance', 'Hard Trance', 'Goa Trance', 'Balearic Trance']
   },
   {
     name: 'Drum & Bass',
-    color: '#d946ef',
+    color: '#7B3F8C',
     subgenres: ['Liquid DnB', 'Neurofunk', 'Jump Up', 'Jungle', 'Rollers', 'Dancefloor DnB', 'Minimal DnB', 'Half Time']
   },
   {
     name: 'EDM',
-    color: '#f97316',
+    color: '#E0607E',
     subgenres: ['Big Room', 'Future Bass', 'Trap', 'Dubstep', 'Riddim', 'Hardstyle', 'Future Rave', 'Slap House', 'Brazilian Bass']
   },
   {
     name: 'Disco',
-    color: '#eab308',
+    color: '#C9A227',
     subgenres: ['Nu-Disco', 'Italo Disco', 'Cosmic Disco', 'Space Disco', 'French Touch', 'Boogie', 'Indie Dance']
   },
   {
     name: 'Breaks',
-    color: '#84cc16',
+    color: '#8A9A3B',
     subgenres: ['Breakbeat', 'UK Breaks', 'Progressive Breaks', 'Nu Skool Breaks', 'Big Beat', 'Electro Breaks']
   },
   {
     name: 'Electro',
-    color: '#a855f7',
+    color: '#B4A7F2',
     subgenres: ['Electro House', 'Electro Clash', 'Miami Bass', 'Ghetto Tech', 'Electro Funk']
   },
   {
     name: 'Ambient',
-    color: '#06b6d4',
+    color: '#1E8C8C',
     subgenres: ['Dark Ambient', 'Drone', 'Space Ambient', 'Downtempo', 'Chillout', 'Organic Ambient']
   },
   {
     name: 'Hip Hop',
-    color: '#ef4444',
+    color: '#C8102E',
     subgenres: ['Trap', 'Boom Bap', 'Lo-Fi Hip Hop', 'UK Hip Hop', 'Phonk', 'Cloud Rap']
   },
   {
     name: 'R&B',
-    color: '#f43f5e',
+    color: '#B3684A',
     subgenres: ['Contemporary R&B', 'Neo Soul', 'Alternative R&B', 'UK R&B']
   },
   {
     name: 'Pop',
-    color: '#f472b6',
+    color: '#6FA8DC',
     subgenres: ['Dance Pop', 'Synth Pop', 'Electro Pop', 'Indie Pop', 'K-Pop', 'Future Pop']
   },
   {
     name: 'Other',
-    color: '#6b7280',
+    color: '#6D7480',
     subgenres: ['Experimental', 'World Music', 'Latin', 'Afrobeats', 'Reggaeton', 'Moombahton']
   }
 ];
@@ -111,7 +113,7 @@ export function getSubgenresForMainGenre(mainGenre: string): string[] {
 export function getMainGenreColor(mainGenre: string): string {
   const config = getGenreConfig();
   const genre = config.find(g => g.name === mainGenre);
-  return genre?.color || '#6366f1';
+  return genre?.color || FALLBACK_COLOR;
 }
 
 // Get all subgenres across all main genres

@@ -15,31 +15,34 @@ export interface ColumnDef {
 
 // All available columns with their configuration
 export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
-  play: { id: 'play', label: 'Play/Edit', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: false, sortable: false },
-  cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 48, resizable: true, filterable: false, sortable: false },
-  preview: { id: 'preview', label: 'Preview', minWidth: 60, maxWidth: 200, defaultWidth: 80, resizable: true, filterable: false, sortable: false },
-  title: { id: 'title', label: 'Title', minWidth: 100, maxWidth: 400, defaultWidth: 200, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 150, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  play: { id: 'play', label: '#', minWidth: 52, maxWidth: 100, defaultWidth: 52, resizable: true, filterable: false, sortable: false },
+  cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 40, resizable: true, filterable: false, sortable: false },
+  preview: { id: 'preview', label: 'Waveform', minWidth: 64, maxWidth: 240, defaultWidth: 72, resizable: true, filterable: false, sortable: false },
+  title: { id: 'title', label: 'Title', minWidth: 120, maxWidth: 480, defaultWidth: 216, resizable: true, filterable: true, sortable: true, filterType: 'text' },
+  artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 112, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  rootFolder: { id: 'rootFolder', label: 'Root Folder', minWidth: 80, maxWidth: 250, defaultWidth: 100, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
-  bpm: { id: 'bpm', label: 'BPM', minWidth: 55, maxWidth: 120, defaultWidth: 55, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  key: { id: 'key', label: 'Key', minWidth: 50, maxWidth: 100, defaultWidth: 50, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
-  genre: { id: 'genre', label: 'Main Genre', minWidth: 80, maxWidth: 200, defaultWidth: 100, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
+  rootFolder: { id: 'rootFolder', label: 'Crate', minWidth: 80, maxWidth: 260, defaultWidth: 140, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
+  bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  key: { id: 'key', label: 'Key', minWidth: 56, maxWidth: 100, defaultWidth: 56, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
+  genre: { id: 'genre', label: 'Genre', minWidth: 80, maxWidth: 220, defaultWidth: 96, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   subgenres: { id: 'subgenres', label: 'Subgenres', minWidth: 100, maxWidth: 300, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
-  energy: { id: 'energy', label: 'Energy', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  danceability: { id: 'danceability', label: 'Dance', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  social: { id: 'social', label: 'Social', minWidth: 70, maxWidth: 120, defaultWidth: 70, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  duration: { id: 'duration', label: 'Duration', minWidth: 65, maxWidth: 120, defaultWidth: 65, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  energy: { id: 'energy', label: 'Energy', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  danceability: { id: 'danceability', label: 'Dance', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  social: { id: 'social', label: 'Social', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  duration: { id: 'duration', label: 'Time', minWidth: 64, maxWidth: 120, defaultWidth: 64, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   lyrics: { id: 'lyrics', label: 'Lyrics', minWidth: 80, maxWidth: 300, defaultWidth: 100, resizable: true, filterable: false, sortable: false },
   notes: { id: 'notes', label: 'Notes', minWidth: 100, maxWidth: 500, defaultWidth: 200, resizable: true, filterable: false, sortable: false },
 };
 
-// Default column order
+// Default column order: what a DJ scans first (title, artist, genre, BPM, key)
+// leads; saved layouts keep their own order. The default widths of the first
+// nine columns (through Time) add up to fit the 872px main area at 1440px
+// with the player panel docked.
 const DEFAULT_COLUMN_ORDER = [
-  'play', 'cover', 'preview', 'title', 'artist', 'album', 'rootFolder', 'bpm', 'key', 
-  'genre', 'subgenres', 'energy', 'danceability', 'social',
-  'duration', 'tags', 'lyrics', 'notes'
+  'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
+  'subgenres', 'energy', 'danceability', 'social', 'album', 'rootFolder',
+  'tags', 'lyrics', 'notes'
 ];
 
 // Default visibility (all visible)
@@ -56,6 +59,8 @@ export interface ColumnConfig {
   order: string[];
   visibility: Record<string, boolean>;
   widths: Record<string, number>;
+  /** Columns the user resized by hand; auto-sizing (Tags) leaves them alone. */
+  sized?: string[];
 }
 
 // PF-15: the whole column config persists as one JSON blob under a single key
@@ -77,7 +82,7 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
     const parsed: unknown = JSON.parse(raw);
     if (!isPlainObject(parsed)) return null;
 
-    const { order, visibility, widths } = parsed;
+    const { order, visibility, widths, sized } = parsed;
     if (!isValidColumnOrder(order) || !isPlainObject(visibility) || !isPlainObject(widths)) {
       return null;
     }
@@ -97,6 +102,7 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
       order: migratedOrder,
       visibility: { ...vis, cover: vis.cover ?? true },
       widths: { ...wid, cover: wid.cover ?? 48 },
+      sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
     };
   } catch {
     return null;
@@ -113,7 +119,11 @@ export function useColumnConfig() {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
     () => loadPersistedColumnConfig()?.widths ?? DEFAULT_WIDTHS
   );
-  const [userResized, setUserResized] = useState<Record<string, boolean>>({});
+  // Persisted with the layout, so a hand-sized Tags column survives a reload
+  // instead of being auto-sized again.
+  const [userResized, setUserResized] = useState<Record<string, boolean>>(
+    () => Object.fromEntries((loadPersistedColumnConfig()?.sized ?? []).map(id => [id, true]))
+  );
 
   // Persistence bookkeeping: last written blob (dedupe) + skip flag for resets
   const lastSavedBlob = useRef<string | null>(null);
@@ -129,6 +139,7 @@ export function useColumnConfig() {
       order: columnOrder,
       visibility: columnVisibility,
       widths: columnWidths,
+      sized: Object.keys(userResized).filter(id => userResized[id]),
     });
     if (blob === lastSavedBlob.current) return;
     try {
@@ -137,7 +148,7 @@ export function useColumnConfig() {
     } catch {
       // Quota/serialization errors: keep in-memory state, skip persistence
     }
-  }, [columnOrder, columnVisibility, columnWidths]);
+  }, [columnOrder, columnVisibility, columnWidths, userResized]);
 
   // Get visible columns in order
   const visibleColumns = useMemo(() => {

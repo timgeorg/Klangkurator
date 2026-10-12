@@ -78,5 +78,11 @@ Source: Requirements.md sections 2.3, 3, 5, 7
   are deleted too (cascade)
 - `root_folder` is derived from `file_path` at import time and stored denormalized
   for fast filtering (not re-derived on every query)
-- Legacy `genre` and `genres` fields are kept for backward compatibility but
-  not edited — new edits write to `mainGenre` and `subgenres`
+- Legacy `genre` and `genres` fields are kept for backward compatibility; the
+  edit dialog mirrors them from `mainGenre` and `subgenres` on save (and
+  clears them with the main genre), so older readers stay consistent
+- Song updates (`PUT /api/songs/{id}`) are partial: a field left out is not
+  touched; an explicit `null` clears an optional field (album, BPM, key,
+  genre, year, notes, lyrics, …); required fields (title, artist, file path)
+  and list fields ignore `null` (since 2026-10-08; before, every `null` was
+  dropped, so an emptied field could never be cleared)

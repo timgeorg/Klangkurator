@@ -1,79 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { storage, Tag } from '@/lib/storage';
-import { Plus, X, Tags, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
+
+import { ColorChip } from "@/components/ui/color-chip";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { colorForName } from "@/lib/palette";
+import { storage, Tag } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 interface TagSelectorProps {
   songId: string;
   selectedTags: Tag[];
   onTagsChange: (tags: Tag[]) => void;
-  onTagCreated?: () => void; // Optional callback when a new tag is created
-  size?: 'sm' | 'md';
+  onTagCreated?: () => void;
+  /** All tags, when the parent already has them (avoids one request per row). */
+  allTags?: Tag[];
+  size?: "sm" | "md";
+  className?: string;
 }
 
-const TAG_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
-  '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef',
-  '#ec4899', '#f43f5e'
-];
-
-export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, size = 'sm' }: TagSelectorProps) {
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+/**
+ * Inline tag editing: the song's tags as chips with remove buttons, plus an
+ * add button that searches existing tags or creates a new one. The add button
+ * shows on row hover and whenever it has keyboard focus.
+ */
+export function TagSelector({
+  songId,
+  selectedTags,
+  onTagsChange,
+  onTagCreated,
+  allTags: providedTags,
+  size = "sm",
+  className,
+}: TagSelectorProps) {
+  const [ownTags, setOwnTags] = useState<Tag[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState("");
+  const allTags = providedTags ?? ownTags;
+  const stripRef = useRef<HTMLDivElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const [hiddenNames, setHiddenNames] = useState<string[]>([]);
+
+  // One line of whole chips: chips that wrap to a second line are hidden
+  // (and out of the tab order) and counted in a "+N" pill instead of being
+  // cut mid-chip.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const measure = () => {
+      const chips = Array.from(strip.children) as HTMLElement[];
+      const top = chips[0]?.offsetTop ?? 0;
+      const hidden: string[] = [];
+      chips.forEach((chip, i) => {
+        const wrapped = chip.offsetTop > top;
+        chip.style.visibility = wrapped ? "hidden" : "";
+        if (wrapped && selectedTags[i]) hidden.push(selectedTags[i].name);
+      });
+      setHiddenNames((prev) => (prev.join("\u0000") === hidden.join("\u0000") ? prev : hidden));
+    };
+    measure();
+    if (selectedTags.length < 2) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [selectedTags]);
 
   useEffect(() => {
-    loadTags();
-  }, []);
-
-  const loadTags = async () => {
-    const tags = await storage.getTags();
-    setAllTags(tags);
-  };
+    if (providedTags || !isOpen) return;
+    storage.getTags().then(setOwnTags);
+  }, [providedTags, isOpen]);
 
   const createTag = async (name: string): Promise<Tag | null> => {
     const trimmedName = name.trim();
     if (!trimmedName) return null;
-
-    // Check if tag already exists
-    const existingTag = allTags.find(tag => 
-      tag.name.toLowerCase() === trimmedName.toLowerCase()
-    );
-    
-    if (existingTag) {
-      return existingTag;
-    }
-
-    // Create new tag with random color
-    const randomColor = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-    const newTag = await storage.addTag({
-      name: trimmedName,
-      color: randomColor
-    });
-    
-    setAllTags(prev => [...prev, newTag]);
-    // Notify parent that a new tag was created
+    const existing = allTags.find((tag) => tag.name.toLowerCase() === trimmedName.toLowerCase());
+    if (existing) return existing;
+    const newTag = await storage.addTag({ name: trimmedName, color: colorForName(trimmedName) });
+    if (!providedTags) setOwnTags((prev) => [...prev, newTag]);
     onTagCreated?.();
     return newTag;
   };
 
   const addTag = async (tag: Tag) => {
-    if (!selectedTags.find(t => t.id === tag.id)) {
-      const newSelectedTags = [...selectedTags, tag];
-      onTagsChange(newSelectedTags);
+    if (!selectedTags.find((t) => t.id === tag.id)) {
+      onTagsChange([...selectedTags, tag]);
       await storage.addSongTag(songId, tag.id);
     }
-    setSearchValue('');
+    setSearchValue("");
   };
 
   const removeTag = async (tagId: string) => {
-    const newSelectedTags = selectedTags.filter(t => t.id !== tagId);
-    onTagsChange(newSelectedTags);
+    const index = selectedTags.findIndex((t) => t.id === tagId);
+    const neighbour = selectedTags[index + 1] ?? selectedTags[index - 1];
+    onTagsChange(selectedTags.filter((t) => t.id !== tagId));
+    // Keep keyboard focus in the cell: the neighbouring chip's ×, else the + button.
+    requestAnimationFrame(() => {
+      const next = neighbour
+        ? stripRef.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(`Remove ${neighbour.name}`)}"]`)
+        : null;
+      (next && next.closest<HTMLElement>("[style*='hidden']") === null ? next : addRef.current)?.focus();
+    });
     await storage.removeSongTag(songId, tagId);
   };
 
@@ -85,117 +111,79 @@ export function TagSelector({ songId, selectedTags, onTagsChange, onTagCreated, 
     }
   };
 
-  const availableTags = allTags.filter(tag => 
-    !selectedTags.find(selected => selected.id === tag.id)
-  );
-
-  const filteredTags = searchValue 
-    ? availableTags.filter(tag => 
-        tag.name.toLowerCase().includes(searchValue.toLowerCase())
-      )
+  const availableTags = allTags.filter((tag) => !selectedTags.find((s) => s.id === tag.id));
+  const filteredTags = searchValue
+    ? availableTags.filter((tag) => tag.name.toLowerCase().includes(searchValue.toLowerCase()))
     : availableTags;
-
-  const canCreateNew = searchValue.trim() && 
-    !allTags.find(tag => tag.name.toLowerCase() === searchValue.trim().toLowerCase());
+  const canCreateNew =
+    searchValue.trim() && !allTags.find((tag) => tag.name.toLowerCase() === searchValue.trim().toLowerCase());
 
   return (
-    <div className="flex items-center gap-1 min-w-0">
-      {/* Selected Tags */}
-      <div className="flex items-center gap-1 min-w-0 flex-nowrap">
+    <div className={cn("flex min-w-0 items-center gap-1", className)}>
+      <div
+        ref={stripRef}
+        className={cn("flex min-w-0 flex-wrap items-center gap-1 overflow-hidden", size === "sm" ? "h-5" : "h-6")}
+        title={selectedTags.map((t) => t.name).join(", ") || undefined}
+      >
         {selectedTags.map((tag) => (
-          <Badge
-            key={tag.id}
-            variant="secondary"
-            className={cn(
-              "text-xs flex items-center gap-1 flex-shrink-0",
-              // Increase size when multiple tags and remove max-width for better visibility
-              selectedTags.length >= 2 
-                ? "px-2 py-1 h-5 text-xs" 
-                : size === 'sm' ? "px-1 py-0 h-4 text-[10px] max-w-20 truncate" : "px-2 py-1 h-5 max-w-20 truncate"
-            )}
-            style={{ 
-              backgroundColor: `${tag.color}20`, 
-              borderColor: tag.color,
-              color: tag.color 
-            }}
-          >
-            <span className={cn(selectedTags.length >= 2 ? "" : "truncate")}>{tag.name}</span>
-            <X 
-              className={cn(
-                "cursor-pointer hover:opacity-70",
-                selectedTags.length >= 2 ? "w-3 h-3" : "w-2 h-2"
-              )} 
-              onClick={(e) => {
-                e.stopPropagation();
-                removeTag(tag.id);
-              }}
-            />
-          </Badge>
+          <ColorChip key={tag.id} color={tag.color} label={tag.name} size={size} onRemove={() => removeTag(tag.id)} />
         ))}
       </div>
+      {hiddenNames.length > 0 && (
+        <span
+          className="k-num inline-flex h-5 shrink-0 items-center rounded-chip border border-border px-1.5 text-[11px] text-muted-foreground"
+          title={hiddenNames.join(", ")}
+        >
+          +{hiddenNames.length}
+          <span className="sr-only"> more: {hiddenNames.join(", ")}</span>
+        </span>
+      )}
 
-      {/* Add Tag Button */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            ref={addRef}
+            type="button"
+            aria-label="Add tag"
+            title="Add tag"
             className={cn(
-              "opacity-0 group-hover:opacity-100 transition-opacity",
-              size === 'sm' ? "w-4 h-4 p-0" : "w-5 h-5 p-0"
+              "inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-input text-muted-foreground opacity-0 transition-[opacity,color,border-color] duration-fast hover:border-foreground/50 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100 data-[state=open]:opacity-100",
+              size === "sm" ? "h-5 w-5" : "h-6 w-6",
+              selectedTags.length === 0 && "group-hover/row:opacity-100",
             )}
           >
-            <Plus className="w-3 h-3" />
-          </Button>
+            <Plus className="h-3 w-3" />
+          </button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          <Command>
-            <CommandInput
-              placeholder="Search or create tags..."
-              value={searchValue}
-              onValueChange={setSearchValue}
-            />
+          {/* Filtered here, not by cmdk, so existing matches stay above Create and Enter picks them first. */}
+          <Command shouldFilter={false}>
+            <CommandInput placeholder="Find or create a tag" value={searchValue} onValueChange={setSearchValue} />
             <CommandList>
-              <CommandEmpty>
-                {canCreateNew && (
-                  <div className="p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={handleCreateAndAdd}
-                    >
-                      <Plus className="w-3 h-3 mr-2" />
-                      Create "{searchValue.trim()}"
-                    </Button>
-                  </div>
-                )}
-              </CommandEmpty>
-              
-              {canCreateNew && filteredTags.length > 0 && (
-                <CommandGroup heading="Create New">
-                  <CommandItem onSelect={handleCreateAndAdd}>
-                    <Plus className="w-3 h-3 mr-2" />
-                    Create "{searchValue.trim()}"
-                  </CommandItem>
-                </CommandGroup>
-              )}
-              
+              <CommandEmpty>{searchValue.trim() ? "That tag is already on this track." : "No tags yet. Type a name to create one."}</CommandEmpty>
+
               {filteredTags.length > 0 && (
-                <CommandGroup heading="Existing Tags">
+                <CommandGroup heading="Tags">
                   {filteredTags.map((tag) => (
-                    <CommandItem
-                      key={tag.id}
-                      value={tag.name}
-                      onSelect={() => addTag(tag)}
-                    >
-                      <div 
-                        className="w-2 h-2 rounded-full mr-2" 
+                    <CommandItem key={tag.id} value={tag.name} onSelect={() => addTag(tag)}>
+                      <span
+                        aria-hidden
+                        className="mr-2 h-2 w-2 rounded-full ring-1 ring-inset ring-foreground/10"
                         style={{ backgroundColor: tag.color }}
                       />
                       {tag.name}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+
+              {/* After the existing matches, so Enter picks a similar existing tag first. */}
+              {canCreateNew && (
+                <CommandGroup heading="New">
+                  <CommandItem value={`create:${searchValue.trim()}`} onSelect={handleCreateAndAdd}>
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    Create “{searchValue.trim()}”
+                  </CommandItem>
                 </CommandGroup>
               )}
             </CommandList>
