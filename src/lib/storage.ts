@@ -26,6 +26,7 @@ export interface Song {
   danceability: number;
   energy: number;
   social_acceptance: number;
+  rank?: number;
   drum_notes?: string;
   element_notes?: string;
   mixing_notes?: string;

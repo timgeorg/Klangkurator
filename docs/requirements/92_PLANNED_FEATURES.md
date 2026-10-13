@@ -81,3 +81,9 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-61 | Mobile companion (read-only) | Browse library, view notes/tags, plan sets from phone — no audio files on device, metadata and notes only |
 | PF-62 | Mobile set planning | Full set planning workflow on mobile — drag-and-drop adapted for touch |
 | PF-63 | Remote backend hosting | Deploy FastAPI on a home server / VPS for access outside localhost |
+
+## Library Ranking
+
+| ID | Feature | Notes |
+|---|---|---|
+| PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the three 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |

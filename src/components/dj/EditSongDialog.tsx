@@ -38,6 +38,7 @@ const RATINGS = [
   { field: "energy", label: "Energy" },
   { field: "danceability", label: "Danceability" },
   { field: "social_acceptance", label: "Social acceptance" },
+  { field: "rank", label: "Rank" },
 ] as const;
 
 const NOTES = [
@@ -58,6 +59,7 @@ interface FormState {
   energy: number;
   danceability: number;
   social_acceptance: number;
+  rank: number;
   drum_notes: string;
   element_notes: string;
   mixing_notes: string;
@@ -75,6 +77,7 @@ const EMPTY_FORM: FormState = {
   energy: 0,
   danceability: 0,
   social_acceptance: 0,
+  rank: 0,
   drum_notes: "",
   element_notes: "",
   mixing_notes: "",
@@ -116,6 +119,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
       energy: song.energy || 0,
       danceability: song.danceability || 0,
       social_acceptance: song.social_acceptance || 0,
+      rank: song.rank || 0,
       drum_notes: song.drum_notes || "",
       element_notes: song.element_notes || "",
       mixing_notes: song.mixing_notes || "",
@@ -149,6 +153,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
         energy: formData.energy,
         danceability: formData.danceability,
         social_acceptance: formData.social_acceptance,
+        rank: formData.rank,
         drum_notes: formData.drum_notes.trim() || null,
         element_notes: formData.element_notes.trim() || null,
         mixing_notes: formData.mixing_notes.trim() || null,
@@ -272,7 +277,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
           </FormSection>
 
           <FormSection title="Ratings">
-            <div className="grid gap-5 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {RATINGS.map(({ field, label }) => (
                 <div key={field} className="space-y-3">
                   <div className="flex items-baseline justify-between">

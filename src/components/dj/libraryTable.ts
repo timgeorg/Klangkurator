@@ -20,6 +20,7 @@ export interface FilterState {
   energy: RangeValue;
   danceability: RangeValue;
   social: RangeValue;
+  rank: RangeValue;
   duration: RangeValue;
   tags: string[];
 }
@@ -58,6 +59,7 @@ export const FILTER_CONFIG: Record<
   energy: { type: "range", min: 0, max: 5 },
   danceability: { type: "range", min: 0, max: 5 },
   social: { type: "range", min: 0, max: 5 },
+  rank: { type: "range", min: 1, max: 5 },
   duration: { type: "range", min: 0, max: 600 },
   tags: { type: "multiselect", optionsKey: "tags" },
 };
