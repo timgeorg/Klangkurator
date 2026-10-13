@@ -280,15 +280,18 @@ function Dash() {
   return <span className="text-muted-foreground">–</span>;
 }
 
-/** 0–5 rating as five short bars; unrated (0) reads as five empty bars. */
+/** 0–5 rating as five short bars; unrated (0) reads as five empty bars.
+ *  Values take one decimal (issue #7): the bars FLOOR the stored value — a 3.8
+ *  shows as 3 bars — while the tooltip keeps the exact number. */
 function RatingMeter({ value, label }: { value: number; label: string }) {
   const v = Math.max(0, Math.min(5, value || 0));
+  const bars = Math.floor(v);
   return (
     <span role="img" aria-label={`${label} ${v} of 5`} className="flex items-end gap-[3px]" title={`${label} ${v}/5`}>
       {Array.from({ length: 5 }, (_, i) => (
         <span
           key={i}
-          className={cn("w-[3px] rounded-[1px]", i < v ? "bg-foreground/80" : "bg-foreground/15")}
+          className={cn("w-[3px] rounded-[1px]", i < bars ? "bg-foreground/80" : "bg-foreground/15")}
           style={{ height: 6 + i * 2 }}
         />
       ))}

@@ -58,9 +58,9 @@ removed earlier — the table handles all of it.
 | Waveform | waveform | Static SVG |
 | Time | duration | m:ss (minutes unpadded) |
 | Subgenres | text | Up to three, "+N" beyond |
-| Energy | rating (0–5) | Five rising bars |
-| Dance | rating (0–5) | Five rising bars |
-| Social | rating (0–5) | Five rising bars |
+| Energy | rating (0–5) | Five rising bars; decimals floor on display (3.8 → 3 bars), tooltip keeps the exact value |
+| Dance | rating (0–5) | Five rising bars; decimals floor on display |
+| Social | rating (0–5) | Five rising bars; decimals floor on display |
 | Rank | rank (1–5) | Five stars; read-only on this base (editing is the Edit dialog's Rank slider) |
 | Album | text | |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |

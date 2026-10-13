@@ -5,6 +5,18 @@ Last Updated: 2026-10-13
 
 ## 2026-10-13
 
+### Decimal ratings: one decimal on energy / danceability / social acceptance (11, 13; issue #7)
+
+The three 0–5 ratings (`energy`, `danceability`, `social_acceptance`) take one
+decimal (step 0.1) instead of whole numbers only; the backend model widens
+from `int` to `float`, so fractional values round-trip through the API (with
+`int`, a stored 3.8 would have been a 422 on write and a 500 on every read).
+The Edit dialog's rating sliders step 0.1 (Rank stays a whole-number slider),
+the persisted value is snapped to one decimal to avoid float drift, and the
+table's five-bar meter stays — decimals floor on display (a stored 3.8 shows
+3 bars) while the tooltip keeps the exact value. Sort and range filters are
+numeric and already decimal-safe. Rank is untouched: whole 1–5 stars.
+
 ### Track rank: a per-track 1–5 star score (11, 13; issue #4)
 
 A fourth, independent per-song field `rank` (1–5 whole stars, `0` = unranked).
