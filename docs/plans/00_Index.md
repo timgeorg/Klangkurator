@@ -13,3 +13,5 @@ tags:
 - [[PHASE_5_ANALYSIS_PROGRESS.md]] — audio analysis progress job (REQ-10-AP): in-memory job + polled status endpoint, frontend progress bar; includes testing guide T1-T4.
 - [[BACKLOG_ORCHESTRATION.ipynb]] — working notebook for the six library-UX backlog features (PF-12..PF-17): sprint board, per-feature subtasks, verification cells, session log.
 - [[REDESIGN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the editorial redesign (issue #1), judged black-box against a sandbox copy of the library.
+- [[TRACK_RANKING_PLAN.md]] — plan for the per-track 1–5 star rank (issue #4): decisions, data flow, gotchas, files.
+- [[TRACK_RANKING_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track rank (issue #4), judged black-box against a sandbox copy of the library.

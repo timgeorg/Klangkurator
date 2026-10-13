@@ -29,6 +29,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   energy: { id: 'energy', label: 'Energy', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   danceability: { id: 'danceability', label: 'Dance', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   social: { id: 'social', label: 'Social', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  rank: { id: 'rank', label: 'Rank', minWidth: 72, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   duration: { id: 'duration', label: 'Time', minWidth: 64, maxWidth: 120, defaultWidth: 64, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   lyrics: { id: 'lyrics', label: 'Lyrics', minWidth: 80, maxWidth: 300, defaultWidth: 100, resizable: true, filterable: false, sortable: false },
@@ -41,7 +42,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
 // with the player panel docked.
 const DEFAULT_COLUMN_ORDER = [
   'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
-  'subgenres', 'energy', 'danceability', 'social', 'album', 'rootFolder',
+  'subgenres', 'energy', 'danceability', 'social', 'rank', 'album', 'rootFolder',
   'tags', 'lyrics', 'notes'
 ];
 
@@ -96,12 +97,23 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
           next.splice(idx >= 0 ? idx + 1 : 0, 0, 'cover');
           return next;
         })();
+    // Migration: persisted orders from before issue #4 have no 'rank' column.
+    // Insert after 'social' (or the nearest rating) so existing users see it.
+    const rankedOrder = migratedOrder.includes('rank')
+      ? migratedOrder
+      : (() => {
+          const anchor = ['social', 'danceability', 'energy'].find((id) => migratedOrder.includes(id));
+          const idx = anchor ? migratedOrder.indexOf(anchor) : -1;
+          const next = [...migratedOrder];
+          next.splice(idx >= 0 ? idx + 1 : next.length, 0, 'rank');
+          return next;
+        })();
     const vis = visibility as Record<string, boolean>;
     const wid = widths as Record<string, number>;
     return {
-      order: migratedOrder,
-      visibility: { ...vis, cover: vis.cover ?? true },
-      widths: { ...wid, cover: wid.cover ?? 48 },
+      order: rankedOrder,
+      visibility: { ...vis, cover: vis.cover ?? true, rank: vis.rank ?? true },
+      widths: { ...wid, cover: wid.cover ?? 48, rank: wid.rank ?? 80 },
       sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
     };
   } catch {

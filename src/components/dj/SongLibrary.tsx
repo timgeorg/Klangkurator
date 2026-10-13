@@ -32,6 +32,7 @@ const INITIAL_FILTERS: FilterState = {
   energy: {},
   danceability: {},
   social: {},
+  rank: {},
   duration: {},
   tags: [],
 };
@@ -46,6 +47,7 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
   energy: (s) => s.energy,
   danceability: (s) => s.danceability,
   social: (s) => s.social_acceptance,
+  rank: (s) => s.rank || undefined,
   duration: (s) => s.duration,
 };
 
@@ -266,6 +268,7 @@ export function SongLibrary() {
       if (filters.danceability.max !== undefined && song.danceability > filters.danceability.max) return false;
       if (filters.social.min !== undefined && song.social_acceptance < filters.social.min) return false;
       if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
+      if (filters.rank.min !== undefined && (song.rank ?? 0) < filters.rank.min) return false;
       if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
       if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;
       if (filters.tags.length > 0) {

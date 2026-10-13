@@ -41,6 +41,11 @@ Each song stores:
 | `energy` | number (0–5) | Energy level |
 | `social_acceptance` | number (0–5) | How well-known / crowd-pleasing the track is |
 
+### Track Rank (1–5 stars)
+| Field | Type | Description |
+|---|---|---|
+| `rank` | number (1–5) | A per-track quality score, whole stars only. Independent of the three ratings above — they say what a track *does*, the rank says *how good* it is. `0` means unranked (the default) |
+
 ### Sound Notes (free text — the core asset)
 | Field | Type | Description |
 |---|---|---|

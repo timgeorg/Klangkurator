@@ -180,6 +180,7 @@ export default function SongDetailPage() {
           </Spec>
           <Spec label="Duration">{formatDuration(song.duration)}</Spec>
           <Spec label="Year">{song.year ?? "–"}</Spec>
+          <Spec label="Rank">{song.rank ? `${song.rank}/5` : "Unranked"}</Spec>
           <Spec label="Genre" mono={false}>
             {genre ? <ColorChip size="md" color={getMainGenreColor(genre)} label={genre} /> : "–"}
           </Spec>

@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { Link } from "react-router-dom";
-import { Pause, Pencil, Play } from "lucide-react";
+import { Pause, Pencil, Play, Star } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { ColorChip } from "@/components/ui/color-chip";
@@ -184,6 +184,9 @@ function SongTableRowImpl({
       case "social":
         return <RatingMeter value={song.social_acceptance} label="Social acceptance" />;
 
+      case "rank":
+        return <RankStars value={song.rank ?? 0} label="Rank" />;
+
       case "duration":
         return <span className="k-num text-xs text-muted-foreground">{formatDuration(song.duration)}</span>;
 
@@ -287,6 +290,22 @@ function RatingMeter({ value, label }: { value: number; label: string }) {
           key={i}
           className={cn("w-[3px] rounded-[1px]", i < v ? "bg-foreground/80" : "bg-foreground/15")}
           style={{ height: 6 + i * 2 }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** 1–5 star rank; unranked (0) reads as five empty stars, never a dash. */
+function RankStars({ value, label }: { value: number; label: string }) {
+  const v = Math.max(0, Math.min(5, Math.round(value || 0)));
+  return (
+    <span role="img" aria-label={`${label} ${v} of 5`} className="flex items-center gap-[2px]" title={`${label} ${v}/5`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <Star
+          key={i}
+          strokeWidth={i < v ? 0 : 1.5}
+          className={cn("h-3.5 w-3.5", i < v ? "fill-current text-foreground/80" : "text-foreground/15")}
         />
       ))}
     </span>

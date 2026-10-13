@@ -61,6 +61,7 @@ removed earlier — the table handles all of it.
 | Energy | rating (0–5) | Five rising bars |
 | Dance | rating (0–5) | Five rising bars |
 | Social | rating (0–5) | Five rising bars |
+| Rank | rank (1–5) | Five stars; read-only on this base (editing is the Edit dialog's Rank slider) |
 | Album | text | |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
 | Tags | chips | Side-by-side, auto-grow, inline add/remove; whole chips only, the rest as a "+N" count (names in its tooltip and for screen readers) |
@@ -85,7 +86,7 @@ and keep their own order.
 ## Sorting
 
 - Clicking a sortable header (Title, Artist, Album, Crate, BPM, Key, Energy,
-  Dance, Social, Time) cycles ascending → descending → off; the header shows
+  Dance, Social, Rank, Time) cycles ascending → descending → off; the header shows
   the direction and carries `aria-sort`
 - Missing values sort last in both directions; text sorts naturally
   ("Track 2" before "Track 10")
@@ -100,6 +101,7 @@ focus, and permanently while the filter is active):
 |---|---|
 | Title, Artist, Album | Text search |
 | BPM, Energy, Dance, Social, Time | Range (empty defaults — no auto-applied 0–200) |
+| Rank | Range (`≥ N`, 1–5; empty means any, unranked tracks show) |
 | Genre, Subgenres, Key, Tags, Crate | Multi-select |
 
 - When search and filters exclude every track, the header stays in place and

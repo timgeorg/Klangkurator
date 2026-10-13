@@ -1,7 +1,19 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-13
+
+## 2026-10-13
+
+### Track rank: a per-track 1–5 star score (11, 13; issue #4)
+
+A fourth, independent per-song field `rank` (1–5 whole stars, `0` = unranked).
+It says *how good* a track is, distinct from the three 0–5 ratings that say
+what it *does*. It gets a sortable "Rank" column of five stars, a `≥ N` range
+filter, a read-only display on the song detail page, and a slider in the Edit
+dialog. It is not inline-editable in the table (that is issue #3) and not shown
+in the player. Songs written before this change have no `rank` key and read as
+unranked; a saved column layout is migrated to include the new column.
 
 ## 2026-10-08
 

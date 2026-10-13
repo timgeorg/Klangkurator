@@ -21,6 +21,7 @@ class SongBase(BaseModel):
     danceability: int = 0
     energy: int = 0
     social_acceptance: int = 0
+    rank: int = 0
     drum_notes: str | None = None
     element_notes: str | None = None
     mixing_notes: str | None = None
@@ -58,6 +59,7 @@ class SongUpdate(BaseModel):
     danceability: int | None = None
     energy: int | None = None
     social_acceptance: int | None = None
+    rank: int | None = None
     drum_notes: str | None = None
     element_notes: str | None = None
     mixing_notes: str | None = None
