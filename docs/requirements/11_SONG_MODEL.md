@@ -37,9 +37,9 @@ Each song stores:
 ### DJ Ratings (0–5 scale)
 | Field | Type | Description |
 |---|---|---|
-| `danceability` | number (0–5) | How danceable the track is |
-| `energy` | number (0–5) | Energy level |
-| `social_acceptance` | number (0–5) | How well-known / crowd-pleasing the track is |
+| `danceability` | number (0–5, one decimal) | How danceable the track is |
+| `energy` | number (0–5, one decimal) | Energy level |
+| `social_acceptance` | number (0–5, one decimal) | How well-known / crowd-pleasing the track is |
 
 ### Track Rank (1–5 stars)
 | Field | Type | Description |

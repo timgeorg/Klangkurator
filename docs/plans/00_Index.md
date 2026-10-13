@@ -15,3 +15,5 @@ tags:
 - [[REDESIGN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the editorial redesign (issue #1), judged black-box against a sandbox copy of the library.
 - [[TRACK_RANKING_PLAN.md]] — plan for the per-track 1–5 star rank (issue #4): decisions, data flow, gotchas, files.
 - [[TRACK_RANKING_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track rank (issue #4), judged black-box against a sandbox copy of the library.
+- [[DECIMAL_ENERGY_PLAN.md]] — plan for one-decimal ratings (issue #7): verified facts, model widening, meter flooring, per-field slider step, docs.
+- [[DECIMAL_ENERGY_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the decimal ratings (issue #7), judged black-box against a sandbox copy of the library.

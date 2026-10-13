@@ -34,11 +34,17 @@ const MUSICAL_KEYS = [
   "F#", "F#m", "G", "Gm", "G#", "G#m", "A", "Am", "A#", "A#m", "B", "Bm",
 ];
 
+/** Ratings render without float artifacts: 3.1 → "3.1", 3.0 → "3", never
+ *  "3.1000000000000005" (step dragging accumulates binary-representation error). */
+const formatRating = (value: number) =>
+  String(Number(value.toFixed(1)));
+
 const RATINGS = [
-  { field: "energy", label: "Energy" },
-  { field: "danceability", label: "Danceability" },
-  { field: "social_acceptance", label: "Social acceptance" },
-  { field: "rank", label: "Rank" },
+  // The three 0–5 ratings take one decimal (issue #7); rank stays whole stars.
+  { field: "energy", label: "Energy", step: 0.1 },
+  { field: "danceability", label: "Danceability", step: 0.1 },
+  { field: "social_acceptance", label: "Social acceptance", step: 0.1 },
+  { field: "rank", label: "Rank", step: 1 },
 ] as const;
 
 const NOTES = [
@@ -150,9 +156,11 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
         genres: formData.mainGenre ? [formData.mainGenre, ...formData.subgenres] : null,
         genre: formData.mainGenre || null,
         year: isFinite(year) ? year : null,
-        energy: formData.energy,
-        danceability: formData.danceability,
-        social_acceptance: formData.social_acceptance,
+        // Snap to one decimal: slider dragging accumulates float error
+        // (3.1000000000000005), the store persists verbatim — no rounding below.
+        energy: Math.round(formData.energy * 10) / 10,
+        danceability: Math.round(formData.danceability * 10) / 10,
+        social_acceptance: Math.round(formData.social_acceptance * 10) / 10,
         rank: formData.rank,
         drum_notes: formData.drum_notes.trim() || null,
         element_notes: formData.element_notes.trim() || null,
@@ -278,18 +286,18 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
 
           <FormSection title="Ratings">
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {RATINGS.map(({ field, label }) => (
+              {RATINGS.map(({ field, label, step }) => (
                 <div key={field} className="space-y-3">
                   <div className="flex items-baseline justify-between">
                     <Label id={`${field}-label`}>{label}</Label>
-                    <span className="k-num text-xs text-muted-foreground">{formData[field]}/5</span>
+                    <span className="k-num text-xs text-muted-foreground">{formatRating(formData[field])}/5</span>
                   </div>
                   <Slider
                     aria-label={label}
                     value={[formData[field]]}
                     onValueChange={([value]) => set(field, value)}
                     max={5}
-                    step={1}
+                    step={step}
                   />
                 </div>
               ))}

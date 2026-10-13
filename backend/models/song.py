@@ -18,9 +18,10 @@ class SongBase(BaseModel):
     year: int | None = None
     file_path: str
     artwork_url: str | None = None
-    danceability: int = 0
-    energy: int = 0
-    social_acceptance: int = 0
+    # The three 0–5 ratings take one decimal (issue #7); rank stays a whole number.
+    danceability: float = 0
+    energy: float = 0
+    social_acceptance: float = 0
     rank: int = 0
     drum_notes: str | None = None
     element_notes: str | None = None
@@ -56,9 +57,9 @@ class SongUpdate(BaseModel):
     year: int | None = None
     file_path: str | None = None
     artwork_url: str | None = None
-    danceability: int | None = None
-    energy: int | None = None
-    social_acceptance: int | None = None
+    danceability: float | None = None
+    energy: float | None = None
+    social_acceptance: float | None = None
     rank: int | None = None
     drum_notes: str | None = None
     element_notes: str | None = None
