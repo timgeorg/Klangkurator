@@ -1,7 +1,24 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-14
+Last Updated: 2026-10-15
+
+## 2026-10-15
+
+### Track map spec, draft (new 33; 13, 14, 31, 32, 90, 92; issue #8, PF-81)
+
+A new spec for the track map: every track on one fullscreen map, placed by a
+symmetric, user-weighted metadata similarity. BPM, tags and relationships
+weigh most and key least; keys compare on the Camelot wheel, BPMs by ratio
+with half and double time folded; unrated ratings and missing values are
+skipped per pair. Past a node threshold the map collapses into clusters by
+genre, BPM range (10 BPM), subgenre or energy; tags only filter.
+Relationships and transitions are layers, and transitions from
+relationships, sets and blocks merge into one edge per direction with their
+sources. The relationships dialog becomes a small instance of the same
+canvas, where a click selects. PF-42 no longer blocks the map. Starting
+values are marked proposed for Tim's review. The plan and the behavior
+contract are in `docs/plans/TRACK_MAP_*`.
 
 ## 2026-10-14
 

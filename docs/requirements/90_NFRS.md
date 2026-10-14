@@ -1,7 +1,7 @@
 # Non-Functional Requirements
 
 Status: Active
-Last Updated: 2026-10-13
+Last Updated: 2026-10-15
 Source: Requirements.md section 14
 
 ## NFR Table
@@ -19,3 +19,4 @@ Source: Requirements.md section 14
 | NFR-9 | Data | `clearData()` must clear all dependent stores to avoid stale references |
 | NFR-10 | Portability | Phase 1 runs in any modern browser; Phase 2 runs as PyWebView desktop app |
 | NFR-11 | Usability | Editing must be inline and fast: notes, tags, genre, subgenres, key, BPM, artist, album and the three ratings change in the library table, no dialog required |
+| NFR-12 | Performance | The track map (PF-81) stays smooth to pan and zoom at 1,000–5,000 tracks by collapsing into clusters past a node threshold. The threshold, the cluster parameters and the re-solve time are measured on synthetic libraries of 500, 1,000 and 5,000 tracks before they are fixed, then recorded here |
