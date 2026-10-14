@@ -177,6 +177,8 @@ export function TextCell({
     },
     onBlur: () => commit(false),
     onKeyDown: (e: React.KeyboardEvent) => {
+      // The Enter that confirms an IME composition (Japanese, Chinese) isn't a commit.
+      if (e.nativeEvent.isComposing) return;
       if (e.key === "Escape") {
         e.preventDefault();
         finish(true);
@@ -448,6 +450,8 @@ export function SubgenresCell({ song, onPatch }: { song: Song; onPatch: PatchSon
   const q = search.trim();
   const shown = order.filter((s) => s.toLowerCase().includes(q.toLowerCase()));
   const canCreate = !!genre && !!q && !order.some((s) => s.toLowerCase() === q.toLowerCase());
+  // A genre read from the file's tags that Settings doesn't list has no subgenre list to add to.
+  const listed = !!genre && getGenreConfig().some((g) => g.name === genre);
 
   const create = () => {
     if (!genre || !q) return;
@@ -507,7 +511,7 @@ export function SubgenresCell({ song, onPatch }: { song: Song; onPatch: PatchSon
               <CommandGroup heading="New">
                 <CommandItem value={`create:${q}`} onSelect={create}>
                   <Plus className="mr-2 h-3.5 w-3.5" />
-                  Create “{q}”
+                  {listed ? `Create “${q}”` : `Add “${q}” to this track`}
                 </CommandItem>
               </CommandGroup>
             )}
@@ -556,6 +560,7 @@ export function RatingCell({ field, track, value, onChange, stars, emptyText = "
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     let next: number | null = null;
     if (e.key === "ArrowRight" || e.key === "ArrowUp") next = v + 1;
     else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = v - 1;
@@ -657,7 +662,8 @@ export function RatingCell({ field, track, value, onChange, stars, emptyText = "
         }}
         onCloseAutoFocus={(e) => {
           e.preventDefault();
-          meterRef.current?.focus();
+          // A tap or click on another cell already moved focus there; leave it.
+          if (!document.activeElement || document.activeElement === document.body) meterRef.current?.focus();
         }}
       >
         <div ref={pickerRef} role="group" aria-label={`${field} for ${track}`} className="flex gap-1">

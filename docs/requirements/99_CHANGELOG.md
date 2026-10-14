@@ -26,6 +26,8 @@ already did (NFR-11 widened).
 - Backend: saves run one at a time. Before, two at once (an edit during the
   analysis, or two requests) could rename the shared temporary file from
   under each other and fail. A regression test covers it.
+- Backend: batch analysis no longer overwrites a BPM or key set by hand
+  while it runs (regression test).
 
 ### Decimal ratings: one decimal on energy / danceability / social acceptance (11, 13; issue #7)
 

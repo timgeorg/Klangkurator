@@ -12,7 +12,7 @@ import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
 import { getMainGenreColor } from "@/lib/genreData";
 import { usePlayer } from "@/lib/PlayerContext";
 import { createSongWriter, type SongWriter } from "@/lib/songWriter";
-import { storage, Song, SongPatch, Tag } from "@/lib/storage";
+import { storage, Song, SongPatch, SongTag, Tag } from "@/lib/storage";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +114,7 @@ export function SongLibrary() {
   // the table never goes on showing a change that wasn't saved.
   const loadAllDataRef = useRef<() => Promise<void>>(async () => {});
   const reloadQueued = useRef(false);
+  const editCount = useRef(0);
   const writerRef = useRef<SongWriter | null>(null);
   if (!writerRef.current) {
     const writer = createSongWriter((songId) => {
@@ -134,15 +135,18 @@ export function SongLibrary() {
   }
 
   const loadAllData = useCallback(async () => {
-    // Edits still on their way would be overwritten by an older copy.
-    await writerRef.current?.idle();
     try {
-      // Three requests in parallel; the song/tag join comes in one call.
-      const [loadedSongs, loadedTags, links] = await Promise.all([
-        storage.getSongs(),
-        storage.getTags(),
-        storage.getSongTags(),
-      ]);
+      // Three requests in parallel; the song/tag join comes in one call. An
+      // inline edit made while they run would be overwritten by this older
+      // copy, so the fetch waits for queued edits and repeats after new ones.
+      let loaded: [Song[], Tag[], SongTag[]];
+      let edits: number;
+      do {
+        edits = editCount.current;
+        await writerRef.current?.idle();
+        loaded = await Promise.all([storage.getSongs(), storage.getTags(), storage.getSongTags()]);
+      } while (edits !== editCount.current);
+      const [loadedSongs, loadedTags, links] = loaded;
       const tagById = new Map(loadedTags.map((t) => [t.id, t]));
       const tagsMap: Record<string, Tag[]> = {};
       for (const link of links) {
@@ -192,6 +196,7 @@ export function SongLibrary() {
   const patchSong = useCallback(
     (songId: string, patch: SongPatch) => {
       freezeRows();
+      editCount.current += 1;
       setSongs((prev) => prev.map((song) => (song.id === songId ? applyPatch(song, patch) : song)));
       writerRef.current?.write(songId, patch);
     },

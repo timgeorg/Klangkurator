@@ -144,7 +144,8 @@ the Edit dialog stays for changing everything at once. Behavior contract:
 - **Subgenres**: click → a checklist with the track's subgenres first, then
   the genre's others; each choice saves at once and the list keeps its order
   until Escape or a click outside. "Create “…”" adds a new name to the track
-  and to the genre's list. Without a genre the list asks for one first. A
+  and to the genre's list (for a file-tag genre that Settings doesn't list:
+  "Add “…” to this track"). Without a genre the list asks for one first. A
   genre read only from the file's tags becomes the main genre when subgenres
   are set (shown the same)
 - **Ratings (Energy, Dance, Social) and Rank**: mouse: hovering previews, a

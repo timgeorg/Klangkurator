@@ -44,7 +44,7 @@ Run against a sandbox copy of the library, never the user's real data.
 
 ## Subgenres
 
-- **IE-16** Given the Subgenres value of a track with a genre, when it is clicked, then a list opens with the track's subgenres first (checked) and the genre's other subgenres after. Choosing an entry adds or removes it at once; the list stays open, and its entries keep their places while it is open. A typed name that isn't in the list is offered as "Create “…”", which adds it to the track and to the genre's subgenres in Settings.
+- **IE-16** Given the Subgenres value of a track with a genre, when it is clicked, then a list opens with the track's subgenres first (checked) and the genre's other subgenres after. Choosing an entry adds or removes it at once; the list stays open, and its entries keep their places while it is open. A typed name that isn't in the list is offered as "Create “…”", which adds it to the track and to the genre's subgenres in Settings. For a genre from the file's tags that Settings doesn't list, the entry reads "Add “…” to this track" and adds it to the track only.
 - **IE-17** Given a track whose genre was read from the file's tags (shown in the Genre column, never set by hand), then its Subgenres list offers that genre's subgenres, and adding one keeps the genre shown.
 - **IE-18** Given a track without a genre, when its Subgenres value is clicked, then the list says to set a genre first, and any subgenres the track already has can still be removed.
 
