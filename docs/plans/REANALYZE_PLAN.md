@@ -12,7 +12,11 @@ repairable except by hand. The repair path is a per-track re-analyze that
 overwrites, and it must accept a **BPM range** so a first-pass octave error can
 be steered.
 
-## Verified facts (2026-10-14, probed on this worktree)
+## Verified facts (2026-10-14, probed on `origin/main` 634e88c)
+
+> Line numbers below are the **pre-change** rev this plan was written against.
+> `backend/api/library.py` was rewritten on this branch, so its citations no
+> longer point at the same code — the quoted snippets are what was verified.
 
 1. **The route existed and was already synchronous, unlocked and overwriting.**
    At the probed rev (`origin/main` 634e88c) `backend/api/library.py:390-422`
@@ -139,9 +143,14 @@ be steered.
 - `backend/api/library.py`
   - `class ReanalyzeRequest(BaseModel)`: `bpm_min: float | None = None`,
     `bpm_max: float | None = None`.
-  - `POST /analyze/{song_id}` gains an optional body. Validation, all `422`
-    with a readable `detail`: one bound without the other; `min ≥ max`;
-    either bound outside `40..250` (the app's `BPM_RANGE`).
+  - `POST /analyze/{song_id}` gains an optional body. The route's own checks
+    are `422` with a one-line string `detail`: one bound without the other;
+    `min ≥ max`; either bound outside `40..250` (the app's `BPM_RANGE`). A
+    *non-numeric* bound is rejected by Pydantic first and yields `detail` as a
+    **list**, which `describeApiError` ignores — so the browser copy comes out
+    as raw JSON there. Accepted, because the dialog validates with
+    `Number.isFinite` before the request and the user cannot reach it; noted so
+    nobody assumes every 422 reads nicely.
   - Serialisation needs **two** guards, because the batch job releases
     `_analyze_lock` the moment it has spawned its thread: an in-flight batch is
     visible only through `_analyze_state["running"]`, while an in-flight
@@ -182,7 +191,8 @@ be steered.
 - `src/pages/SongDetailPage.tsx` — a `Re-analyze` button in the header action
   row (after Edit), owning `reanalyzeOpen`; renders the dialog; on a successful
   run refreshes the song so the `<Spec>` cells show the new values.
-- `docs/plans/00_Index.md` and `backend/tests/00_Index.md` — the folder-index
+- `docs/plans/00_Index.md`, `backend/tests/00_Index.md`,
+  `src/components/dj/00_Index.md` and `src/lib/00_Index.md` — the folder-index
   convention (`folder-index` skill) requires a row for each new artifact.
 
 ### Requirements docs (spec-first, same change)
