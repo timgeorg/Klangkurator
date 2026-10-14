@@ -13,8 +13,9 @@ was pressed in: the library table's rows as shown, a set's running order
 when one ends. The ends stop, never wrap. The run is fixed when Play is
 pressed, so a new sort or an edit applies from the next Play. Sets and
 blocks get Play on their cards (from the first track) and on each editor
-row (from that track). A track that fails to load is skipped with a message.
-Below 1280 px the player bar's volume is the mute button alone, so the
+row that has something to play (from that track). A track that fails to load
+is skipped with a message, onward in the direction the run was going. From
+768 to 1279 px the player bar's volume is the mute button alone, so the
 waveform keeps its width. P7, OOS-4 and `PRODUCT.md` stop saying
 "never a player": playing tracks to hear how they fit together is
 curation; decks, mixing and crossfading stay out.

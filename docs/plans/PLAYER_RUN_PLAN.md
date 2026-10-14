@@ -41,12 +41,15 @@ same change.
   from. `playRun` takes any ordered track list, so a playlist view can call it.
 - Tracks stored in a set's `phases` are not in the flat running order the
   editor shows, so they are not in the run.
-- A track that fails to load (missing file) shows a message naming it, and the
-  next track plays. On the last track playback stops, as before. One moved
-  file should not end a 20-track preview (plan review B4).
-- Below 1280 px the bar's volume is the mute button alone; the slider shows
-  from 1280 px. With previous and next in, the bar at 768 px would otherwise
-  leave the scrubber 28 px wide (plan review B1, see the width budget).
+- A track that fails to load (missing file) shows a message naming it, and
+  the run skips on in the direction it was going: next after Next, Play or a
+  track ending; previous after Previous. At an end of the run playback stops,
+  as before. One moved file should not end a 20-track preview (plan review
+  B4); stepping back past it must still work (code review F1).
+- From 768 to 1279 px the bar's volume is the mute button alone; the slider
+  shows from 1280 px; below 768 px the bar has no volume, as before. With
+  previous and next in, the bar at 768 px would otherwise leave the scrubber
+  28 px wide (plan review B1, see the width budget).
 
 **Known limits (documented, not fixed here):**
 
@@ -54,6 +57,9 @@ same change.
   close it. Row Play always restarts from its row and never toggles.
 - On touch screens the editor's row Play is invisible until tapped, and 24 px,
   exactly like the library's # column it copies.
+- The run holds each track as it was at Play: an edit to a playing run's
+  track (title, artist, BPM, key) shows in the player from the next Play. The
+  current track behaved the same way before.
 - A blocked autoplay (the next track starting without a click) shows the
   player as paused. Chromium allows it after any click; the PyWebView desktop
   shell (WebKitGTK) is not checked here.
@@ -115,9 +121,9 @@ current = queue ? queue.tracks[queue.index] : null   // derived, never stored
 
 | Call | Effect |
 |---|---|
-| `play(song)` | `queue = { tracks: [song], index: 0 }`, playing. A run of one. |
-| `playRun(tracks, index)` | `queue = { tracks, index }`, playing. Ignored when `index` is out of range. |
-| `next()` / `previous()` | `index ± 1`, playing. No-op at the ends (no wrap). |
+| `play(song)` | `queue = { tracks: [song], index: 0, dir: 1 }`, playing. A run of one. |
+| `playRun(tracks, index)` | `queue = { tracks, index, dir: 1 }`, playing. Ignored when `index` is out of range. |
+| `next()` / `previous()` | `index ± 1`, `dir = ±1`, playing. No-op at the ends (no wrap). |
 | `stop()` | `queue = null`, not playing. |
 
 - **Freeze:** `tracks` is the array the caller held when Play was pressed. The
@@ -160,7 +166,7 @@ empty block row has no row Play.
   queue dep), `next`/`previous` (dep `[queue]`) → `value` memo last (deps
   include `queue`, `current`, `next`, `previous`).
 - **NowPlaying:** `usePlayer()` → derived consts `hasPrevious`, `hasNext`,
-  `stepping` → refs → state → effects (load `[queue]`, play state
+  `run` → refs → state → effects (load `[queue]`, play state
   `[isPlaying]`, volume) → `if (!current) return null` → handlers. `onEnded`
   reads `hasNext`/`next`, which are declared above it.
 - **SetForm / BlockForm:** `usePlayer()` is called with the other hooks at the
@@ -215,9 +221,13 @@ expanded.
 | 375 | 375 | 211 | 131 | 131 |
 | 768 (rail 64) | 704 | 108 | 28 | 112 |
 | 1024 (rail 248) | 776 | 116 | 36 | 120 |
+| 768, sidebar expanded by hand (rail 248) | 520 | about 26 | overflow (validator NP-18x) | 80, the title truncates |
 | 1280, bar docked (rail 248) | 1032 | 328 | 248 | 248 |
 
 Numbers are computed from the classes; the live pass measures them (NP-18).
+The scrubber has a floor (80 px from 640 px, 56 px below, so a 320 px phone
+still fits) and the cover-and-title link may shrink, so when the bar runs out
+of room the title truncates instead of the bar overflowing.
 - Nothing is persisted. A reload forgets the run, as it forgets the track
   today.
 

@@ -1,7 +1,7 @@
 # Planned Features (Not Yet Specced)
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-14
 Source: Requirements.md section 15; new ideas from set planning session; Tim's 2026-09-24 backlog list
 
 ## Confirmed Future Work

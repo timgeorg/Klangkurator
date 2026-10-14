@@ -23,15 +23,17 @@ block's tracks. It is fixed at the moment Play is pressed.
   both the panel and the bar. Below 640 px the bar shows no title text, so use
   that name (or the `<audio>` element's `src`, `/api/audio/<song id>`, and its
   `paused` state).
-- **Unavailable** means the control is shown with `aria-disabled="true"` and
-  dimmed. Pressing it changes nothing, and it keeps keyboard focus.
+- **Unavailable** (Previous / Next) means the control is shown with
+  `aria-disabled="true"` and dimmed. Pressing it changes nothing, and it keeps
+  keyboard focus. A card's Play with nothing to play is a plain disabled
+  button. A run of one shows no Previous / Next at all.
 - **Reaching the end of a track:** focus the Seek slider and press End, or
   drag it to the end. Tracks run for minutes, so nobody waits them out.
 - **Hover-revealed buttons** exist in the DOM at opacity 0. Judge "appears" by
   what is visible.
-- **Fixtures:** created through the backend API in the sandbox. The seed
-  script and fixture table are in the plan
-  ([[PLAYER_RUN_PLAN.md#Tests and gates]]).
+- **Fixtures:** created through the backend API in the sandbox. The fixture
+  table is in the plan ([[PLAYER_RUN_PLAN.md#Tests and gates]]); the scripts
+  that build it are session tools, not part of the repo.
 
 ## Library
 
@@ -179,7 +181,8 @@ Row Play buttons in the editors appear on keyboard focus as well as on hover.
 paper themes, the player (the panel at ≥ 1280 px when docked as a panel, the
 bar otherwise) shows Previous, Play and Next with no overflow, no clipped
 control and no horizontal page scroll. The bar's waveform scrubber stays at
-least 80 px wide, also at 1024 px with the sidebar expanded. The panel may
+least 80 px wide, also at 1024 px with the sidebar expanded and at 768 px
+with the sidebar expanded by hand (the title may truncate). The panel may
 scroll vertically inside itself; nothing in it is cut off sideways.
 
 ### NP-19 — editing a set while it plays changes nothing until the next Play
@@ -196,6 +199,15 @@ missing on disk, S2]
 **then** a message says the track could not be played and names it, and S2
 starts playing.
 **Given** the failing track is the last of the run
+**then** the message appears and playback stops.
+
+### NP-20b — a failed track is skipped the way the run was going
+**Given** the run from NP-20, playing S2
+**when** the user presses Previous
+**then** the message names the failing track and says the previous track
+plays, and S1 plays (the run does not bounce back to S2).
+**Given** a run whose first track is the failing one, playing its second track
+**when** the user presses Previous
 **then** the message appears and playback stops.
 
 ### NP-21 — the new track is announced

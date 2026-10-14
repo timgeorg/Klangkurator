@@ -50,11 +50,10 @@ export function NowPlaying() {
   const { current, queue, isPlaying, dock, next, previous, stop, toggle, setPlaying, setDock } = usePlayer();
   const isWide = useMediaQuery(WIDE_QUERY);
   const mode = dock === "panel" && isWide ? "panel" : "bar";
+  const hasPrevious = !!queue && queue.index > 0;
   const hasNext = !!queue && queue.index < queue.tracks.length - 1;
   const run: RunControls | undefined =
-    queue && queue.tracks.length > 1
-      ? { hasPrevious: queue.index > 0, hasNext, onPrevious: previous, onNext: next }
-      : undefined;
+    queue && queue.tracks.length > 1 ? { hasPrevious, hasNext, onPrevious: previous, onNext: next } : undefined;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const seekingRef = useRef(false);
@@ -171,14 +170,17 @@ export function NowPlaying() {
           setDuration(isFinite(d) && d > 0 ? d : (current.duration ?? 0));
         }}
         onError={() => {
-          // One missing file skips ahead instead of ending the whole run
+          // One missing file skips on, the way the run was going, instead of ending it
+          const back = queue?.dir === -1;
+          const skip = back ? hasPrevious : hasNext;
           toast({
             title: "Playback failed",
-            description: `“${current.title}”: the file may be missing.${hasNext ? " Playing the next track." : ""}`,
+            description: `“${current.title}”: the file may be missing.${skip ? ` Playing the ${back ? "previous" : "next"} track.` : ""}`,
             variant: "destructive",
           });
-          if (hasNext) next();
-          else stop();
+          if (!skip) stop();
+          else if (back) previous();
+          else next();
         }}
       />
       <span className="sr-only" aria-live="polite">
@@ -286,10 +288,10 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
     <div className="flex h-full items-center gap-3 px-3 md:gap-4 md:px-4">
       <Link
         to={`/song/${song.id}`}
-        className="flex min-w-0 shrink-0 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`Open ${song.title}`}
       >
-        <CoverArt src={song.artwork_url} current className="h-10 w-10 rounded-sm" />
+        <CoverArt src={song.artwork_url} current className="h-10 w-10 shrink-0 rounded-sm" />
         <span className="hidden w-40 min-w-0 flex-col sm:flex lg:w-56">
           <span className="truncate text-[13px] font-medium leading-tight">{song.title}</span>
           <span className="truncate text-xs text-muted-foreground">{song.artist}</span>
@@ -297,7 +299,8 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
       </Link>
       <Transport isPlaying={isPlaying} onToggle={onToggle} run={run} />
       <span className="k-num hidden w-10 text-right text-[11px] text-muted-foreground sm:block">{formatTime(currentTime)}</span>
-      <Scrubber {...props} className="h-8 min-w-0 flex-1" bars="full" />
+      {/* The title gives way before the scrubber does: the bar is narrower when the sidebar is open */}
+      <Scrubber {...props} className="h-8 min-w-14 flex-1 sm:min-w-20" bars="full" />
       <span className="k-num hidden w-10 text-[11px] text-muted-foreground sm:block">{formatTime(duration)}</span>
       {/* Below 1280px only the mute button: the slider's width goes to the scrubber */}
       <VolumeControl {...props} className="hidden md:flex xl:w-28" sliderClassName="hidden xl:flex" />
@@ -364,7 +367,7 @@ function SkipButton({
       aria-label={label}
       title={label}
       aria-disabled={!available || undefined}
-      className="[&_svg]:fill-current aria-disabled:pointer-events-none [&[aria-disabled=true]_svg]:opacity-40 [@media(pointer:coarse)]:min-w-11"
+      className="focus-visible:ring-offset-card [&_svg]:fill-current aria-disabled:pointer-events-none [&[aria-disabled=true]_svg]:opacity-45 [@media(pointer:coarse)]:min-w-11"
     >
       {children}
     </Button>

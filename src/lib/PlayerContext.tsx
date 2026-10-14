@@ -21,6 +21,8 @@ export type PlayerDock = "panel" | "bar";
 interface PlayerQueue {
   tracks: Song[];
   index: number;
+  /** The way the current track was reached: a track that fails to load is skipped on in this direction. */
+  dir: 1 | -1;
 }
 
 interface PlayerContextValue {
@@ -56,20 +58,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [dock, setDockState] = useState<PlayerDock>(loadDock);
   const current = queue ? queue.tracks[queue.index] : null;
 
-  const playRun = useCallback((tracks: Song[], index: number) => {
+  const start = useCallback((tracks: Song[], index: number, dir: 1 | -1) => {
     if (index < 0 || index >= tracks.length) return;
-    setQueue({ tracks, index });
+    setQueue({ tracks, index, dir });
     setIsPlaying(true);
   }, []);
 
-  const play = useCallback((song: Song) => playRun([song], 0), [playRun]);
+  const playRun = useCallback((tracks: Song[], index: number) => start(tracks, index, 1), [start]);
+  const play = useCallback((song: Song) => start([song], 0, 1), [start]);
 
   // No wraparound: at either end of the run this does nothing.
   const step = useCallback(
-    (delta: 1 | -1) => {
-      if (queue) playRun(queue.tracks, queue.index + delta);
+    (dir: 1 | -1) => {
+      if (queue) start(queue.tracks, queue.index + dir, dir);
     },
-    [queue, playRun],
+    [queue, start],
   );
   const next = useCallback(() => step(1), [step]);
   const previous = useCallback(() => step(-1), [step]);

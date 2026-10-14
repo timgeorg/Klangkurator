@@ -76,7 +76,7 @@ not used by the UI):
 - The editor adds tracks and blocks from one searchable picker, moves items
   up and down, removes them, and takes a transition note between each pair
 - Play on the card plays the running order from its first track (unavailable
-  while it is empty): blocks expand in place, missing tracks and deleted
+  while it has nothing to play): blocks expand in place, missing tracks and deleted
   blocks are skipped, and the player's next / previous step through it
   (PF-80). In the editor a row's number turns into Play on row hover or
   keyboard focus and plays the set from that row (a block from its first
