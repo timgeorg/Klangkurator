@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Pause, Pencil, Play, Share2 } from "lucide-react";
+import { ArrowLeft, Pause, Pencil, Play, Share2, Wand2 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
+import { ReanalyzeDialog } from "@/components/dj/ReanalyzeDialog";
 import { SongRelationshipsDialog } from "@/components/dj/SongRelationshipsDialog";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SectionHeader } from "@/components/layout/PageHeader";
@@ -44,6 +45,7 @@ export default function SongDetailPage() {
   const [relationships, setRelationships] = useState<RelRow[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [relationsOpen, setRelationsOpen] = useState(false);
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
   const requestRef = useRef(0);
 
   const load = useCallback(
@@ -155,6 +157,10 @@ export default function SongDetailPage() {
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil />
                 Edit
+              </Button>
+              <Button variant="outline" onClick={() => setReanalyzeOpen(true)}>
+                <Wand2 />
+                Re-analyze
               </Button>
               <Button variant="outline" onClick={() => setRelationsOpen(true)}>
                 <Share2 />
@@ -315,6 +321,15 @@ export default function SongDetailPage() {
           load(false);
         }}
         onDataChange={() => load(false)}
+      />
+      <ReanalyzeDialog
+        song={song}
+        open={reanalyzeOpen}
+        onOpenChange={setReanalyzeOpen}
+        onSave={(updated) => {
+          setSong(updated);
+          load(false);
+        }}
       />
       <SongRelationshipsDialog
         song={song}

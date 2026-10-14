@@ -40,6 +40,24 @@ export interface Song {
   updated_at: string;
 }
 
+/** The BPM hint for a re-analysis: both bounds or neither (issue #6). */
+export interface BpmRange {
+  min: number;
+  max: number;
+}
+
+/** What a per-track re-analysis detected and actually wrote (issue #6). */
+export interface ReanalyzeResult {
+  song_id: string;
+  bpm: number | null;
+  musical_key: string | null;
+  duration: number | null;
+  /** Whether the detected BPM sits inside the requested range (always true without one). */
+  bpm_fit: boolean;
+  /** The fields that were written — a hint that did not fit leaves `bpm` out. */
+  applied: Partial<Pick<Song, "bpm" | "musical_key" | "duration">>;
+}
+
 /**
  * A partial song update. A field set to null clears it (optional fields
  * only; the backend ignores null for required ones); a field left out is not
@@ -196,6 +214,11 @@ export interface StorageInterface {
     envelope: object,
     resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>,
   ): Promise<boolean>;
+  /** Issue #6 (PF-79): re-analyze ONE track's BPM and key, overriding the
+   *  library-wide "only fill missing" rule. `range` is an optional BPM hint:
+   *  the detector is biased toward it, and when the result does not land
+   *  inside, `bpm_fit` is false and the stored BPM is left alone. */
+  reanalyzeSong(songId: string, range?: BpmRange): Promise<ReanalyzeResult>;
 }
 
 // ── LocalStorage implementation (browser dev fallback) ──────
@@ -354,6 +377,11 @@ class LocalStorageImpl implements StorageInterface {
       return true;
     } catch { return false; }
   }
+  /** Issue #6: audio analysis does not exist in the browser-dev fallback, and
+   *  a silent no-op would look like a successful re-analysis. Say so instead. */
+  async reanalyzeSong(): Promise<ReanalyzeResult> {
+    throw new Error("Re-analysis needs the Klangkurator backend (this browser fallback has no audio analysis).");
+  }
 }
 
 // ── RemoteStorage implementation (backend API) ─────────────
@@ -401,6 +429,9 @@ class RemoteStorageImpl implements StorageInterface {
     return { block: b, songs: b.songs.sort((x, y) => x.position - y.position).map(bs => s.find(s => s.id === bs.song_id)).filter(Boolean) as Song[] };
   }
   async importData(envelope: object, resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>) { await api.post('/import', { envelope, resolutions }); return true; }
+  async reanalyzeSong(songId: string, range?: BpmRange) {
+    return api.post<ReanalyzeResult>(`/library/analyze/${songId}`, range ? { bpm_min: range.min, bpm_max: range.max } : {});
+  }
 }
 
 // ── Selector ───────────────────────────────────────────────
