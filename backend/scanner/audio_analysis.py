@@ -172,6 +172,9 @@ def analyze_all_missing_bpm(
     errors = []
 
     total = len(to_analyze)
+    # The table edits songs while this runs (3-5s per track); a BPM or key set
+    # by hand in the meantime wins over the analysed one. `song` is the live dict.
+    keys_at_start = {s["id"]: s.get("musical_key") for s in to_analyze}
 
     for idx, song in enumerate(to_analyze, start=1):
         done = idx  # 1-based index of the track that is about to start
@@ -195,9 +198,9 @@ def analyze_all_missing_bpm(
             continue
 
         updates = {}
-        if result.get("bpm") is not None:
+        if result.get("bpm") is not None and song.get("bpm") is None:
             updates["bpm"] = result["bpm"]
-        if result.get("musical_key") is not None:
+        if result.get("musical_key") is not None and song.get("musical_key") == keys_at_start[song["id"]]:
             updates["musical_key"] = result["musical_key"]
         if result.get("duration") is not None and song.get("duration") is None:
             updates["duration"] = result["duration"]

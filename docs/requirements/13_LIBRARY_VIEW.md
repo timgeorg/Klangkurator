@@ -1,8 +1,8 @@
 # Library View
 
 Status: Active
-Last Updated: 2026-10-08
-Source: Requirements.md sections 4, 8; editorial redesign (issue #1)
+Last Updated: 2026-10-13
+Source: Requirements.md sections 4, 8; editorial redesign (issue #1); inline editing (issue #3)
 
 ## Overview
 
@@ -51,21 +51,21 @@ removed earlier — the table handles all of it.
 | # | index + actions | Mono row number; Play/Pause and Edit replace it on row hover **and keyboard focus** |
 | Cover | image | 32px, black and white (Settings: original colour) |
 | Title | text (link) | Opens the song detail page; a trailing version or catalogue number in brackets is set quieter |
-| Artist | text | |
-| Genre | chip | Hairline chip with the genre's colour as a dot |
-| BPM | number | Mono, one decimal at most |
-| Key | text | Mono; minor keys in the info colour, full name as tooltip |
+| Artist | text | Edited in place |
+| Genre | chip | Hairline chip with the genre's colour as a dot; a click opens the genre list |
+| BPM | number | Mono, one decimal at most; edited in place |
+| Key | text | Mono; minor keys in the info colour, full name as tooltip; a click opens the key list |
 | Waveform | waveform | Static SVG |
 | Time | duration | m:ss (minutes unpadded) |
-| Subgenres | text | Up to three, "+N" beyond |
-| Energy | rating (0–5) | Five rising bars; decimals floor on display (3.8 → 3 bars), tooltip keeps the exact value |
-| Dance | rating (0–5) | Five rising bars; decimals floor on display |
-| Social | rating (0–5) | Five rising bars; decimals floor on display |
-| Rank | rank (1–5) | Five stars; read-only on this base (editing is the Edit dialog's Rank slider) |
-| Album | text | |
+| Subgenres | text | Up to three, "+N" beyond; a click opens the subgenre checklist |
+| Energy | rating (0–5) | Five rising bars; decimals floor on display (3.8 → 3 bars), tooltip keeps the exact value; a click on a bar sets the rating |
+| Dance | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating |
+| Social | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating |
+| Rank | rank (1–5) | Five stars; a click on a star sets the rank |
+| Album | text | Edited in place |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
 | Tags | chips | Side-by-side, auto-grow, inline add/remove; whole chips only, the rest as a "+N" count (names in its tooltip and for screen readers) |
-| Lyrics | preview | First 50 characters, 200 in the tooltip |
+| Lyrics | preview | First 50 characters, 200 in the tooltip; a click opens the lyrics editor |
 | Notes | text | The mixing note; flex-fills remaining width, inline-editable. While it is empty, a drum or element note shows as a muted italic hint ("Drums: …") |
 
 Default order as listed (title, artist, genre, BPM and key lead, as on the
@@ -113,10 +113,50 @@ Planned, not built — additional filters for set planning:
 
 ## Inline Interaction
 
-- Notes field: click → edit the mixing note → Enter/blur to save, Escape
-  discards (no dialog). The editor opens on the mixing note only, never the
-  hint; the note is trimmed, an emptied note is cleared, an unchanged note is
-  not written
+Every value the user owns edits where it stands, without a dialog (NFR-11);
+the Edit dialog stays for changing everything at once. Behavior contract:
+`docs/plans/INLINE_EDIT_BEHAVIOR_CONTRACT.md`.
+
+- **Affordance**: hover lays a quiet fill behind an editable value, keyboard
+  focus shows the ring. Each value's accessible name gives the field, the
+  track and the value ("Genre for Feng Shui: Techno")
+- **Saving**: every change saves at once. A failed save shows a notification,
+  then the table reloads from the backend, so it never goes on showing a
+  change that wasn't saved
+- **Stable rows**: an edit never moves its row. The order on screen freezes at
+  the first edit, so a track that no longer fits the sort, the search or a
+  filter keeps its place until one of them changes
+- **Text (Artist, Album, BPM, Notes)**: click → a field in place → Enter or
+  blur saves, Escape restores the old value; after Enter or Escape focus is
+  back on the cell. Values are trimmed, an emptied album, BPM or note is
+  cleared, an unchanged value is not written, and an artist can't be emptied.
+  BPM takes "127.5" or "127,5", from 40 to 250, one decimal at most. Enter on
+  an invalid value keeps the field open with the reason beside it; leaving
+  the field restores the old value and a notification says why
+- **Notes**: as above, on the mixing note only, never the hint; Shift+Enter
+  starts a new line
+- **Genre, Key**: click → a list with a search field and the current value
+  checked; a choice saves and closes it, "No genre" / "No key" clears it.
+  Keys are in the analyser's notation with the full name ("Am · A minor"); a
+  value from the file's tags that isn't in the list is offered on top.
+  Changing the genre keeps the subgenres (the Subgenres column may be off
+  screen; the edit dialog, a form you can cancel, clears them)
+- **Subgenres**: click → a checklist with the track's subgenres first, then
+  the genre's others; each choice saves at once and the list keeps its order
+  until Escape or a click outside. "Create “…”" adds a new name to the track
+  and to the genre's list (for a file-tag genre that Settings doesn't list:
+  "Add “…” to this track"). Without a genre the list asks for one first. A
+  genre read only from the file's tags becomes the main genre when subgenres
+  are set (shown the same)
+- **Ratings (Energy, Dance, Social) and Rank**: mouse: hovering previews, a
+  click on a bar (a star for Rank) sets that whole value, a click on the
+  current one clears it. Keyboard: a slider (arrows ±1 keeping a decimal set
+  in the dialog, Home or 0 clears, End sets 5, 1–5 directly; Enter or Space
+  opens the picker). Touch: a tap opens a picker of 44px targets (Unrated or
+  Unranked, 1–5). Decimals (issue #7) still show as their whole bars; the
+  exact value is in the tooltip and read to screen readers
+- **Lyrics**: click → the lyrics editor
+- **Read-only**: Cover, Waveform, Time and Crate come from the file
 - Clicking a song title → opens the song detail page (`/song/:id`, PF-17)
 - Play (or Pause on the current track) and Edit → in the # column, on row
   hover or keyboard focus

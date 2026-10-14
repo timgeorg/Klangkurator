@@ -7,16 +7,19 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
 import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
 import { getMainGenreColor } from "@/lib/genreData";
 import { usePlayer } from "@/lib/PlayerContext";
-import { storage, Song, Tag } from "@/lib/storage";
+import { createSongWriter, type SongWriter } from "@/lib/songWriter";
+import { storage, Song, SongPatch, SongTag, Tag } from "@/lib/storage";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
 import { ColumnSettingsDialog } from "./ColumnSettingsDialog";
 import { EditSongDialog } from "./EditSongDialog";
 import { FILTER_CONFIG, FilterOptions, FilterState, FilterValue, RangeValue, SortState, isFilterActive } from "./libraryTable";
+import { LyricsDialog } from "./LyricsDialog";
 import { SongTableHeader } from "./SongTableHeader";
 import { SongTableRow } from "./SongTableRow";
 
@@ -53,6 +56,16 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
+/** A patch applied the way the backend applies it: null clears the field. */
+function applyPatch(song: Song, patch: SongPatch): Song {
+  const next: Record<string, unknown> = { ...song };
+  for (const [field, value] of Object.entries(patch)) {
+    if (value === null) delete next[field];
+    else if (value !== undefined) next[field] = value;
+  }
+  return next as unknown as Song;
+}
+
 export function SongLibrary() {
   const navigate = useNavigate();
   const player = usePlayer();
@@ -68,9 +81,6 @@ export function SongLibrary() {
 
   // UI state (session only: search, filters and sort reset when you leave)
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
-  const editingNotesRef = useRef(editingNotes);
-  editingNotesRef.current = editingNotes;
   const songsRef = useRef(songs);
   songsRef.current = songs;
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -79,18 +89,64 @@ export function SongLibrary() {
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedSongForEdit, setSelectedSongForEdit] = useState<Song | null>(null);
+  const [lyricsSong, setLyricsSong] = useState<Song | null>(null);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
 
   // Right-edge fade when the table is wider than its container
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
+  // Edits never move rows: the order on screen freezes at the first edit, so
+  // a track that no longer fits the sort, the search or a filter keeps its
+  // place (under the pointer) until one of those changes.
+  const viewKey = JSON.stringify([searchQuery, filters, sort]);
+  const viewKeyRef = useRef(viewKey);
+  viewKeyRef.current = viewKey;
+  const [frozen, setFrozen] = useState<{ key: string; ids: string[] } | null>(null);
+  const rowsRef = useRef<Song[]>([]);
+  const freezeRows = useCallback(() => {
+    setFrozen((prev) =>
+      prev?.key === viewKeyRef.current ? prev : { key: viewKeyRef.current, ids: rowsRef.current.map((s) => s.id) },
+    );
+  }, []);
+
+  // Inline edits save one request at a time (see songWriter). A failed save
+  // says so; once the queue is empty the library reloads from the backend, so
+  // the table never goes on showing a change that wasn't saved.
+  const loadAllDataRef = useRef<() => Promise<void>>(async () => {});
+  const reloadQueued = useRef(false);
+  const editCount = useRef(0);
+  const writerRef = useRef<SongWriter | null>(null);
+  if (!writerRef.current) {
+    const writer = createSongWriter((songId) => {
+      const title = songsRef.current.find((s) => s.id === songId)?.title;
+      toast({
+        variant: "destructive",
+        title: "Change not saved",
+        description: `${title ? `“${title}”` : "A track"} couldn't be saved. Check that Klangkurator is still running.`,
+      });
+      if (reloadQueued.current) return;
+      reloadQueued.current = true;
+      writer.idle().then(() => {
+        reloadQueued.current = false;
+        loadAllDataRef.current();
+      });
+    });
+    writerRef.current = writer;
+  }
+
   const loadAllData = useCallback(async () => {
     try {
-      // Three requests in parallel; the song/tag join comes in one call.
-      const [loadedSongs, loadedTags, links] = await Promise.all([
-        storage.getSongs(),
-        storage.getTags(),
-        storage.getSongTags(),
-      ]);
+      // Three requests in parallel; the song/tag join comes in one call. An
+      // inline edit made while they run would be overwritten by this older
+      // copy, so the fetch waits for queued edits and repeats after new ones.
+      let loaded: [Song[], Tag[], SongTag[]];
+      let edits: number;
+      do {
+        edits = editCount.current;
+        await writerRef.current?.idle();
+        loaded = await Promise.all([storage.getSongs(), storage.getTags(), storage.getSongTags()]);
+      } while (edits !== editCount.current);
+      const [loadedSongs, loadedTags, links] = loaded;
       const tagById = new Map(loadedTags.map((t) => [t.id, t]));
       const tagsMap: Record<string, Tag[]> = {};
       for (const link of links) {
@@ -106,6 +162,7 @@ export function SongLibrary() {
       setLoadError(error instanceof Error ? error.message : "The library could not be loaded.");
     }
   }, []);
+  loadAllDataRef.current = loadAllData;
 
   useEffect(() => {
     loadAllData();
@@ -126,9 +183,29 @@ export function SongLibrary() {
     autoResizeColumn("tags", Math.min(360, 160 + Math.max(0, maxCount - 1) * 70));
   }, [songTags, songs, autoResizeColumn]);
 
-  const handleTagsChange = useCallback(async (songId: string, tags: Tag[]) => {
-    setSongTags((prev) => ({ ...prev, [songId]: tags }));
-    setAllTags(await storage.getTags());
+  const handleTagsChange = useCallback(
+    async (songId: string, tags: Tag[]) => {
+      freezeRows();
+      setSongTags((prev) => ({ ...prev, [songId]: tags }));
+      setAllTags(await storage.getTags());
+    },
+    [freezeRows],
+  );
+
+  // An inline edit: shown at once, saved in the background.
+  const patchSong = useCallback(
+    (songId: string, patch: SongPatch) => {
+      freezeRows();
+      editCount.current += 1;
+      setSongs((prev) => prev.map((song) => (song.id === songId ? applyPatch(song, patch) : song)));
+      writerRef.current?.write(songId, patch);
+    },
+    [freezeRows],
+  );
+
+  const openLyrics = useCallback((song: Song) => {
+    setLyricsSong(song);
+    setLyricsOpen(true);
   }, []);
 
   const handleTagCreated = useCallback(async () => {
@@ -153,51 +230,6 @@ export function SongLibrary() {
   const updateFilter = useCallback((key: keyof FilterState, value: FilterValue) => {
     setFilters((prev) => ({ ...prev, [key]: value ?? INITIAL_FILTERS[key] }));
   }, []);
-
-  // Inline notes (NFR-11): Enter or blur saves, Escape discards, Shift+Enter is a newline
-  const handleNotesEdit = useCallback((songId: string, notes: string) => {
-    setEditingNotes((prev) => ({ ...prev, [songId]: notes }));
-  }, []);
-
-  const dropDraft = (songId: string) =>
-    setEditingNotes((prev) => {
-      const next = { ...prev };
-      delete next[songId];
-      return next;
-    });
-
-  // Saves the mixing note: trimmed, cleared when empty, untouched when unchanged.
-  const handleNotesBlur = useCallback(async (songId: string) => {
-    const draft = editingNotesRef.current[songId];
-    if (draft === undefined) return;
-    const note = draft.trim();
-    const before = songsRef.current.find((s) => s.id === songId)?.mixing_notes?.trim() ?? "";
-    if (note !== before) {
-      await storage.updateSong(songId, { mixing_notes: note || null });
-      setSongs(await storage.getSongs());
-    }
-    dropDraft(songId);
-  }, []);
-
-  // After Enter or Escape the editor closes; keep keyboard focus on the cell.
-  const focusNotesCell = (songId: string) =>
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>(`[data-notes-for="${CSS.escape(songId)}"]`)?.focus(),
-    );
-
-  const handleNotesKeyDown = useCallback(
-    (e: React.KeyboardEvent, songId: string) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleNotesBlur(songId).then(() => focusNotesCell(songId));
-      }
-      if (e.key === "Escape") {
-        dropDraft(songId);
-        focusNotesCell(songId);
-      }
-    },
-    [handleNotesBlur],
-  );
 
   // Filter options come from the loaded data (NFR-4: memoised)
   const filterOptions: FilterOptions = useMemo(() => {
@@ -292,6 +324,20 @@ export function SongLibrary() {
     });
   }, [songs, searchQuery, filters, songTags, sort]);
 
+  // The rows on screen: the live result, or the frozen order while editing.
+  const rows = useMemo(() => {
+    if (!frozen || frozen.key !== viewKey) return filteredSongs;
+    const byId = new Map(songs.map((song) => [song.id, song]));
+    return frozen.ids.flatMap((id) => byId.get(id) ?? []);
+  }, [frozen, viewKey, filteredSongs, songs]);
+  rowsRef.current = rows;
+
+  // A new search, filter or sort thaws the order for good: going back to an
+  // earlier search never brings an old frozen order back.
+  useEffect(() => {
+    setFrozen((prev) => (prev && prev.key !== viewKey ? null : prev));
+  }, [viewKey]);
+
   const activeFilterKeys = (Object.keys(FILTER_CONFIG) as (keyof FilterState)[]).filter((key) =>
     isFilterActive(FILTER_CONFIG[key].type, filters[key]),
   );
@@ -375,13 +421,13 @@ export function SongLibrary() {
       el.removeEventListener("scroll", update);
       observer.disconnect();
     };
-  }, [filteredSongs.length, gridTemplate, initialLoadDone]);
+  }, [rows.length, gridTemplate, initialLoadDone]);
 
   const crateTotal = filterOptions.rootFolders.length;
   const meta = !initialLoadDone
     ? undefined
     : isFiltering
-      ? `${filteredSongs.length} of ${songs.length} tracks`
+      ? `${rows.length} of ${songs.length} tracks`
       : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}` +
         (crateTotal > 0 ? ` · ${crateTotal} ${crateTotal === 1 ? "crate" : "crates"}` : "");
 
@@ -477,8 +523,9 @@ export function SongLibrary() {
             const el = tableScrollRef.current;
             const target = e.target as HTMLElement;
             // Keyboard focus only: scrolling under a mouse click would move the
-            // control away from the pointer and swallow the click.
-            if (!el || target === el || !target.matches(":focus-visible")) return;
+            // control away from the pointer and swallow the click. Pickers are
+            // portaled out of the table, so focus inside them is left alone.
+            if (!el || target === el || !el.contains(target) || !target.matches(":focus-visible")) return;
             const box = el.getBoundingClientRect();
             const r = target.getBoundingClientRect();
             const rightLimit = box.left + el.clientWidth - 56;
@@ -505,7 +552,7 @@ export function SongLibrary() {
             <TableSkeleton gridTemplate={gridTemplate} columns={visibleColumns} />
           ) : (
             <>
-              <div role="table" aria-label="Library" aria-rowcount={filteredSongs.length} className="w-max min-w-full">
+              <div role="table" aria-label="Library" aria-rowcount={rows.length} className="w-max min-w-full">
                 <SongTableHeader
                   columnConfig={columnConfig}
                   filters={filters}
@@ -515,7 +562,7 @@ export function SongLibrary() {
                   onSortChange={setSort}
                 />
                 <div role="rowgroup">
-                  {filteredSongs.map((song, index) => (
+                  {rows.map((song, index) => (
                     <SongTableRow
                       key={song.id}
                       song={song}
@@ -524,21 +571,19 @@ export function SongLibrary() {
                       allTags={allTags}
                       visibleColumns={visibleColumns}
                       gridTemplate={gridTemplate}
-                      editingNotes={editingNotes[song.id]}
                       isCurrent={song.id === currentId}
                       isPlaying={song.id === currentId && isPlaying}
                       onPlaySong={handlePlaySong}
                       onEditSong={handleEditSong}
                       onTagsChange={handleTagsChange}
                       onTagCreated={handleTagCreated}
-                      onNotesEdit={handleNotesEdit}
-                      onNotesBlur={handleNotesBlur}
-                      onNotesKeyDown={handleNotesKeyDown}
+                      onPatch={patchSong}
+                      onOpenLyrics={openLyrics}
                     />
                   ))}
                 </div>
               </div>
-              {filteredSongs.length === 0 && songs.length > 0 && (
+              {rows.length === 0 && songs.length > 0 && (
                 <div className="sticky left-0 w-full max-w-3xl p-5 md:p-8">
                   <EmptyState
                     size="inline"
@@ -595,7 +640,22 @@ export function SongLibrary() {
         song={selectedSongForEdit}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
-        onSave={() => loadAllData()}
+        onSave={() => {
+          freezeRows();
+          loadAllData();
+        }}
+      />
+      <LyricsDialog
+        song={lyricsSong}
+        open={lyricsOpen}
+        onOpenChange={setLyricsOpen}
+        onSave={(updated) => {
+          freezeRows();
+          // Only the lyrics: other fields may still have inline edits on their way.
+          setSongs((prev) =>
+            prev.map((song) => (song.id === updated.id ? { ...song, lyrics: updated.lyrics ?? undefined } : song)),
+          );
+        }}
       />
     </div>
   );
