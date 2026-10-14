@@ -1,7 +1,41 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-13
+Last Updated: 2026-10-14
+
+## 2026-10-14
+
+### Per-track re-analyze with an optional BPM range (10, 11, 90, 91; issue #6, PF-79)
+
+A track's detail page gains a `Re-analyze` action: a popup that re-runs BPM and
+key detection on **one** track and takes an optional BPM range as a hint. This
+is the repair path for a wrong BPM — the library-wide "Analyze BPM and key" job
+only fills *missing* values, so a wrong number was previously unfixable except
+by typing.
+
+- New `REQ-10-RA` in `10_LIBRARY_AND_FILE_LOADING.md`: the detail-page popup,
+  the override of the "only fill missing" rule for that track, BPM+key in one
+  run, and the one-analysis-at-a-time rule enforced in both directions.
+- New `INV-13`: analysis never overwrites a human-set BPM/key silently — the
+  batch job fills only missing values, the per-track run is the explicit
+  override and shows before → after.
+- The range is a **hint, not a filter**: it biases the tempo estimate with a
+  bounded log-normal prior. Measured on synthetic click tracks, filtering
+  candidates instead would answer `215.3` for a true-128 track asked for
+  `200–220`, with no way to detect the mismatch; the prior steered a mis-read
+  `117.5` to `172.3` for a true-174 track asked for `165–185`.
+- Since it is a bias and not a guarantee, a result outside a given range is
+  reported (`bpm_fit: false`) and the stored BPM is left unchanged.
+- New PF-79 in `92_PLANNED_FEATURES.md`; the endpoint takes an optional body
+  (`bpm_min`/`bpm_max`) and returns `applied` plus `bpm_fit`.
+
+### Corrected: OOS-5 was false and duplicated
+
+`93_OUT_OF_SCOPE.md` carried two rows with the same ID `OOS-5`. The second —
+"Waveform analysis / beat detection", claiming BPM is "entered manually or
+extracted from file metadata, not computed from audio" — has been false since
+librosa shipped. It is renumbered to `OOS-12` and corrected: BPM **is** computed
+from the audio; what stays out of scope is beat-grid/waveform analysis.
 
 ## 2026-10-13
 

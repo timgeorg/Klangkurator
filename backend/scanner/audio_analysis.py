@@ -19,6 +19,7 @@ For batch analysis with progress reporting:
 """
 
 import logging
+import math
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,11 @@ KEY_MAP_MAJOR = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 KEY_MAP_MINOR = ["Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]
 
 
-def analyze_track(file_path: str, duration_seconds: float = 120.0) -> dict:
+def analyze_track(
+    file_path: str,
+    duration_seconds: float = 120.0,
+    bpm_range: tuple[float, float] | None = None,
+) -> dict:
     """Analyze a single audio file for BPM and key.
 
     Args:
@@ -40,9 +45,15 @@ def analyze_track(file_path: str, duration_seconds: float = 120.0) -> dict:
         duration_seconds: How many seconds to analyze (first N seconds).
             120s is enough for accurate BPM/key — full track is slower
             and rarely more accurate.
+        bpm_range: Optional (min, max) hint for the tempo. It biases the
+            estimate toward the window instead of filtering candidates to
+            it — see `_bpm_prior` for why that distinction matters.
 
     Returns:
-        dict with: bpm (float), musical_key (str|None), duration (float|None)
+        dict with: bpm (float|None), musical_key (str|None),
+        duration (float|None), bpm_fit (bool — whether bpm sits inside
+        bpm_range; always True when no range was given, False when the
+        tempo could not be detected).
     """
     import librosa
     import numpy as np
@@ -58,14 +69,26 @@ def analyze_track(file_path: str, duration_seconds: float = 120.0) -> dict:
         y, sr = librosa.load(file_path, sr=22050, mono=True, duration=duration_seconds)
     except Exception as e:
         logger.warning(f"librosa.load failed for {file_path}: {e}")
-        return {"bpm": None, "musical_key": None, "duration": None}
+        return {"bpm": None, "musical_key": None, "duration": None, "bpm_fit": False}
 
     # ── BPM ────────────────────────────────────────────────
+    bpm = None
     try:
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-        # tempo can be a numpy array (shape [1]) or scalar
-        tempo_val = float(np.asarray(tempo).item())
-        bpm = round(tempo_val, 1)
+        prior = _bpm_prior(*bpm_range) if bpm_range else None
+        # Prior goes through beat_track, NOT feature.tempo: the two build their
+        # onset envelope differently (beat_track aggregates with np.median,
+        # feature.tempo with np.mean), and on real tracks that difference moves
+        # the answer — measured 2 of 14 library tracks land on a different BPM.
+        # beat_track has exposed `prior` since 0.10, so it steers the same
+        # estimator the app already ships and the no-hint answer is identical.
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, prior=prior)
+        value = round(float(np.asarray(tempo).item()), 1)
+        # beat_track answers 0.0 when the onset envelope has no onsets at all
+        # (silence, a beatless pad, a long reverb-only intro). That is a failed
+        # detection, not a tempo — 0 BPM is outside the 40–250 the app allows,
+        # and treating it as a success would write a nonsense BPM that the
+        # batch job never revisits (it only fills `bpm is None`).
+        bpm = value if value > 0 else None
     except Exception as e:
         logger.warning(f"BPM detection failed for {file_path}: {e}")
         bpm = None
@@ -83,7 +106,46 @@ def analyze_track(file_path: str, duration_seconds: float = 120.0) -> dict:
     except Exception:
         full_duration = None
 
-    return {"bpm": bpm, "musical_key": musical_key, "duration": full_duration}
+    bpm_fit = bpm is not None and (bpm_range is None or bpm_range[0] <= bpm <= bpm_range[1])
+
+    return {
+        "bpm": bpm,
+        "musical_key": musical_key,
+        "duration": full_duration,
+        "bpm_fit": bpm_fit,
+    }
+
+
+def _bpm_prior(bpm_min: float, bpm_max: float):
+    """A log-normal prior that biases the tempo estimate toward [min, max].
+
+    Biases, it does not filter — and that is deliberate. Filtering candidate
+    tempos to the window always returns a number: asked for 200–220 on a
+    true-128 track it answers ~215 and there is no signal to say the answer is
+    wrong. A prior instead shifts the estimate toward the window while letting
+    the audio overrule it, so a result outside the window is a real "this
+    signal doesn't support your range" that the caller can report.
+
+    The median sits at the geometric centre of the window with sigma =
+    ln(max/min)/4, so roughly ±2 sigma spans the window.
+
+    Returns None when there is no usable hint, so the caller can pass it
+    straight through:
+
+    - a degenerate window (``max <= min``) has no centre and a zero-width
+      log-normal is all-NaN, which would poison the tempogram silently;
+    - a window an octave wide or wider cannot disambiguate octaves — the one
+      thing this hint is for — and a prior over it would only drag the estimate
+      toward the geometric centre (40–250 pulls a correct 136 to 92). Such a
+      range means "no constraint", so it must behave exactly like no range.
+    """
+    from scipy.stats import lognorm
+
+    if bpm_max <= bpm_min or bpm_max / bpm_min >= 2.0:
+        return None
+    centre = math.sqrt(bpm_min * bpm_max)
+    sigma = math.log(bpm_max / bpm_min) / 4.0
+    return lognorm(loc=0, s=sigma, scale=centre)
 
 
 def _detect_key(y, sr: int, librosa=None, np=None) -> str | None:

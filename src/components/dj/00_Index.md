@@ -17,4 +17,5 @@ tags:
 - [[SongTableHeader.tsx]] — Table header row component with sortable column headers and filter inputs.
 - [[TrackTitle.tsx]] — A track title with its version or catalogue part set quieter, so two versions of one track never read the same in lists.
 - [[SongTableRow.tsx]] — One table row: cover, waveform, play and edit actions, and the inline-editable cells for every user-owned value.
+- [[ReanalyzeDialog.tsx]] — The popup that re-analyzes one track's BPM and key, with an optional BPM range hint (issue #6).
 - [[libraryTable.ts]] — Shared types, filter config, and constants for the library table (FilterState, SortState, FilterValue, FILTER_CONFIG, etc.).
