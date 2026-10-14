@@ -100,10 +100,34 @@ from loose file picks.
   `GET /api/library/analyze-status` (done / total / current_title /
   running). The frontend polls it while a job is running.
 - Only one analysis job runs at a time; starting a new one while one is
-  running is rejected with a clear message.
+  running is rejected with a clear message. This holds in **both** directions:
+  the per-track re-analyze below refuses to start while a library-wide job
+  runs, and the library-wide job refuses to start while a per-track run is in
+  progress.
 - The job is per-run (in-memory), not persisted to JSON — if the backend
   restarts mid-job, progress is simply gone and the user can restart.
 - Final summary (analyzed/updated/skipped/errors) is shown on completion.
+
+### Per-track re-analyze (REQ-10-RA, PF-79; issue #6)
+- A track's **detail page** offers `Re-analyze` next to Play / Edit /
+  Relationships. It opens a popup that names the track, shows the stored BPM and
+  key, and runs `POST /api/library/analyze/{song_id}` — the same detector as the
+  library-wide job, on one track, **synchronously** (one track is 3–5 s; no
+  progress job is needed).
+- Re-analysis **overrides** the "only fill missing" rule for that track: that is
+  the point. The library-wide job skips a track that already has a BPM, which
+  makes a *wrong* BPM otherwise unrepairable except by typing.
+- The popup takes an optional **BPM range** (min/max, both or neither, inside
+  40–250). The range is a **hint**: it biases the detector toward the window
+  rather than filtering candidates, so it cannot return the detector's
+  out-of-window answer as if it were inside. `bpm` and `musical_key` are
+  re-detected in the same run; `duration` is only filled when missing.
+- If the detected BPM does not fall inside a given range, the stored BPM is
+  **left unchanged** and the popup names the detected value. Nothing is
+  overwritten silently (INV-13).
+- Key is written on every successful run, range or not.
+- The popup shows before → after and has no Cancel — the write lands on a
+  successful run, so offering to undo it would be false.
 
 ### Library view — empty-library redirect
 - Opening the Library view with **zero songs** auto-redirects to the

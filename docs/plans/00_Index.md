@@ -21,3 +21,5 @@ tags:
 - [[INLINE_EDIT_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for inline editing (issue #3), judged black-box against a sandbox copy of the library.
 - [[EXPORT_IMPORT_PLAN.md]] — plan for the whole-store export + merge import (issue #10): identity key, conflict popup, endpoint rework, files.
 - [[EXPORT_IMPORT_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for export/import (issue #10), judged black-box against a sandbox copy of the library.
+- [[REANALYZE_PLAN.md]] — plan for the per-track re-analyze with a BPM range hint (issue #6): probed facts on librosa priors, the in/out-of-window decision, lock policy, files.
+- [[REANALYZE_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the per-track re-analyze (issue #6), judged black-box against a sandbox copy of the library.
