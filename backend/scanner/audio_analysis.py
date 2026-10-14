@@ -82,7 +82,13 @@ def analyze_track(
         # beat_track has exposed `prior` since 0.10, so it steers the same
         # estimator the app already ships and the no-hint answer is identical.
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr, prior=prior)
-        bpm = round(float(np.asarray(tempo).item()), 1)
+        value = round(float(np.asarray(tempo).item()), 1)
+        # beat_track answers 0.0 when the onset envelope has no onsets at all
+        # (silence, a beatless pad, a long reverb-only intro). That is a failed
+        # detection, not a tempo — 0 BPM is outside the 40–250 the app allows,
+        # and treating it as a success would write a nonsense BPM that the
+        # batch job never revisits (it only fills `bpm is None`).
+        bpm = value if value > 0 else None
     except Exception as e:
         logger.warning(f"BPM detection failed for {file_path}: {e}")
         bpm = None
@@ -122,9 +128,21 @@ def _bpm_prior(bpm_min: float, bpm_max: float):
 
     The median sits at the geometric centre of the window with sigma =
     ln(max/min)/4, so roughly ±2 sigma spans the window.
+
+    Returns None when there is no usable hint, so the caller can pass it
+    straight through:
+
+    - a degenerate window (``max <= min``) has no centre and a zero-width
+      log-normal is all-NaN, which would poison the tempogram silently;
+    - a window an octave wide or wider cannot disambiguate octaves — the one
+      thing this hint is for — and a prior over it would only drag the estimate
+      toward the geometric centre (40–250 pulls a correct 136 to 92). Such a
+      range means "no constraint", so it must behave exactly like no range.
     """
     from scipy.stats import lognorm
 
+    if bpm_max <= bpm_min or bpm_max / bpm_min >= 2.0:
+        return None
     centre = math.sqrt(bpm_min * bpm_max)
     sigma = math.log(bpm_max / bpm_min) / 4.0
     return lognorm(loc=0, s=sigma, scale=centre)

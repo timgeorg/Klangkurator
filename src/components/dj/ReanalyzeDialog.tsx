@@ -102,7 +102,9 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
         toast({
           variant: "destructive",
           title: "Stored BPM kept",
-          description: `The detector read ${formatBpm(res.bpm)} BPM, outside the range you gave — “${song.title}” keeps its stored BPM.`,
+          description:
+            `The detector read ${formatBpm(res.bpm)} BPM, outside the range you gave — “${song.title}” keeps its stored BPM.` +
+            (res.applied.musical_key !== undefined ? ` Its key was re-detected to ${res.musical_key || "none"}.` : ""),
         });
       }
     } catch (e) {
@@ -187,6 +189,10 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
               <>
                 Detected <span className="k-num">{formatBpm(result.bpm)}</span> BPM, outside the range you gave.
                 The stored BPM is unchanged (<span className="k-num">{formatBpm(before?.bpm)}</span>).
+                {result.applied.musical_key !== undefined && (
+                  <> The key was re-detected: <span className="k-num">{before?.musical_key || "–"}</span> →{" "}
+                  <span className="k-num">{result.musical_key || "–"}</span>.</>
+                )}
               </>
             )}
           </div>

@@ -74,10 +74,13 @@ def test_reanalysis_overwrites_a_value_the_batch_job_would_skip(track):
     # It ran at all (100.0 is not None, so `analyze_all_missing_bpm` would skip).
     assert body["bpm"] is not None
     assert body["bpm"] != 100.0
+    # Pin the detected key, so a broken detector (returning None) cannot make
+    # the two assertions below vacuously true.
+    assert body["musical_key"] is not None
     assert body["musical_key"] != "Cm"
     store = get_library_store()
     assert store.get_song(song_id)["bpm"] == body["bpm"]
-    assert store.get_song(song_id)["musical_key"] == body["musical_key"]
+    assert store.get_song(song_id)["musical_key"] == body["musical_key"] is not None
     assert "bpm" in body["applied"]
 
 
@@ -206,3 +209,47 @@ def test_the_batch_job_still_only_fills_missing_values(track):
     song = get_library_store().get_song(song_id)
     assert song["bpm"] == 100.0
     assert song["musical_key"] == "Cm"
+
+def test_a_beatless_file_is_not_read_as_zero_bpm(track, tmp_path):
+    """beat_track answers 0.0 when the onset envelope has no onsets at all —
+    a failed detection, not a tempo. Writing it would be worse than not
+    analysing at all: 0 is outside 40–250 and the batch job never revisits it."""
+    import numpy as np, soundfile as sf
+    path = tmp_path / "silence.wav"
+    sf.write(path, np.zeros(SR * 5, dtype=np.float32), SR)
+    res = client.post(
+        "/api/songs",
+        json={"title": "Silence", "artist": "Dold", "file_path": str(path), "bpm": 128.0},
+    )
+    song_id = res.json()["id"]
+
+    body = client.post(f"/api/library/analyze/{song_id}").json()
+    assert body["bpm"] is None
+    assert body["bpm_fit"] is False
+    assert "bpm" not in body["applied"]
+    assert get_library_store().get_song(song_id)["bpm"] == 128.0
+
+
+def test_a_range_spanning_the_legal_space_behaves_like_no_range(track):
+    """The dialog's own placeholders are 40 and 250. A window that wide cannot
+    disambiguate octaves, so it must not drag the estimate to the geometric
+    centre (40*250 -> 100 BPM) and rewrite a value that was already right."""
+    song_id, _ = track(signal_bpm=174.0, bpm=100.0)
+    no_range = client.post(f"/api/library/analyze/{song_id}").json()
+    wide = client.post(f"/api/library/analyze/{song_id}", json={"bpm_min": 40, "bpm_max": 250}).json()
+    assert wide["bpm"] == no_range["bpm"]
+
+
+def test_out_of_range_still_reports_the_key_it_wrote(track):
+    """The key is re-detected in the same run regardless of the BPM hint, so an
+    out-of-range run that keeps the BPM must still say the key changed —
+    otherwise INV-13's "never silently" is broken for the key half."""
+    song_id, _ = track(signal_bpm=128.0, bpm=128.0, musical_key="Cm")
+    body = client.post(f"/api/library/analyze/{song_id}", json={"bpm_min": 240, "bpm_max": 250}).json()
+    assert body["bpm_fit"] is False
+    assert "bpm" not in body["applied"]
+    # Either the key genuinely changed and is reported, or the run changed nothing.
+    stored = get_library_store().get_song(song_id)
+    assert stored["bpm"] == 128.0
+    if stored["musical_key"] != "Cm":
+        assert body["applied"]["musical_key"] == stored["musical_key"]

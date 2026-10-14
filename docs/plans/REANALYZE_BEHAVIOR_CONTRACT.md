@@ -109,11 +109,28 @@ counterpart to BC-4, not a contradiction of it — the range steers, it does not
 wall.
 
 ### BC-13 — a failed detection is not blamed on the range
-**Given** a track whose tempo cannot be read at all (a silent or corrupt file)
+**Given** a track whose tempo cannot be read at all (a silent file, a beatless
+pad, a reverb-only intro)
 **when** the user runs Re-analyze
 **then** the popup says the tempo could not be detected and nothing was changed
 — it does **not** claim the result fell outside the range, even though the
-backend reports `bpm_fit: false` for both.
+backend reports `bpm_fit: false` for both; and the stored BPM is **not** set to
+`0` (a `0` would read `–` in the table and the batch job would never revisit it).
+
+### BC-14 — the popup's own placeholder range changes nothing
+**Given** a track whose stored BPM already equals what the detector returns
+**when** the user enters the widest range the dialog offers (`40` to `250`) and
+runs Re-analyze
+**then** the result line ends `— the stored values were already correct.` and
+the BPM is unchanged: a window that wide cannot disambiguate octaves, so it is
+treated as no hint rather than as a pull toward the window's centre.
+
+### BC-15 — an out-of-range run still discloses the key it wrote
+**Given** a track with a wrong key whose BPM hint does not fit the signal
+**when** the run finishes
+**then** in addition to saying the stored BPM is unchanged, the popup names the
+key that **was** re-detected (`key <old> → <new>`), or says nothing about the key
+if it did not change — the run never writes a field it does not mention.
 
 ## Out of scope (this contract)
 

@@ -91,6 +91,21 @@ be steered.
   it — *not* to `feature.tempo`, whose different onset aggregation moves the
   answer on real audio (fact 2). Verified in fact 4, including that it is a
   bias and not a guarantee — hence the `bpm_fit` branch below.
+- **A window an octave wide or more is "no constraint", so it behaves as no
+  hint.** The prior's strength grows with the window width, so a wide window
+  over-steers: centred at the geometric mean of 40–250 (= 100 BPM), it dragged a
+  correct 136 to 92.3 and a correct 143.6 to 71.8 — all *in* window, so silently
+  written. A window that cannot disambiguate octaves (the one thing the hint is
+  for) is dropped (`_bpm_prior` returns `None`), which makes the dialog's own
+  placeholder range 40–250 a no-op; verified 0 of 14 real tracks change.
+  `min ≥ max` is also dropped there rather than built, since a zero-width
+  log-normal is all-NaN and poisons the tempogram silently.
+- **`bpm <= 0` is a failed detection, not a tempo.** `beat_track` answers `0.0`
+  when the onset envelope has no onsets at all (silence, a beatless pad, a
+  reverb-only intro), so `analyze_track` maps it to `None`. Otherwise a run
+  would write `0` BPM — outside the 40–250 the app allows, rendered as `–` in
+  the table, and never revisited by the batch job, which only fills `bpm is
+  None`.
 - **A range that cannot be satisfied is reported, never hidden.** The response
   carries `bpm_fit: bool` (`min ≤ bpm ≤ max`). When it is `False` the detected
   BPM is **not written** — the stored value stays, and the popup says so.
@@ -168,7 +183,10 @@ be steered.
     edit and `changed` must compare against what the song holds now.
   - Response: `{song_id, bpm, musical_key, duration, bpm_fit, applied}` where
     `applied` holds only the fields that **changed** — so the popup can say a
-    run changed nothing without re-deriving it from a stale copy.
+    run changed nothing without re-deriving it from a stale copy. The popup
+    names `applied.musical_key` in the out-of-range branch too: the key is
+    re-detected regardless of the BPM hint, and leaving it unmentioned would be
+    exactly the silent overwrite INV-13 forbids.
 
 ### Frontend
 
