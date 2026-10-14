@@ -14,6 +14,11 @@ SUPPORTED_AUDIO_EXTENSIONS = [
     ".mp3", ".flac", ".wav", ".m4a", ".ogg", ".aiff", ".aac", ".wma",
 ]
 
+# The BPM a track may take, one decimal at most — mirrors the frontend's
+# BPM_RANGE in src/lib/trackFormat.ts and the Edit dialog's input bounds.
+BPM_MIN = 40.0
+BPM_MAX = 250.0
+
 # Frontend build directory (for Phase 5 — PyWebView static serving)
 FRONTEND_DIST = Path(__file__).parent.parent / "dist"
 

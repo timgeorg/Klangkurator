@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.config import SUPPORTED_AUDIO_EXTENSIONS
+from backend.config import BPM_MAX, BPM_MIN, SUPPORTED_AUDIO_EXTENSIONS
 from backend.scanner.metadata import extract_metadata
 from backend.scanner.waveform import compute_peaks
 from backend.scanner.artwork import extract_artwork
@@ -263,6 +263,31 @@ _analyze_state: dict = {
 _analyze_lock = threading.Lock()
 
 
+class ReanalyzeRequest(BaseModel):
+    """Optional BPM range hint for a single-track re-analysis (PF-79).
+
+    Both bounds or neither; inside the BPM a track may take (40–250, one
+    decimal — the app's BPM_RANGE). A range is a hint: the detector is biased
+    toward the window, and a result outside it is reported instead of written.
+    """
+
+    bpm_min: float | None = None
+    bpm_max: float | None = None
+
+
+class ReanalyzeResponse(BaseModel):
+    song_id: str
+    bpm: float | None = None
+    musical_key: str | None = None
+    duration: float | None = None
+    #: Whether the detected bpm sits inside the requested range (True when no
+    #: range was given; False when the tempo could not be detected).
+    bpm_fit: bool
+    #: The fields that were actually written — a hint that did not fit leaves
+    #: bpm out, so the caller can state the truth without re-deriving it.
+    applied: dict
+
+
 class ArtworkScanResponse(BaseModel):
     processed: int
     extracted: int
@@ -387,9 +412,21 @@ def analyze_status():
     return state
 
 
-@router.post("/analyze/{song_id}")
-def analyze_one_song(song_id: str):
-    """Analyze a single song for BPM and key."""
+@router.post("/analyze/{song_id}", response_model=ReanalyzeResponse)
+def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
+    """Re-analyze ONE song for BPM and key, optionally within a BPM range.
+
+    Unlike the library-wide job this **overrides** the "only fill missing"
+    rule — that is the point: a wrong BPM was otherwise unrepairable except by
+    hand. Runs synchronously (~3-5s for one track), holding the same lock as
+    the library-wide job so the two can never run at once (REQ-10-AP).
+
+    The optional ``bpm_min``/``bpm_max`` is a hint, not a filter: the tempo
+    estimate is biased toward the window, and when the detected BPM does not
+    land inside it the stored BPM is left unchanged and ``bpm_fit`` is False.
+    """
+    bpm_range = _validate_bpm_range(body)
+
     store = get_library_store()
     song = store.get_song(song_id)
     if song is None:
@@ -399,23 +436,55 @@ def analyze_one_song(song_id: str):
     if not file_path:
         raise HTTPException(400, "Song has no file_path")
 
-    try:
-        result = analyze_track(file_path)
-    except FileNotFoundError:
-        raise HTTPException(404, f"Audio file not found: {file_path}")
-    except Exception as e:
-        raise HTTPException(500, f"Analysis failed: {e}")
+    # One analysis at a time. `running` is set by the library-wide job and
+    # cleared by its thread, so it must be re-checked under the lock: the batch
+    # route only holds the lock while it *starts* its thread, not while that
+    # thread runs. Holding the lock for the whole run then blocks a new batch
+    # start until this one finishes.
+    with _analyze_lock:
+        if _analyze_state["running"]:
+            raise HTTPException(409, "An analysis is already running")
 
-    # Update the song with results
-    updates = {}
-    if result.get("bpm") is not None:
-        updates["bpm"] = result["bpm"]
-    if result.get("musical_key") is not None:
-        updates["musical_key"] = result["musical_key"]
-    if result.get("duration") is not None and song.get("duration") is None:
-        updates["duration"] = result["duration"]
+        try:
+            result = analyze_track(file_path, bpm_range=bpm_range)
+        except FileNotFoundError:
+            raise HTTPException(404, f"Audio file not found: {file_path}")
+        except Exception as e:
+            raise HTTPException(500, f"Analysis failed: {e}")
 
-    if updates:
-        store.update_song(song_id, updates)
+        updates = {}
+        # A hint that did not fit the signal must not overwrite the stored BPM.
+        if result.get("bpm") is not None and result.get("bpm_fit", True):
+            updates["bpm"] = result["bpm"]
+        if result.get("musical_key") is not None:
+            updates["musical_key"] = result["musical_key"]
+        if result.get("duration") is not None and song.get("duration") is None:
+            updates["duration"] = result["duration"]
 
-    return {"song_id": song_id, **result}
+        if updates:
+            store.update_song(song_id, updates)
+
+    return ReanalyzeResponse(
+        song_id=song_id,
+        bpm=result.get("bpm"),
+        musical_key=result.get("musical_key"),
+        duration=result.get("duration"),
+        bpm_fit=bool(result.get("bpm_fit", True)),
+        applied=updates,
+    )
+
+
+def _validate_bpm_range(body: ReanalyzeRequest | None) -> tuple[float, float] | None:
+    """The requested range, or None. 422 with a readable reason when malformed."""
+    if body is None:
+        return None
+    lo, hi = body.bpm_min, body.bpm_max
+    if lo is None and hi is None:
+        return None
+    if lo is None or hi is None:
+        raise HTTPException(422, "A BPM range needs both bounds")
+    if lo >= hi:
+        raise HTTPException(422, "The low BPM bound must be below the high one")
+    if not (BPM_MIN <= lo <= BPM_MAX and BPM_MIN <= hi <= BPM_MAX):
+        raise HTTPException(422, f"BPM bounds go from {BPM_MIN:.0f} to {BPM_MAX:.0f}")
+    return (float(lo), float(hi))
