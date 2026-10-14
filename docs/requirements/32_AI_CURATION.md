@@ -1,7 +1,7 @@
 # AI-Assisted Curation
 
 Status: Planned (Post-MVP, long-term roadmap)
-Last Updated: 2026-08-09
+Last Updated: 2026-10-15
 Source: User refinement 2026-08-09; set planning session 2026-08-08
 
 ## Principle
@@ -66,6 +66,12 @@ Cluster tracks by audio similarity, not just metadata:
   in different folders or genres
 - Use case: "I didn't know this Deep House track sounds like my Afro House
   tracks — I can use it as a bridge"
+- Separate from the track map ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81),
+  which places tracks by a metadata composite. Audio similarity, when it
+  comes, compares phrase-level sections (short loops or chunks), not whole
+  tracks; whole-track `waveform_peaks` are rejected as an input. Notes
+  similarity (the local sentence model below) is a later opt-in input to
+  the map
 
 ### 5. AI Vibe Analysis (PF-54)
 

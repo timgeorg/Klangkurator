@@ -14,6 +14,8 @@ tags:
 - [[BACKLOG_ORCHESTRATION.ipynb]] — working notebook for the six library-UX backlog features (PF-12..PF-17): sprint board, per-feature subtasks, verification cells, session log.
 - [[PLAYER_RUN_PLAN.md]] — plan for the player stepping through a run (issue #5, PF-80): Tim's decisions, the queue model, data flow, interaction semantics, files.
 - [[PLAYER_RUN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for next/previous and auto-advance (issue #5), judged black-box against a sandbox copy of the library.
+- [[TRACK_MAP_PLAN.md]] — plan for the track map (issue #8, PF-81): shared types, the similarity/cluster/transition algorithm contract, and seven phases as PRs into int.
+- [[TRACK_MAP_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track map (issue #8), grouped by phase, judged black-box against a sandbox copy of the library.
 - [[REDESIGN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the editorial redesign (issue #1), judged black-box against a sandbox copy of the library.
 - [[TRACK_RANKING_PLAN.md]] — plan for the per-track 1–5 star rank (issue #4): decisions, data flow, gotchas, files.
 - [[TRACK_RANKING_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track rank (issue #4), judged black-box against a sandbox copy of the library.

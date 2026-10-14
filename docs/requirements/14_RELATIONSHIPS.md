@@ -1,7 +1,7 @@
 # Relationships (Knowledge Graph)
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-15
 Source: Requirements.md section 7
 
 ## Relationship Types
@@ -28,6 +28,15 @@ from the Edit track dialog.
 - "In Playlists" section: shows which playlists contain the song + position
 
 ### Graph View
+- *(changing with PF-81, [33_TRACK_MAP.md](33_TRACK_MAP.md) REQ-33-DG)* The
+  graph becomes a small instance of the track map's canvas: the same
+  renderer and look, still only the song and its relationship partners (all
+  eight types). The dialog opens with its song selected; clicking a track,
+  or choosing it in the details' partner list, selects it and shows its
+  details; re-centring moves to the **Show its relationships** action, with
+  the same back-button history; **Open in map** continues into the full map
+  with this song and its partners as a removable filter. The bullets below
+  describe the graph as built until then
 - HTML canvas, nodes = songs as black-and-white cover discs, related songs on
   an ellipse around the centre song; the centre song carries the orange cut
 - Each relationship type has its own line, so the graph also reads in

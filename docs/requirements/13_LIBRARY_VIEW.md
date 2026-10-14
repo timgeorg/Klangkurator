@@ -1,7 +1,7 @@
 # Library View
 
 Status: Active
-Last Updated: 2026-10-14
+Last Updated: 2026-10-15
 Source: Requirements.md sections 4, 8; editorial redesign (issue #1); inline editing (issue #3)
 
 ## Overview
@@ -32,6 +32,9 @@ removed earlier — the table handles all of it.
   sets the Crate filter to that crate
 - **Active-filter chips**: one chip per active column filter, each removable,
   plus "Clear all"
+- *(proposed)* A **Table | Map** switch: the map (`/map`) is the other view
+  of the library, placed by similarity
+  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81)
 
 ## Table Layout
 
@@ -106,6 +109,9 @@ focus, and permanently while the filter is active):
 
 - When search and filters exclude every track, the header stays in place and
   a "No track matches" state offers **Clear search and filters**
+- Search and filters are shared with the track map for the session: they
+  carry across the Table | Map switch, both ways
+  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81)
 
 Planned, not built — additional filters for set planning:
 - **Phase Tags** — multi-select (`opening`, `building`, `sunset`, `peak`, `closing`)

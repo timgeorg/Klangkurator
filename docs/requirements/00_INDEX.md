@@ -1,7 +1,7 @@
 # Klangkurator Requirements Index
 
 Status: Active
-Last Updated: 2026-08-09 (v2 — Rekordbox integration, transition mining, AI roadmap)
+Last Updated: 2026-10-15 (33_TRACK_MAP added; v2 — Rekordbox integration, transition mining, AI roadmap)
 
 ## Purpose
 
@@ -24,6 +24,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 - [30_REKORDBOX_INTEGRATION.md](30_REKORDBOX_INTEGRATION.md) — Rekordbox read/write: cue points, playlists, USB export
 - [31_TRANSITION_MINING.md](31_TRANSITION_MINING.md) — transition mining, suggestion engine, transition library
 - [32_AI_CURATION.md](32_AI_CURATION.md) — AI-assisted curation: set planning, transition suggestions, spectral clustering
+- [33_TRACK_MAP.md](33_TRACK_MAP.md) — the track map: all tracks placed by similarity, clusters, relationship and transition layers (PF-81)
 
 ## Masterplan
 
