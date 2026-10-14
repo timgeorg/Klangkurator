@@ -142,12 +142,17 @@ be steered.
   - `POST /analyze/{song_id}` gains an optional body. Validation, all `422`
     with a readable `detail`: one bound without the other; `min ≥ max`;
     either bound outside `40..250` (the app's `BPM_RANGE`).
-  - Serialisation, in both directions: `_analyze_lock.acquire(blocking=False)`
-    → `409 "An analysis is already running"` (refuse, don't wait — a plain
-    `with` would block the caller silently for 3–5 s), released in `finally`.
-    The batch route (`/analyze-all`) takes the same lock the same way, and
-    keeps its `_analyze_state["running"]` check, so neither can start while the
-    other runs (REQ-10-AP).
+  - Serialisation needs **two** guards, because the batch job releases
+    `_analyze_lock` the moment it has spawned its thread: an in-flight batch is
+    visible only through `_analyze_state["running"]`, while an in-flight
+    per-track run is visible only through the lock (it never sets `running`).
+    So the route does `_analyze_lock.acquire(blocking=False)` → `409 "An
+    analysis is already running"`, then checks `running` under it, and releases
+    in `finally`. The batch route acquires non-blocking the same way and keeps
+    its own `running` check. Both refuse rather than wait — a plain `with`
+    blocks the caller silently for 3–5 s, and during a batch run only the
+    `running` check stops the per-track route (verified live: without it, a
+    per-track run slipped in mid-batch).
   - Write: `bpm`/`musical_key` as today **except** `bpm` is skipped when
     `bpm_fit is False`. `duration` unchanged (only when `None`). The song is
     re-read under the lock, because a 3–5 s run is long enough for an inline

@@ -131,6 +131,15 @@ def test_a_second_analysis_is_refused_while_one_runs(track):
     assert res.status_code == 409
 
 
+def test_a_per_track_run_is_refused_while_a_batch_job_runs(track, monkeypatch):
+    """The batch job's lock is free once its thread is spawned, so `running` is
+    the guard that has to hold the per-track route back."""
+    song_id, _ = track()
+    monkeypatch.setitem(library_api._analyze_state, "running", True)
+    res = client.post(f"/api/library/analyze/{song_id}")
+    assert res.status_code == 409
+
+
 def test_a_batch_start_is_refused_while_a_per_track_run_holds_the_lock(track):
     """BC-7, both directions: the batch route refuses, it does not wait."""
     library_api._analyze_lock.acquire()

@@ -442,11 +442,18 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
     if not file_path:
         raise HTTPException(400, "Song has no file_path")
 
-    # One analysis at a time, in both directions: refuse rather than wait, so
-    # the caller gets a message instead of a silent 3-5 second hang (REQ-10-AP).
+    # One analysis at a time, in both directions. Two guards are needed, not
+    # one: the batch job releases this lock as soon as it has spawned its
+    # thread, so an in-flight batch is visible only through `running`, while an
+    # in-flight per-track run is visible only through the lock (it never sets
+    # `running`). Refuse rather than wait, so the caller gets a message instead
+    # of a silent 3-5 second hang (REQ-10-AP).
     if not _analyze_lock.acquire(blocking=False):
         raise HTTPException(409, "An analysis is already running")
     try:
+        if _analyze_state["running"]:
+            raise HTTPException(409, "An analysis is already running")
+
         try:
             result = analyze_track(file_path, bpm_range=bpm_range)
         except FileNotFoundError:
