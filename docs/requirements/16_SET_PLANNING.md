@@ -1,7 +1,7 @@
 # Set Planning
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-14
 Source: New — based on set planning session 2026-08-08
 
 ## Vision
@@ -75,6 +75,13 @@ not used by the UI):
   `target_duration_min` is set), and the first six items numbered
 - The editor adds tracks and blocks from one searchable picker, moves items
   up and down, removes them, and takes a transition note between each pair
+- Play on the card plays the running order from its first track (unavailable
+  while it has nothing to play): blocks expand in place, missing tracks and deleted
+  blocks are skipped, and the player's next / previous step through it
+  (PF-80). In the editor a row's number turns into Play on row hover or
+  keyboard focus and plays the set from that row (a block from its first
+  track), in the order on screen, saved or not. Rows of missing tracks,
+  deleted blocks and empty blocks have no Play
 - Alternatives: from any transition, "Alternative" adds another possible next
   track, saved as `{ ref_id, label? }`; older `{ to_song_id, notes }` data
   reads the same
@@ -88,7 +95,8 @@ not used by the UI):
 - Track lists keep a track's version or catalogue part ("(Club Remix)
   [CAT01]"), set quieter, so two versions of one track stay distinguishable
 - Tracks stored in `phases` are not shown by this editor yet: the card and
-  the editor say how many there are, and saving leaves them untouched
+  the editor say how many there are, saving leaves them untouched, and Play
+  does not play them
 
 ## Set Planning UI
 

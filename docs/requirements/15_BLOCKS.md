@@ -1,7 +1,7 @@
 # Blocks
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-14
 Source: Requirements.md section 10.1
 
 ## Concept
@@ -44,13 +44,19 @@ as an opening sequence.
   an inline message
 - A track that left the library keeps its slot as "Track no longer in the
   library" until it is removed
+- A row's number turns into Play on row hover or keyboard focus: the block
+  plays from that track in the order on screen, saved or not, and the
+  player's next / previous step through it (PF-80). A missing track's row
+  has no Play
 
 ## On the Sets page
 
 - One row per block: a strip of its colour tile (half disc) and up to four
   black-and-white covers, the name, description, the chain of track titles,
   track count, total duration and how many sets use it
-- Edit and delete are always visible; deleting asks first and says how many
+- Play plays the block from its first track (unavailable while it has no
+  tracks); the player's next / previous step through it (PF-80)
+- Play, edit and delete are always visible; deleting asks first and says how many
   sets use the block. Those sets keep the slot, marked "Deleted block", until
   it is removed from them
 

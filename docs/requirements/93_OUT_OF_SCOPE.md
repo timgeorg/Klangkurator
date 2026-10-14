@@ -1,7 +1,7 @@
 # Out Of Scope
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-14
 
 ## Explicit Non-Goals
 
@@ -10,7 +10,7 @@ Last Updated: 2026-09-24
 | OOS-1 | Cloud sync | DJ crates are personal and local; cloud adds complexity and privacy concerns |
 | OOS-2 | User accounts / authentication | Single-user local app — no need |
 | OOS-3 | Supabase or any external database | JSON files are sufficient for 1,000–5,000 songs |
-| OOS-4 | Real-time audio playback / DJ mixing | This is a library and curation tool, not a DJ controller — no decks, no crossfader. Rekordbox handles playback |
+| OOS-4 | DJ mixing / performance playback | This is a library and curation tool, not a DJ controller — no decks, no crossfader, no mixing or beat-matching. Playing tracks to curate them (preview, stepping through a set, a block or the library) is in scope (P7, PF-80); performing them is Rekordbox's job |
 | OOS-5 | Replacing Rekordbox | Klangkurator complements Rekordbox, it does not replace it. Rekordbox stays the core of playing (cue points, USB export, CDJ/XDJ performance) |
 | OOS-12 | Waveform analysis / beat detection | No waveform/beat-grid analysis for playback or visualisation — Klangkurator has no decks and stores no beat grid. *Corrected 2026-10-14:* BPM **is** computed from the audio (librosa ships, PF-79); the old text here claimed it was "entered manually or extracted from file metadata", which had been false since the analyser landed. This row is about beat-grid/waveform analysis, which stays out |
 | OOS-11 | Loose single-file import ("load audio files by themselves") | The root folder is the unit of import; a library is built from folders, never from individually picked files — file-level picking in the UI is explicitly not an import mode |

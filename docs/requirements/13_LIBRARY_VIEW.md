@@ -1,7 +1,7 @@
 # Library View
 
 Status: Active
-Last Updated: 2026-10-13
+Last Updated: 2026-10-14
 Source: Requirements.md sections 4, 8; editorial redesign (issue #1); inline editing (issue #3)
 
 ## Overview
@@ -160,6 +160,10 @@ the Edit dialog stays for changing everything at once. Behavior contract:
 - Clicking a song title → opens the song detail page (`/song/:id`, PF-17)
 - Play (or Pause on the current track) and Edit → in the # column, on row
   hover or keyboard focus
+- Play starts a run of the rows as shown (search, filters, sort): the
+  player's next and previous play the row below and above, and the row below
+  starts when a track ends; no wraparound. The run is fixed when Play is
+  pressed, so a new sort or filter applies from the next Play (PF-80)
 - Tags: remove with the chip's ×, add with the + button (shows on hover and
   focus). The picker lists existing matches first and "Create “…”" last, so
   Enter picks a similar existing tag; with no match, Enter creates the tag.

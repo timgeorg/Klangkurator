@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { ENTITY_COLORS } from "@/lib/palette";
+import { usePlayer } from "@/lib/PlayerContext";
 import { type Block, type Song, storage } from "@/lib/storage";
 import { formatBpm, formatDuration } from "@/lib/trackFormat";
 import { TrackTitle } from "@/components/dj/TrackTitle";
@@ -77,6 +78,7 @@ function BlockForm({
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const orderRef = useRef<HTMLDivElement>(null);
+  const { playRun } = usePlayer();
 
   const songIndex = useMemo(() => indexById(songs), [songs]);
   const inBlock = useMemo(() => new Set(entries.map((e) => e.song_id)), [entries]);
@@ -142,7 +144,7 @@ function BlockForm({
     }
   };
 
-  const rows: OrderRow[] = entries.map((entry) => {
+  const rows: OrderRow[] = entries.map((entry, index) => {
     const song = songIndex.get(entry.song_id);
     if (!song) {
       return {
@@ -159,6 +161,9 @@ function BlockForm({
       art: <CoverArt src={song.artwork_url} className="h-10 w-10 rounded-[3px]" />,
       title: <TrackTitle title={song.title} />,
       subtitle: song.artist,
+      // The block from this track, in the order on screen (PF-80): its position
+      // among the rows before it that still resolve
+      onPlay: () => playRun(tracks, entries.slice(0, index).filter((e) => songIndex.has(e.song_id)).length),
       meta: (
         <>
           {formatBpm(song.bpm)}

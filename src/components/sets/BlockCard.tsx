@@ -1,6 +1,7 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Play, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { usePlayer } from "@/lib/PlayerContext";
 import type { Block, Song } from "@/lib/storage";
 import { formatDuration } from "@/lib/trackFormat";
 
@@ -22,6 +23,7 @@ interface BlockCardProps {
  * tracks and its length. Lives in a container with container-type: inline-size.
  */
 export function BlockCard({ block, tracks, usedIn, onOpen, onDelete }: BlockCardProps) {
+  const { playRun } = usePlayer();
   const headingId = `block-${block.id}`;
   const chain = tracks.map((song) => song.title).join("  →  ");
   const missing = block.songs.length - tracks.length;
@@ -58,6 +60,16 @@ export function BlockCard({ block, tracks, usedIn, onOpen, onDelete }: BlockCard
           {usedIn > 0 && <> · in {plural(usedIn, "set")}</>}
         </p>
         <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => playRun(tracks, 0)}
+            disabled={tracks.length === 0}
+            aria-label={`Play ${block.name}`}
+          >
+            <Play />
+            Play
+          </Button>
           <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${block.name}`}>
             <Pencil />
             Edit

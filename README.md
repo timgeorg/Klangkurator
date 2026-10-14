@@ -17,8 +17,10 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
   time (soundfile, float32 decode + decimation); a lazy backfill endpoint covers tracks
   scanned before this feature existed
 - **Preview player** — a now-playing panel on wide screens (a bottom bar otherwise) with
-  the waveform as the scrubber, play/pause and persisted volume; seeking works via a
-  Range-request streaming endpoint that only serves library-tracked audio files
+  the waveform as the scrubber, play/pause and persisted volume; previous / next step
+  through the run you pressed Play in (a set, a block or the library rows) and the next
+  track starts by itself; seeking works via a Range-request streaming endpoint that only
+  serves library-tracked audio files
 - **Album covers** — embedded art extracted from ID3 `APIC` / FLAC pictures / MP4 `covr`,
   re-encoded to bounded 300px thumbnails, served through a cacheable artwork endpoint
 - **Root-folder import** — native OS folder picker in desktop mode, sandboxed
@@ -156,12 +158,12 @@ table (filters, reorder, persisted layout), real waveform previews, album covers
 media player, the song detail view, and the set/block planning data model — running
 against the author's real 92-track music library.
 
-Honest limits: single-user, JSON-file storage (no SQLite, no sync), the analysis job is
-in-process and not persisted across restarts, and the player is single-track (no queue
-yet). This is a working local tool, not production software.
+Honest limits: single-user, JSON-file storage (no SQLite, no sync), and the analysis job
+is in-process and not persisted across restarts. This is a working local tool, not
+production software.
 
 Next up (tracked in [docs/requirements/92_PLANNED_FEATURES.md](docs/requirements/92_PLANNED_FEATURES.md)):
-a player queue and bulk tag editing (PF-3), smart playlists (PF-9), set-planning
+bulk tag editing (PF-3), smart playlists (PF-9), set-planning
 auto-suggestion (energy curves, genre flow) and set templates (PF-20–24), Rekordbox
 integration — cue-point read/write, playlist and USB export (PF-30–34), and transition
 mining plus local-LLM-assisted curation (PF-40+).
