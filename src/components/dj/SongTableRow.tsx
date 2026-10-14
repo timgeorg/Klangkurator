@@ -1,17 +1,15 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import { Link } from "react-router-dom";
-import { Pause, Pencil, Play, Star } from "lucide-react";
+import { Pause, Pencil, Play } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
-import { ColorChip } from "@/components/ui/color-chip";
 import { TagSelector } from "@/components/ui/tag-selector";
 import { Waveform } from "@/components/ui/waveform";
-import { UseColumnConfigReturn } from "@/hooks/useColumnConfig";
-import { getMainGenreColor } from "@/lib/genreData";
 import { Song, Tag } from "@/lib/storage";
-import { crateOf, formatBpm, formatDuration, isMinorKey, keyName, splitTitle } from "@/lib/trackFormat";
+import { BPM_RANGE, crateOf, formatBpm, formatDuration, parseBpm, splitTitle } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
+import { GenreCell, KeyCell, LyricsCell, PatchSong, RatingCell, SubgenresCell, TextCell } from "./InlineCells";
 import { NUMERIC_COLUMNS } from "./libraryTable";
 
 interface SongTableRowProps {
@@ -21,7 +19,6 @@ interface SongTableRowProps {
   allTags: Tag[];
   visibleColumns: string[];
   gridTemplate: string;
-  editingNotes?: string;
   /** The loaded track (playing or paused): carries the orange cut. */
   isCurrent: boolean;
   isPlaying: boolean;
@@ -29,14 +26,24 @@ interface SongTableRowProps {
   onEditSong: (song: Song) => void;
   onTagsChange: (songId: string, tags: Tag[]) => void;
   onTagCreated: () => void;
-  onNotesEdit: (songId: string, notes: string) => void;
-  onNotesBlur: (songId: string) => void;
-  onNotesKeyDown: (e: React.KeyboardEvent, songId: string) => void;
+  /** Saves an inline edit at once. */
+  onPatch: PatchSong;
+  onOpenLyrics: (song: Song) => void;
 }
 
 /** The other notes, shown as a hint while the mixing note (the editable one) is empty. */
 const otherNote = (song: Song) =>
   song.drum_notes ? `Drums: ${song.drum_notes}` : song.element_notes ? `Elements: ${song.element_notes}` : "";
+
+const requireArtist = (draft: string) =>
+  draft.trim() ? { value: draft.trim() } : { error: "A track needs an artist." };
+
+const checkBpm = (draft: string) => {
+  const bpm = parseBpm(draft);
+  return bpm === undefined
+    ? { error: `BPM is a number from ${BPM_RANGE.min} to ${BPM_RANGE.max}, like 127.5.` }
+    : { value: bpm === null ? "" : String(bpm) };
+};
 
 function SongTableRowImpl({
   song,
@@ -45,16 +52,14 @@ function SongTableRowImpl({
   allTags,
   visibleColumns,
   gridTemplate,
-  editingNotes,
   isCurrent,
   isPlaying,
   onPlaySong,
   onEditSong,
   onTagsChange,
   onTagCreated,
-  onNotesEdit,
-  onNotesBlur,
-  onNotesKeyDown,
+  onPatch,
+  onOpenLyrics,
 }: SongTableRowProps) {
   const renderCell = (columnId: string) => {
     switch (columnId) {
@@ -126,10 +131,31 @@ function SongTableRowImpl({
       }
 
       case "artist":
-        return <span className="truncate text-foreground/85">{song.artist}</span>;
+        return (
+          <TextCell
+            field="Artist"
+            track={song.title}
+            value={song.artist}
+            title={song.artist}
+            parse={requireArtist}
+            onCommit={(artist) => onPatch(song.id, { artist })}
+          >
+            <span className="truncate text-foreground/85">{song.artist}</span>
+          </TextCell>
+        );
 
       case "album":
-        return <span className="truncate text-muted-foreground">{song.album || "–"}</span>;
+        return (
+          <TextCell
+            field="Album"
+            track={song.title}
+            value={song.album ?? ""}
+            title={song.album || undefined}
+            onCommit={(album) => onPatch(song.id, { album: album || null })}
+          >
+            <span className="truncate text-muted-foreground">{song.album || "–"}</span>
+          </TextCell>
+        );
 
       case "rootFolder": {
         const crate = crateOf(song);
@@ -142,50 +168,65 @@ function SongTableRowImpl({
 
       case "bpm":
         return (
-          <span className={cn("k-num text-xs", song.bpm ? "text-foreground/85" : "text-muted-foreground")}>
-            {formatBpm(song.bpm)}
-          </span>
+          <TextCell
+            field="BPM"
+            track={song.title}
+            value={song.bpm ? formatBpm(song.bpm) : ""}
+            align="end"
+            inputMode="decimal"
+            className="k-num text-xs"
+            parse={checkBpm}
+            onCommit={(bpm) => onPatch(song.id, { bpm: bpm ? Number(bpm) : null })}
+          >
+            <span className={song.bpm ? "text-foreground/85" : "text-muted-foreground"}>{formatBpm(song.bpm)}</span>
+          </TextCell>
         );
 
       case "key":
-        return song.musical_key ? (
-          <span
-            className={cn("k-num text-xs", isMinorKey(song.musical_key) ? "text-info" : "text-foreground")}
-            title={keyName(song.musical_key)}
-          >
-            {song.musical_key.replace(" major", "").replace(" minor", "m")}
-          </span>
-        ) : (
-          <span className="k-num text-xs text-muted-foreground">–</span>
-        );
+        return <KeyCell song={song} onPatch={onPatch} />;
 
-      case "genre": {
-        const genre = song.mainGenre || song.genres?.[0] || song.genre;
-        return genre ? <ColorChip color={getMainGenreColor(genre)} label={genre} /> : <Dash />;
-      }
+      case "genre":
+        return <GenreCell song={song} onPatch={onPatch} />;
 
-      case "subgenres": {
-        const subs = song.subgenres || [];
-        if (subs.length === 0) return <Dash />;
-        return (
-          <span className="truncate text-muted-foreground" title={subs.join(", ")}>
-            {subs.slice(0, 3).join(" · ")}
-            {subs.length > 3 && <span className="k-num text-[11px]"> +{subs.length - 3}</span>}
-          </span>
-        );
-      }
+      case "subgenres":
+        return <SubgenresCell song={song} onPatch={onPatch} />;
 
       case "energy":
-        return <RatingMeter value={song.energy} label="Energy" />;
+        return (
+          <RatingCell field="Energy" track={song.title} value={song.energy} onChange={(energy) => onPatch(song.id, { energy })} />
+        );
 
       case "danceability":
-        return <RatingMeter value={song.danceability} label="Danceability" />;
+        return (
+          <RatingCell
+            field="Dance"
+            track={song.title}
+            value={song.danceability}
+            onChange={(danceability) => onPatch(song.id, { danceability })}
+          />
+        );
 
       case "social":
-        return <RatingMeter value={song.social_acceptance} label="Social acceptance" />;
+        return (
+          <RatingCell
+            field="Social"
+            track={song.title}
+            value={song.social_acceptance}
+            onChange={(social_acceptance) => onPatch(song.id, { social_acceptance })}
+          />
+        );
 
       case "rank":
-        return <RankStars value={song.rank ?? 0} label="Rank" />;
+        return (
+          <RatingCell
+            stars
+            field="Rank"
+            track={song.title}
+            value={song.rank ?? 0}
+            emptyText="Unranked"
+            onChange={(rank) => onPatch(song.id, { rank })}
+          />
+        );
 
       case "duration":
         return <span className="k-num text-xs text-muted-foreground">{formatDuration(song.duration)}</span>;
@@ -203,47 +244,35 @@ function SongTableRowImpl({
         );
 
       case "lyrics":
-        return song.lyrics ? (
-          <span
-            className="truncate text-xs text-muted-foreground"
-            title={song.lyrics.substring(0, 200) + (song.lyrics.length > 200 ? "…" : "")}
-          >
-            {song.lyrics.substring(0, 50)}
-            {song.lyrics.length > 50 ? "…" : ""}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground/60">No lyrics</span>
-        );
+        return <LyricsCell song={song} onOpen={onOpenLyrics} />;
 
-      case "notes":
+      case "notes": {
         // max-w caps the cell so a trailing 1fr track keeps its configured
         // max-content, not the raw note length (the table wrapper is w-max).
-        return editingNotes !== undefined ? (
-          <textarea
-            value={editingNotes}
-            onChange={(e) => onNotesEdit(song.id, e.target.value)}
-            onBlur={() => onNotesBlur(song.id)}
-            onKeyDown={(e) => onNotesKeyDown(e, song.id)}
-            aria-label={`Notes for ${song.title}`}
-            className="h-7 w-full max-w-[500px] resize-none overflow-hidden rounded-sm border border-ring bg-background px-2 py-1 text-xs leading-tight text-foreground outline-none ring-1 ring-ring"
-            autoFocus
+        const hint = otherNote(song);
+        return (
+          <TextCell
+            field="Notes"
+            track={song.title}
+            value={song.mixing_notes ?? ""}
+            multiline
             placeholder="Add a note…"
-          />
-        ) : (
-          <button
-            type="button"
-            data-notes-for={song.id}
-            onClick={() => onNotesEdit(song.id, song.mixing_notes ?? "")}
-            title={song.mixing_notes || (otherNote(song) ? `${otherNote(song)} (click to add a mixing note)` : "Add a mixing note")}
-            className={cn(
-              "flex h-7 w-full max-w-[500px] items-center truncate rounded-sm px-2 text-left text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              song.mixing_notes ? "text-foreground/80" : "text-muted-foreground/70",
-              !song.mixing_notes && otherNote(song) && "italic",
-            )}
+            title={song.mixing_notes || (hint ? `${hint} (click to add a mixing note)` : "Add a mixing note")}
+            className="max-w-[500px] text-xs"
+            onCommit={(note) => onPatch(song.id, { mixing_notes: note || null })}
           >
-            <span className="truncate">{song.mixing_notes || otherNote(song) || "Add a note…"}</span>
-          </button>
+            <span
+              className={cn(
+                "truncate",
+                song.mixing_notes ? "text-foreground/80" : "text-muted-foreground/70",
+                !song.mixing_notes && hint && "italic",
+              )}
+            >
+              {song.mixing_notes || hint || "Add a note…"}
+            </span>
+          </TextCell>
         );
+      }
 
       default:
         return null;
@@ -275,42 +304,3 @@ function SongTableRowImpl({
 }
 
 export const SongTableRow = memo(SongTableRowImpl);
-
-function Dash() {
-  return <span className="text-muted-foreground">–</span>;
-}
-
-/** 0–5 rating as five short bars; unrated (0) reads as five empty bars.
- *  Values take one decimal (issue #7): the bars FLOOR the stored value — a 3.8
- *  shows as 3 bars — while the tooltip keeps the exact number. */
-function RatingMeter({ value, label }: { value: number; label: string }) {
-  const v = Math.max(0, Math.min(5, value || 0));
-  const bars = Math.floor(v);
-  return (
-    <span role="img" aria-label={`${label} ${v} of 5`} className="flex items-end gap-[3px]" title={`${label} ${v}/5`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <span
-          key={i}
-          className={cn("w-[3px] rounded-[1px]", i < bars ? "bg-foreground/80" : "bg-foreground/15")}
-          style={{ height: 6 + i * 2 }}
-        />
-      ))}
-    </span>
-  );
-}
-
-/** 1–5 star rank; unranked (0) reads as five empty stars, never a dash. */
-function RankStars({ value, label }: { value: number; label: string }) {
-  const v = Math.max(0, Math.min(5, Math.round(value || 0)));
-  return (
-    <span role="img" aria-label={`${label} ${v} of 5`} className="flex items-center gap-[2px]" title={`${label} ${v}/5`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          strokeWidth={i < v ? 0 : 1.5}
-          className={cn("h-3.5 w-3.5", i < v ? "fill-current text-foreground/80" : "text-foreground/15")}
-        />
-      ))}
-    </span>
-  );
-}

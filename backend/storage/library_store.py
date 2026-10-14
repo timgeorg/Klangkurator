@@ -22,6 +22,7 @@ class LibraryStore:
         self._file = base_store._file_path
         self._data = base_store._data
         self._save_fn = base_store._save
+        self._lock = base_store._lock
 
         # Ensure all top-level keys exist
         for key in ("songs", "tags", "song_tags", "relationships", "playlists", "playlist_songs"):
@@ -51,12 +52,15 @@ class LibraryStore:
         return song
 
     def update_song(self, song_id: str, updates: dict) -> dict | None:
-        for s in self._data["songs"]:
-            if s["id"] == song_id:
-                s.update(updates)
-                s["updated_at"] = _now()
-                self._save_fn()
-                return s
+        # Under the save lock: a save running in another thread never
+        # serialises a song while it changes.
+        with self._lock:
+            for s in self._data["songs"]:
+                if s["id"] == song_id:
+                    s.update(updates)
+                    s["updated_at"] = _now()
+                    self._save_fn()
+                    return s
         return None
 
     def delete_song(self, song_id: str) -> bool:

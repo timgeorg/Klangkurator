@@ -12,7 +12,7 @@ import { SubgenreSelector } from "@/components/ui/subgenre-selector";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { type Song, type SongPatch, storage } from "@/lib/storage";
-import { keyName } from "@/lib/trackFormat";
+import { keyName, MUSICAL_KEYS, trackGenre } from "@/lib/trackFormat";
 
 import { LyricsDialog } from "./LyricsDialog";
 import { SongRelationshipsDialog } from "./SongRelationshipsDialog";
@@ -25,14 +25,6 @@ interface EditSongDialogProps {
   /** Lyrics or relationships changed from inside this dialog (they save on their own). */
   onDataChange?: () => void;
 }
-
-// The analyser's notation ("Am", "F#"), so an edited key filters and searches
-// like an analysed one; the full name is shown beside it. A key stored in
-// another notation (file tags) stays selectable as it is.
-const MUSICAL_KEYS = [
-  "C", "Cm", "C#", "C#m", "D", "Dm", "D#", "D#m", "E", "Em", "F", "Fm",
-  "F#", "F#m", "G", "Gm", "G#", "G#m", "A", "Am", "A#", "A#m", "B", "Bm",
-];
 
 /** Ratings render without float artifacts: 3.1 → "3.1", 3.0 → "3", never
  *  "3.1000000000000005" (step dragging accumulates binary-representation error). */
@@ -119,7 +111,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
       bpm: song.bpm?.toString() || "",
       musical_key: song.musical_key || "",
       // Supports the new mainGenre/subgenres and the legacy genres array
-      mainGenre: song.mainGenre || song.genres?.[0] || song.genre,
+      mainGenre: trackGenre(song),
       subgenres: song.subgenres || [],
       year: song.year?.toString() || "",
       energy: song.energy || 0,
@@ -185,7 +177,7 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
 
   if (!song) return null;
 
-  // Keys from file tags or analysis may be in short notation ("Am"); keep them selectable.
+  // A key stored in another notation (file tags: "A minor", "8A") stays selectable as it is.
   const keyOptions =
     formData.musical_key && !MUSICAL_KEYS.includes(formData.musical_key)
       ? [formData.musical_key, ...MUSICAL_KEYS]

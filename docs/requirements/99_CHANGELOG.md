@@ -5,6 +5,28 @@ Last Updated: 2026-10-13
 
 ## 2026-10-13
 
+### Inline editing in the library table (12, 13, 90; issue #3)
+
+Every value the user owns now edits in the table, where notes and tags
+already did (NFR-11 widened).
+
+- **Genre, Key**: a click opens a list with search and the current value
+  checked; "No genre" / "No key" clears it.
+- **Subgenres**: a checklist of the genre's subgenres, with Create.
+- **Energy, Dance, Social, Rank**: a click on a bar (or star) sets that whole
+  value, a click on the current one clears it; the arrow keys work as on a
+  slider and keep a decimal from the dialog; touch opens a picker of 44px
+  targets.
+- **Artist, Album, BPM**: edited in place; BPM takes "127,5" too.
+- **Lyrics**: a click opens the lyrics editor.
+- Changes save at once, one request at a time. A failed save says so and
+  reloads the table. An edit never moves its row until the sort, the search or
+  a filter changes.
+- Notes keep their behavior on the shared editor.
+- Backend: saves run one at a time. Before, two at once (an edit during the
+  analysis, or two requests) could rename the shared temporary file from
+  under each other and fail. A regression test covers it.
+
 ### Decimal ratings: one decimal on energy / danceability / social acceptance (11, 13; issue #7)
 
 The three 0–5 ratings (`energy`, `danceability`, `social_acceptance`) take one

@@ -13,7 +13,12 @@ tags:
 - [[PHASE_5_ANALYSIS_PROGRESS.md]] — audio analysis progress job (REQ-10-AP): in-memory job + polled status endpoint, frontend progress bar; includes testing guide T1-T4.
 - [[BACKLOG_ORCHESTRATION.ipynb]] — working notebook for the six library-UX backlog features (PF-12..PF-17): sprint board, per-feature subtasks, verification cells, session log.
 - [[REDESIGN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the editorial redesign (issue #1), judged black-box against a sandbox copy of the library.
+<<<<<<< HEAD
 - [[TRACK_RANKING_PLAN.md]] — plan for the per-track 1–5 star rank (issue #4): decisions, data flow, gotchas, files.
 - [[TRACK_RANKING_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track rank (issue #4), judged black-box against a sandbox copy of the library.
 - [[DECIMAL_ENERGY_PLAN.md]] — plan for one-decimal ratings (issue #7): verified facts, model widening, meter flooring, per-field slider step, docs.
 - [[DECIMAL_ENERGY_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the decimal ratings (issue #7), judged black-box against a sandbox copy of the library.
+=======
+- [[INLINE_EDITING_PLAN.md]] — Plan for inline editing in the library table (issue #3): scope, interaction semantics, data flow, frozen rows, write queue, backend save lock.
+- [[INLINE_EDIT_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for inline editing (issue #3), judged black-box against a sandbox copy of the library.
+>>>>>>> 277a588 (feat(library): inline editing for every track property (issue #3))

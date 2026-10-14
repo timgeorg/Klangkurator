@@ -29,6 +29,33 @@ export function formatBpm(bpm?: number | null): string {
   return bpm ? String(Math.round(bpm * 10) / 10) : "–";
 }
 
+/** The BPM range a typed value may take, as in the edit dialog. */
+export const BPM_RANGE = { min: 40, max: 250 } as const;
+
+/**
+ * A typed BPM: "127.5" or "127,5" -> 127.5 (one decimal at most), "" -> null
+ * (clear it), anything that isn't a number in BPM_RANGE -> undefined.
+ */
+export function parseBpm(text: string): number | null | undefined {
+  const t = text.trim().replace(",", ".");
+  if (!t) return null;
+  if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
+  const bpm = Math.round(Number(t) * 10) / 10;
+  return bpm >= BPM_RANGE.min && bpm <= BPM_RANGE.max ? bpm : undefined;
+}
+
+// The analyser's notation ("Am", "F#"), so an edited key filters and searches
+// like an analysed one; keyName() gives the full name beside it.
+export const MUSICAL_KEYS = [
+  "C", "Cm", "C#", "C#m", "D", "Dm", "D#", "D#m", "E", "Em", "F", "Fm",
+  "F#", "F#m", "G", "Gm", "G#", "G#m", "A", "Am", "A#", "A#m", "B", "Bm",
+];
+
+/** The genre a track shows: its main genre, else the first genre read from the file's tags. */
+export function trackGenre(song: Pick<Song, "mainGenre" | "genres" | "genre">): string | undefined {
+  return song.mainGenre || song.genres?.[0] || song.genre || undefined;
+}
+
 /**
  * Whether a key string names a minor key. Handles the notations in real data:
  * short ("Am", "F#m"), long ("A minor"), Camelot ("8A" minor, "8B" major).

@@ -1,8 +1,8 @@
 # Tags And Genres
 
 Status: Active
-Last Updated: 2026-08-09
-Source: Requirements.md sections 5, 6
+Last Updated: 2026-10-13
+Source: Requirements.md sections 5, 6; inline editing (issue #3)
 
 ## Tags
 
@@ -38,5 +38,9 @@ Uplifting, Long Intro, Long Outro, Acapella Section, Clean Mix Point
 ### Display
 - Subgenres shown as separate column of outlined badges
 - Badge color follows the main genre's color
-- Main genre is a single-select in the edit dialog
-- Subgenres are a multi-select
+- Main genre is a single-select, in the edit dialog and in the library
+  table's Genre cell
+- Subgenres are a multi-select, in the edit dialog and in the table's
+  Subgenres cell (which can also create a subgenre in the genre's list)
+- Changing the genre in the table keeps the track's subgenres; the edit
+  dialog, a form you can cancel, clears them

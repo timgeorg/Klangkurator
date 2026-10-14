@@ -1,7 +1,7 @@
 # Non-Functional Requirements
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-13
 Source: Requirements.md section 14
 
 ## NFR Table
@@ -18,4 +18,4 @@ Source: Requirements.md section 14
 | NFR-8 | Data | Idempotent seed data; stable IDs across reloads |
 | NFR-9 | Data | `clearData()` must clear all dependent stores to avoid stale references |
 | NFR-10 | Portability | Phase 1 runs in any modern browser; Phase 2 runs as PyWebView desktop app |
-| NFR-11 | Usability | Notes editing must be inline and fast — no dialog required for routine note-taking |
+| NFR-11 | Usability | Editing must be inline and fast: notes, tags, genre, subgenres, key, BPM, artist, album and the three ratings change in the library table, no dialog required |
