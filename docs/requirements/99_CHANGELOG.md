@@ -5,6 +5,20 @@ Last Updated: 2026-10-14
 
 ## 2026-10-14
 
+### The player steps through a run (01, 13, 15, 16, 92, 93; issue #5, PF-80)
+
+The preview player gets previous and next. They step through the run Play
+was pressed in: the library table's rows as shown, a set's running order
+(blocks expanded in place) or a block's tracks, and the next track starts
+when one ends. The ends stop, never wrap. The run is fixed when Play is
+pressed, so a new sort or an edit applies from the next Play. Sets and
+blocks get Play on their cards (from the first track) and on each editor
+row (from that track). A track that fails to load is skipped with a message.
+Below 1280 px the player bar's volume is the mute button alone, so the
+waveform keeps its width. P7, OOS-4 and `PRODUCT.md` stop saying
+"never a player": playing tracks to hear how they fit together is
+curation; decks, mixing and crossfading stay out.
+
 ### Per-track re-analyze with an optional BPM range (10, 11, 90, 91; issue #6, PF-79)
 
 A track's detail page gains a `Re-analyze` action: a popup that re-runs BPM and

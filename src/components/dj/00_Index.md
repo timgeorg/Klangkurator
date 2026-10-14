@@ -10,7 +10,7 @@ tags:
 - [[InlineCells.tsx]] — The table's editable cells (text in place, genre and key pickers, subgenre checklist, rating bars, lyrics), each saving through one patch callback.
 - [[FolderBrowserDialog.tsx]] — In-app folder browser (browser mode) for choosing the music folder inside the home folder; the desktop app uses the system dialog instead.
 - [[LyricsDialog.tsx]] — Dialog for writing a track's lyrics.
-- [[NowPlaying.tsx]] — Player control component: displays the currently playing track with cover, waveform, playback controls, volume slider, and toggles between dock positions (right panel on wide screens, bottom bar on narrow).
+- [[NowPlaying.tsx]] — Player control component: displays the currently playing track with cover, waveform, play/pause with previous / next through the run, volume, auto-advance at track end, and toggles between dock positions (right panel on wide screens, bottom bar on narrow).
 - [[SongLibrary.tsx]] — Main library view: the filterable, sortable table with dynamic columns; applies inline edits optimistically through a write queue and keeps rows in place while editing.
 - [[SongRelationshipGraph.tsx]] — Canvas graph of a song's relationships: cover nodes, one line style per relationship type, re-centres on click; follows the theme.
 - [[SongRelationshipsDialog.tsx]] — Modal dialog for managing song relationships (add, edit, delete links to other songs by type).

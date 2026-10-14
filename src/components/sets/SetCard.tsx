@@ -1,7 +1,8 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Play, Trash2 } from "lucide-react";
 
 import { Shape } from "@/components/brand";
 import { Button } from "@/components/ui/button";
+import { usePlayer } from "@/lib/PlayerContext";
 import type { DJSet } from "@/lib/storage";
 import { formatDuration, formatTotal } from "@/lib/trackFormat";
 import { TrackTitle } from "@/components/dj/TrackTitle";
@@ -26,6 +27,7 @@ interface SetCardProps {
  * Lives in a container with container-type: inline-size.
  */
 export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
+  const { playRun } = usePlayer();
   const tracks = tracksOf(items);
   const seconds = totalSeconds(tracks);
   const target = (set.target_duration_min ?? 0) * 60;
@@ -64,6 +66,16 @@ export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
           </p>
         )}
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => playRun(tracks, 0)}
+            disabled={tracks.length === 0}
+            aria-label={`Play ${set.name}`}
+          >
+            <Play />
+            Play
+          </Button>
           <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${set.name}`}>
             <Pencil />
             Edit

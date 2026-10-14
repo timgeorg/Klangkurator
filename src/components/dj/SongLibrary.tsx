@@ -219,14 +219,18 @@ export function SongLibrary() {
     setAllTags(await storage.getTags());
   }, []);
 
-  const { current, isPlaying, play, toggle } = player;
+  const { current, isPlaying, play, playRun, toggle } = player;
   const currentId = current?.id;
+  // Play starts a run of the rows as shown, so next / previous step to the
+  // row below / above (PF-80). The current track's row toggles pause.
   const handlePlaySong = useCallback(
     (song: Song) => {
+      const index = rowsRef.current.findIndex((row) => row.id === song.id);
       if (song.id === currentId) toggle();
-      else play(song);
+      else if (index < 0) play(song);
+      else playRun(rowsRef.current, index);
     },
-    [currentId, play, toggle],
+    [currentId, play, playRun, toggle],
   );
 
   const handleEditSong = useCallback((song: Song) => {

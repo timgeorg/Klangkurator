@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Pause, PanelBottom, PanelRight, Play, Square, Volume1, Volume2, VolumeX } from "lucide-react";
+import { Pause, PanelBottom, PanelRight, Play, SkipBack, SkipForward, Square, Volume1, Volume2, VolumeX } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { Button } from "@/components/ui/button";
@@ -39,15 +39,22 @@ function loadVolume(): number {
 const formatBpm = (bpm?: number | null) => (bpm ? String(Math.round(bpm * 10) / 10) : "–");
 
 /**
- * The preview player (PF-16): one track, no queue. A panel on the right on
- * wide screens (the moodboard's now-playing column), a bar at the bottom
- * otherwise or when docked. The <audio> element stays first in the DOM so
- * switching layouts never interrupts playback.
+ * The preview player (PF-16). It plays the current track of the run Play was
+ * pressed in; previous / next step through that run and show only when it has
+ * more than one track, and the next track starts when one ends (PF-80). A
+ * panel on the right on wide screens (the moodboard's now-playing column), a
+ * bar at the bottom otherwise or when docked. The <audio> element stays first
+ * in the DOM so switching layouts never interrupts playback.
  */
 export function NowPlaying() {
-  const { current, isPlaying, dock, stop, toggle, setPlaying, setDock } = usePlayer();
+  const { current, queue, isPlaying, dock, next, previous, stop, toggle, setPlaying, setDock } = usePlayer();
   const isWide = useMediaQuery(WIDE_QUERY);
   const mode = dock === "panel" && isWide ? "panel" : "bar";
+  const hasNext = !!queue && queue.index < queue.tracks.length - 1;
+  const run: RunControls | undefined =
+    queue && queue.tracks.length > 1
+      ? { hasPrevious: queue.index > 0, hasNext, onPrevious: previous, onNext: next }
+      : undefined;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const seekingRef = useRef(false);
@@ -60,18 +67,22 @@ export function NowPlaying() {
   const [volume, setVolume] = useState<number>(loadVolume);
   const [muted, setMuted] = useState(false);
 
-  // Load + play whenever a track is selected
+  // Load + play whenever a track starts. Keyed on the queue, not the song:
+  // next onto the same song (a set can hold it twice) must restart it too.
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !current) return;
-    audio.src = `/api/audio/${current.id}`;
+    const song = queue?.tracks[queue.index];
+    if (!audio || !song) return;
+    audio.src = `/api/audio/${song.id}`;
     loadingRef.current = true;
-    setDuration(current.duration ?? 0);
+    setDuration(song.duration ?? 0);
     setCurrentTime(0);
-    audio.play().catch(() => {
-      // Rapid src changes abort pending play() calls; real failures surface via the 'error' event
+    audio.play().catch((err) => {
+      // Rapid src changes abort pending play() calls; real failures surface via the 'error' event.
+      // Auto-advance plays without a click: if the browser blocks that, show the player as paused.
+      if (err?.name === "NotAllowedError") setPlaying(false);
     });
-  }, [current]);
+  }, [queue, setPlaying]);
 
   // Keep the element in sync with the context play state
   useEffect(() => {
@@ -116,6 +127,7 @@ export function NowPlaying() {
   const shared: ViewProps = {
     song: current,
     isPlaying,
+    run,
     currentTime,
     duration,
     volume,
@@ -147,7 +159,7 @@ export function NowPlaying() {
         onPause={() => {
           if (!loadingRef.current) setPlaying(false);
         }}
-        onEnded={stop}
+        onEnded={hasNext ? next : stop}
         onTimeUpdate={() => {
           // ~4Hz; suppressed while the user is dragging the scrubber
           if (!seekingRef.current) {
@@ -159,14 +171,19 @@ export function NowPlaying() {
           setDuration(isFinite(d) && d > 0 ? d : (current.duration ?? 0));
         }}
         onError={() => {
+          // One missing file skips ahead instead of ending the whole run
           toast({
             title: "Playback failed",
-            description: "File may be missing",
+            description: `“${current.title}”: the file may be missing.${hasNext ? " Playing the next track." : ""}`,
             variant: "destructive",
           });
-          stop();
+          if (hasNext) next();
+          else stop();
         }}
       />
+      <span className="sr-only" aria-live="polite">
+        {current.artist ? `${current.title}, ${current.artist}` : current.title}
+      </span>
       {mode === "panel" ? (
         <PanelView {...shared} onDock={() => setDock("bar")} />
       ) : (
@@ -176,9 +193,18 @@ export function NowPlaying() {
   );
 }
 
+/** Previous / next: only while a run of more than one track plays. */
+interface RunControls {
+  hasPrevious: boolean;
+  hasNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}
+
 interface ViewProps {
   song: Song;
   isPlaying: boolean;
+  run?: RunControls;
   currentTime: number;
   duration: number;
   volume: number;
@@ -192,7 +218,7 @@ interface ViewProps {
 }
 
 function PanelView(props: ViewProps & { onDock: () => void }) {
-  const { song, isPlaying, currentTime, duration, onToggle, onStop, onDock } = props;
+  const { song, isPlaying, run, currentTime, duration, onToggle, onStop, onDock } = props;
   const genre = song.mainGenre || song.genre;
   const titleParts = splitTitle(song.title);
   return (
@@ -236,11 +262,8 @@ function PanelView(props: ViewProps & { onDock: () => void }) {
           <span>{formatTime(duration)}</span>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <VolumeControl {...props} className="w-28" />
-          <PlayToggle isPlaying={isPlaying} onToggle={onToggle} size="lg" />
-          <div className="w-28" aria-hidden />
-        </div>
+        <Transport isPlaying={isPlaying} onToggle={onToggle} run={run} size="lg" className="mt-4 justify-center" />
+        <VolumeControl {...props} className="mt-3" />
 
         <dl className="mt-6 grid grid-cols-2 border-t border-border pt-4">
           <div>
@@ -258,7 +281,7 @@ function PanelView(props: ViewProps & { onDock: () => void }) {
 }
 
 function BarView(props: ViewProps & { onUndock?: () => void }) {
-  const { song, isPlaying, currentTime, duration, onToggle, onStop, onUndock } = props;
+  const { song, isPlaying, run, currentTime, duration, onToggle, onStop, onUndock } = props;
   return (
     <div className="flex h-full items-center gap-3 px-3 md:gap-4 md:px-4">
       <Link
@@ -272,11 +295,12 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
           <span className="truncate text-xs text-muted-foreground">{song.artist}</span>
         </span>
       </Link>
-      <PlayToggle isPlaying={isPlaying} onToggle={onToggle} />
+      <Transport isPlaying={isPlaying} onToggle={onToggle} run={run} />
       <span className="k-num hidden w-10 text-right text-[11px] text-muted-foreground sm:block">{formatTime(currentTime)}</span>
       <Scrubber {...props} className="h-8 min-w-0 flex-1" bars="full" />
       <span className="k-num hidden w-10 text-[11px] text-muted-foreground sm:block">{formatTime(duration)}</span>
-      <VolumeControl {...props} className="hidden w-28 md:flex" />
+      {/* Below 1280px only the mute button: the slider's width goes to the scrubber */}
+      <VolumeControl {...props} className="hidden md:flex xl:w-28" sliderClassName="hidden xl:flex" />
       {onUndock && (
         <Button variant="ghost" size="icon-sm" onClick={onUndock} aria-label="Show the player panel" title="Show the panel">
           <PanelRight />
@@ -286,6 +310,64 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
         <Square />
       </Button>
     </div>
+  );
+}
+
+function Transport({
+  isPlaying,
+  onToggle,
+  run,
+  size = "md",
+  className,
+}: {
+  isPlaying: boolean;
+  onToggle: () => void;
+  run?: RunControls;
+  size?: "md" | "lg";
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex shrink-0 items-center", size === "lg" ? "gap-3" : "gap-1", className)}>
+      {run && (
+        <SkipButton label="Previous track" available={run.hasPrevious} onClick={run.onPrevious}>
+          <SkipBack />
+        </SkipButton>
+      )}
+      <PlayToggle isPlaying={isPlaying} onToggle={onToggle} size={size} />
+      {run && (
+        <SkipButton label="Next track" available={run.hasNext} onClick={run.onNext}>
+          <SkipForward />
+        </SkipButton>
+      )}
+    </div>
+  );
+}
+
+// aria-disabled rather than disabled: a keyboard user who steps to the end of
+// the run keeps focus on the button. A press there is a no-op in the player.
+function SkipButton({
+  label,
+  available,
+  onClick,
+  children,
+}: {
+  label: string;
+  available: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-disabled={!available || undefined}
+      className="[&_svg]:fill-current aria-disabled:pointer-events-none [&[aria-disabled=true]_svg]:opacity-40 [@media(pointer:coarse)]:min-w-11"
+    >
+      {children}
+    </Button>
   );
 }
 
@@ -336,7 +418,14 @@ function Scrubber({
   );
 }
 
-function VolumeControl({ volume, muted, onVolume, onMute, className }: ViewProps & { className?: string }) {
+function VolumeControl({
+  volume,
+  muted,
+  onVolume,
+  onMute,
+  className,
+  sliderClassName,
+}: ViewProps & { className?: string; sliderClassName?: string }) {
   const silent = muted || volume === 0;
   return (
     <div className={cn("flex items-center gap-2", className)}>
@@ -356,7 +445,7 @@ function VolumeControl({ volume, muted, onVolume, onMute, className }: ViewProps
         step={0.01}
         value={[muted ? 0 : volume]}
         onValueChange={([v]) => onVolume(v)}
-        className="min-w-0 flex-1"
+        className={cn("min-w-0 flex-1", sliderClassName)}
       />
     </div>
   );

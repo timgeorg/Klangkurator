@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ArrowDown, ArrowUp, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Play, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ export interface OrderRow {
   meta?: React.ReactNode;
   /** A deleted track or block that still holds its slot. */
   missing?: boolean;
+  /** Plays the run from this row (PF-80); absent when the row has nothing to play. */
+  onPlay?: () => void;
 }
 
 interface RunningOrderListProps {
@@ -62,8 +64,8 @@ export function RunningOrderList({ rows, onMove, onRemove, renderTransition }: R
     <ol ref={listRef} aria-label="Running order">
       {rows.map((row, index) => (
         <li key={row.key}>
-          <div className="grid grid-cols-[1.75rem_2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md py-1.5 pr-1 transition-colors duration-fast focus-within:bg-accent/60 hover:bg-accent/60 sm:grid-cols-[1.75rem_2.5rem_minmax(0,1fr)_auto_auto]">
-            <span className="k-num text-center text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+          <div className="group/row grid grid-cols-[1.75rem_2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md py-1.5 pr-1 transition-colors duration-fast focus-within:bg-accent/60 hover:bg-accent/60 sm:grid-cols-[1.75rem_2.5rem_minmax(0,1fr)_auto_auto]">
+            <OrderNumber index={index} name={row.name} onPlay={row.onPlay} />
             {row.art}
             <div className="min-w-0">
               <p
@@ -117,6 +119,30 @@ export function RunningOrderList({ rows, onMove, onRemove, renderTransition }: R
         </li>
       ))}
     </ol>
+  );
+}
+
+/** The row number; with onPlay it turns into Play on row hover or keyboard focus, as in the library's # column. */
+function OrderNumber({ index, name, onPlay }: { index: number; name: string; onPlay?: () => void }) {
+  const number = String(index + 1).padStart(2, "0");
+  if (!onPlay) return <span className="k-num text-center text-xs text-muted-foreground">{number}</span>;
+  return (
+    <div className="relative flex h-full items-center justify-center">
+      <span className="k-num pointer-events-none text-xs text-muted-foreground transition-opacity duration-fast group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0">
+        {number}
+      </span>
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100">
+        <button
+          type="button"
+          onClick={onPlay}
+          aria-label={`Play ${name}`}
+          title="Play from here"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-foreground transition-colors hover:bg-accent hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Play className="h-3.5 w-3.5" fill="currentColor" strokeWidth={0} />
+        </button>
+      </div>
+    </div>
   );
 }
 

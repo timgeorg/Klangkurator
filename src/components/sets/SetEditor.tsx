@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { ENTITY_COLORS } from "@/lib/palette";
+import { usePlayer } from "@/lib/PlayerContext";
 import { type AltTransition, type Block, type DJSet, type SetItem, type Song, storage } from "@/lib/storage";
 import { formatBpm, formatDuration, formatTotal } from "@/lib/trackFormat";
 import { TrackTitle } from "@/components/dj/TrackTitle";
@@ -96,6 +97,7 @@ function SetForm({
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState<Array<{ song: Song; notes?: string }>>([]);
   const nameRef = useRef<HTMLInputElement>(null);
+  const { playRun } = usePlayer();
 
   const songIndex = useMemo(() => indexById(songs), [songs]);
   const blockIndex = useMemo(() => indexById(blocks), [blocks]);
@@ -198,7 +200,15 @@ function SetForm({
     }
   };
 
-  const rows: OrderRow[] = resolved.map((entry) => rowFor(entry));
+  // Row Play plays the set from that row, in the order on screen, saved or not
+  // (PF-80). A block row starts at its first track; nothing to play, no Play.
+  const rows: OrderRow[] = resolved.map((entry, index) => {
+    const row = rowFor(entry);
+    const playable = entry.kind === "song" || (entry.kind === "block" && entry.tracks.length > 0);
+    if (!playable) return row;
+    const start = tracksOf(resolved.slice(0, index)).length;
+    return { ...row, onPlay: () => playRun(tracks, start) };
+  });
   const nameOf = (entry: ResolvedItem) => rowFor(entry).name;
 
   return (
