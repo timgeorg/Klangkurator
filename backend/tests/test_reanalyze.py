@@ -6,8 +6,6 @@ range is a hint that biases the estimate — a result outside the range is
 reported, never written.
 """
 
-import threading
-
 import numpy as np
 import pytest
 import soundfile as sf
@@ -122,34 +120,25 @@ def test_bpm_outside_the_range_is_reported_and_never_written(track):
     assert get_library_store().get_song(song_id)["bpm"] == 128.0
 
 
-def test_a_second_analysis_is_refused_while_a_batch_job_runs(track, monkeypatch):
-    """The lock and the batch job's `running` flag must both hold it out."""
+def test_a_second_analysis_is_refused_while_one_runs(track):
+    """`blocking=False`: a held lock answers 409 at once rather than waiting."""
     song_id, _ = track()
-    # Pretend the library-wide job is mid-run: its thread set running=True.
-    monkeypatch.setitem(library_api._analyze_state, "running", True)
-    res = client.post(f"/api/library/analyze/{song_id}")
+    library_api._analyze_lock.acquire()
+    try:
+        res = client.post(f"/api/library/analyze/{song_id}")
+    finally:
+        library_api._analyze_lock.release()
     assert res.status_code == 409
 
 
-def test_a_batch_start_is_refused_while_a_per_track_run_holds_the_lock(track, monkeypatch):
-    """The route holds `_analyze_lock` for the whole run; a batch start must not
-    slip in underneath it (the batch route takes the same lock)."""
-    song_id, _ = track()
-    started = threading.Event()
-
-    def slow(*args, **kwargs):
-        started.set()
-        # Re-enter the lock from another thread the way the batch route would.
-        acquired = library_api._analyze_lock.acquire(timeout=0.5)
-        if acquired:
-            library_api._analyze_lock.release()
-            raise AssertionError("the batch route acquired the lock mid-run")
-        return {"bpm": 120.0, "musical_key": "Am", "duration": 60.0, "bpm_fit": True}
-
-    monkeypatch.setattr(library_api, "analyze_track", slow)
-    res = client.post(f"/api/library/analyze/{song_id}")
-    assert res.status_code == 200
-    assert started.is_set()
+def test_a_batch_start_is_refused_while_a_per_track_run_holds_the_lock(track):
+    """BC-7, both directions: the batch route refuses, it does not wait."""
+    library_api._analyze_lock.acquire()
+    try:
+        res = client.post("/api/library/analyze-all")
+    finally:
+        library_api._analyze_lock.release()
+    assert res.status_code == 409
 
 
 def test_a_song_with_no_file_is_a_404(track):
@@ -180,6 +169,17 @@ def test_a_malformed_range_is_refused_before_analysis(track, body):
     res = client.post(f"/api/library/analyze/{song_id}", json=body)
     assert res.status_code == 422
     assert get_library_store().get_song(song_id)["bpm"] == 100.0
+
+
+def test_a_run_that_changes_nothing_applied_is_empty(track):
+    """BC-8: `applied` means changed, not detected."""
+    song_id, _ = track(signal_bpm=174.0)
+    first = client.post(f"/api/library/analyze/{song_id}").json()
+    assert "bpm" in first["applied"]  # nothing stored yet
+
+    again = client.post(f"/api/library/analyze/{song_id}").json()
+    assert again["bpm"] == first["bpm"]
+    assert again["applied"] == {}
 
 
 def test_no_bounds_at_all_is_the_same_as_no_body(track):

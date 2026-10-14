@@ -343,7 +343,11 @@ def analyze_all_songs():
 
     store = get_library_store()
 
-    with _analyze_lock:
+    # Non-blocking, like the per-track route: a per-track run can hold this
+    # lock, and waiting it out would hang the Import page with no message.
+    if not _analyze_lock.acquire(blocking=False):
+        raise HTTPException(409, "An analysis is already running")
+    try:
         if _analyze_state["running"]:
             raise HTTPException(409, "Analysis already running")
 
@@ -372,6 +376,8 @@ def analyze_all_songs():
             "result": None,
             "error": None,
         }
+    finally:
+        _analyze_lock.release()
 
     def _run_analysis():
         global _analyze_state
@@ -436,15 +442,11 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
     if not file_path:
         raise HTTPException(400, "Song has no file_path")
 
-    # One analysis at a time. `running` is set by the library-wide job and
-    # cleared by its thread, so it must be re-checked under the lock: the batch
-    # route only holds the lock while it *starts* its thread, not while that
-    # thread runs. Holding the lock for the whole run then blocks a new batch
-    # start until this one finishes.
-    with _analyze_lock:
-        if _analyze_state["running"]:
-            raise HTTPException(409, "An analysis is already running")
-
+    # One analysis at a time, in both directions: refuse rather than wait, so
+    # the caller gets a message instead of a silent 3-5 second hang (REQ-10-AP).
+    if not _analyze_lock.acquire(blocking=False):
+        raise HTTPException(409, "An analysis is already running")
+    try:
         try:
             result = analyze_track(file_path, bpm_range=bpm_range)
         except FileNotFoundError:
@@ -452,17 +454,26 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
         except Exception as e:
             raise HTTPException(500, f"Analysis failed: {e}")
 
+        # Re-read under the lock: the 3-5 s run is plenty of time for an inline
+        # edit, and `changed` must compare against what the song holds *now*.
+        current = store.get_song(song_id) or song
+
         updates = {}
         # A hint that did not fit the signal must not overwrite the stored BPM.
         if result.get("bpm") is not None and result.get("bpm_fit", True):
             updates["bpm"] = result["bpm"]
         if result.get("musical_key") is not None:
             updates["musical_key"] = result["musical_key"]
-        if result.get("duration") is not None and song.get("duration") is None:
+        if result.get("duration") is not None and current.get("duration") is None:
             updates["duration"] = result["duration"]
 
+        # `applied` means "changed", not "detected" — the popup must be able to
+        # say a run changed nothing without re-deriving it from a stale copy.
+        changed = {k: v for k, v in updates.items() if current.get(k) != v}
         if updates:
             store.update_song(song_id, updates)
+    finally:
+        _analyze_lock.release()
 
     return ReanalyzeResponse(
         song_id=song_id,
@@ -470,7 +481,7 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
         musical_key=result.get("musical_key"),
         duration=result.get("duration"),
         bpm_fit=bool(result.get("bpm_fit", True)),
-        applied=updates,
+        applied=changed,
     )
 
 

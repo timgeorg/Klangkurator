@@ -31,21 +31,19 @@ which skips any track that already has a BPM.
 **Given** the same track as BC-1 (true 174 BPM, detected `117.5` with no range)
 **when** the user enters the range `165` to `185` and runs Re-analyze
 **then** the detected BPM lies inside `165…185` (the observed value was
-`172.3`), it is written, and the popup shows `117.5 → 172.3`.
+`172.3`), it is written, and the popup's result line reads
+`BPM 117.5 → 172.3, key <old> → <new> — saved.` — the before half comes from the
+values captured when the run started, not from the row, which has already
+refreshed.
 
 ### BC-4 — an unsatisfiable range is reported, never hidden
 **Given** a track whose detector answer falls outside the range the user gave
 (observed: true 90 BPM with the range `170…172` lands at `172.3`; true 90 with
 `200…220` lands at `198.8`; true 128 with `240…250` lands at `234.9`)
 **when** the run finishes
-**then** the popup says the stored BPM was **not** changed and names the value
-the detector produced, and the stored BPM on the detail page is exactly what it
-was before the run.
-
-Note the range is a **hint, not a filter**: it normally steers the answer into
-the window (BC-3), and when the signal has no honest support there it is
-reported rather than faked. A range the signal *does* support resolves inside it
-by design — true 128 with `200…220` gives `215.3`, written, marked in-window.
+**then** the popup says `Detected <x> BPM, outside the range you gave. The
+stored BPM is unchanged (<stored>).` and the stored BPM on the detail page is
+exactly what it was before the run.
 
 ### BC-5 — key is repaired too, in the same run
 **Given** a track whose key is wrong and whose BPM is right
@@ -57,9 +55,10 @@ run, no second action for the key.
 **Given** the popup is open
 **when** the user enters only one bound, or a low bound that is not below the
 high bound, or a bound outside `40…250`
-**then** the run does not start, and the popup names which rule was broken
-("Both bounds are needed", "The low bound must be below the high bound", or the
-allowed range).
+**then** the run does not start and the popup shows, verbatim, one of
+`A BPM range needs both bounds. Leave both empty to re-analyze without one.`,
+`The low bound must be below the high bound.`, or
+`BPM bounds go from 40 to 250.` — and no analyze request is sent.
 
 ### BC-7 — never two analyses at once
 **Given** the library-wide analysis job is running
@@ -74,8 +73,8 @@ and the library-wide progress is unaffected.
 ### BC-8 — a run that changes nothing says so
 **Given** a track whose stored BPM and key equal what the detector returns
 **when** the run finishes
-**then** the popup shows the values with no change marked, and no field is
-presented as if it had been updated.
+**then** the popup's result line ends `— the stored values were already
+correct.` (not "saved."), and no field is presented as if it had been updated.
 
 ### BC-9 — the popup closes without pretending to undo
 **Given** a completed run
@@ -94,7 +93,27 @@ values are untouched, and the popup stays open to retry.
 **Given** a library with some tracks missing BPM and some already set
 **when** the user runs the library-wide "Analyze BPM and key"
 **then** only the missing ones are analyzed and written; tracks that already
-have a BPM keep it, exactly as before this feature.
+have a BPM keep it. Fixture for the "as before" half: a track stored at
+`184.6` BPM must still read `184.6` BPM after a library-wide run, and the
+detector must be the same one — `librosa.beat.beat_track` with no prior — not
+`feature.tempo`, which agrees on click tracks but reads this real track as
+`112.3`.
+
+### BC-12 — a range the signal does support resolves inside it
+**Given** a track whose true tempo is 128 BPM and the range `200…220`
+**when** the run finishes
+**then** the popup reads `BPM <old> → <x>, key … — saved.` with `<x>` inside
+`200…220` (observed `215.3`): the hint is a bias, so the signal's own
+double-time answer inside the window wins and is written. This is the
+counterpart to BC-4, not a contradiction of it — the range steers, it does not
+wall.
+
+### BC-13 — a failed detection is not blamed on the range
+**Given** a track whose tempo cannot be read at all (a silent or corrupt file)
+**when** the user runs Re-analyze
+**then** the popup says the tempo could not be detected and nothing was changed
+— it does **not** claim the result fell outside the range, even though the
+backend reports `bpm_fit: false` for both.
 
 ## Out of scope (this contract)
 

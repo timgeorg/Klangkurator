@@ -55,6 +55,9 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReanalyzeResult | null>(null);
+  // The stored values at the moment the run started. `song` refreshes after a
+  // run (onSave), so without this the "before" half of before → after is lost.
+  const [before, setBefore] = useState<{ bpm?: number; musical_key?: string } | null>(null);
 
   // A fresh open starts clean; the stored values are read live from `song`.
   useEffect(() => {
@@ -63,6 +66,7 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
       setHigh("");
       setError(null);
       setResult(null);
+      setBefore(null);
       setRunning(false);
     }
   }, [open]);
@@ -76,13 +80,20 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
       return;
     }
     setError(null);
+    setBefore({ bpm: song.bpm, musical_key: song.musical_key });
     setRunning(true);
     try {
       const res = await storage.reanalyzeSong(song.id, range ?? undefined);
       setResult(res);
       const updated = await storage.getSong(song.id);
       if (updated) onSave(updated);
-      if (res.bpm_fit) {
+      if (res.bpm === null) {
+        toast({
+          variant: "destructive",
+          title: "Nothing detected",
+          description: `The tempo could not be read from “${song.title}”. Its stored BPM is unchanged.`,
+        });
+      } else if (res.bpm_fit) {
         toast({
           title: "Re-analyzed",
           description: `“${song.title}” now reads ${formatBpm(res.bpm)} BPM, ${res.musical_key || "no key"}.`,
@@ -158,7 +169,7 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
         </div>
 
         {result && (
-          <div className={result.bpm_fit ? "text-[13px]" : "text-[13px] text-warning"} role="status">
+          <div className={result.bpm === null || !result.bpm_fit ? "text-[13px] text-warning" : "text-[13px]"} role="status">
             {result.bpm === null ? (
               <>
                 The tempo could not be detected in this file. Nothing was changed
@@ -166,14 +177,16 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
               </>
             ) : result.bpm_fit ? (
               <>
-                Detected <span className="k-num">{formatBpm(result.bpm)}</span> BPM,{" "}
-                <span className="k-num">{result.musical_key || "no key"}</span>
+                BPM <span className="k-num">{formatBpm(before?.bpm)}</span> →{" "}
+                <span className="k-num">{formatBpm(result.bpm)}</span>, key{" "}
+                <span className="k-num">{before?.musical_key || "–"}</span> →{" "}
+                <span className="k-num">{result.musical_key || "–"}</span>
                 {wrote ? " — saved." : " — the stored values were already correct."}
               </>
             ) : (
               <>
                 Detected <span className="k-num">{formatBpm(result.bpm)}</span> BPM, outside the range you gave.
-                The stored BPM is unchanged.
+                The stored BPM is unchanged (<span className="k-num">{formatBpm(before?.bpm)}</span>).
               </>
             )}
           </div>

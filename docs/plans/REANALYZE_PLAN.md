@@ -14,20 +14,29 @@ be steered.
 
 ## Verified facts (2026-10-14, probed on this worktree)
 
-1. **The route exists and is already synchronous, unlocked and overwriting.**
-   `backend/api/library.py:390-422` — `POST /api/library/analyze/{song_id}` →
-   `analyze_one_song`. It takes no body, takes **no lock**, never reads
-   `_analyze_state["running"]`, and writes `bpm`/`musical_key` unconditionally
-   (`:409-412`); `duration` only when `None` (`:413-414`). The batch path
-   deliberately does the opposite — so re-analyze already *is* semantically
-   different from "analyze all". This part is wiring, not new.
-2. **`librosa.feature.tempo` is the same estimator as `beat_track`, and it
-   takes a prior.** `librosa.beat.beat_track` computes `prior=None` then calls
-   `librosa.feature.tempo` (0.11.0). Probed on 21 synthetic click tracks
-   (70–190 BPM): `feature.tempo(y=y, sr=sr)` and `beat_track(y=y, sr=sr)[0]`
-   agree on **all 21** to 4 decimals. So swapping the call keeps the
-   no-hint answer identical. `feature.tempo` also accepts `prior` —
-   `beat_track` does not expose it in a usable way for a bounded window.
+1. **The route existed and was already synchronous, unlocked and overwriting.**
+   At the probed rev (`origin/main` 634e88c) `backend/api/library.py:390-422`
+   was `POST /api/library/analyze/{song_id}` → `analyze_one_song`: no body, no
+   lock, never read `_analyze_state["running"]`, and wrote `bpm`/`musical_key`
+   unconditionally (`:409-412`); `duration` only when `None` (`:413-414`). The
+   batch path deliberately does the opposite — so re-analyze already *is*
+   semantically different from "analyze all". This part is wiring, not new.
+   (Line numbers are the pre-change rev; the route was rewritten in this
+   branch, so they no longer point at the same code.)
+2. **`beat_track` takes a prior; `feature.tempo` is *not* the same estimator.**
+   `librosa.beat.beat_track` exposes `prior` (`librosa/beat.py:44`, passed at
+   `:226-232`), so the prior needs no swap of estimator at all. That matters,
+   because the obvious-looking swap to `librosa.feature.tempo` is **not**
+   identity-preserving: `beat_track` builds its onset envelope with
+   `aggregate=np.median` (`beat.py:217`) while `feature.tempo` defaults to
+   `np.mean` (`feature/rhythm.py:292`). Probed on the real library (14 tracks
+   with existing files): **2 of 14 land on a different BPM** —
+   `Confusion - Paramount` 184.6 → 112.3, `Dioxid - Outside` 92.3 → 136.0. On
+   synthetic click tracks the two agree (median ≈ mean when onsets are sparse),
+   which is exactly why the click-track probe was a false negative and the
+   real-audio probe is the one that counts. ⇒ the implementation keeps
+   `beat_track(y=y, sr=sr, prior=prior)`, so the no-hint answer is bit-identical
+   to today's and BC-11 holds.
 3. **Filtering candidates to the window silently lies.** Probed: with the
    window `(200, 220)` on a true-128 track the in-window argmax picks `215.3`;
    with `(60, 100)` on true-140 it picks `69.8`. There is **no** usable
@@ -37,28 +46,35 @@ be steered.
    no notion of "no fit". ⇒ do **not** implement a candidate filter.
 4. **A bounded log-normal prior biases the estimate into the window — it does
    not guarantee it.** With `prior = lognorm(loc=0, s=ln(max/min)/4,
-   scale=sqrt(min*max))`: 7/7 in-window on the cases above, and it steered the
-   true-174 track from the mis-read `117.5` to `172.3`. But an adversarial sweep
-   of narrow/far windows (true 128 → `(240,250)` gave `234.9`; true 90 →
-   `(170,172)` gave `172.3`; true 90 → `(200,220)` gave `198.8`; true 70 →
-   `(240,250)` gave `234.9`) landed **outside** in 4 of 8. ⇒ `bpm_fit` is a
-   genuinely reachable branch and the "kept the old value" path is not dead
-   code. The prior never changes the no-range answer (fact 2).
-5. **No frontend caller exists.** `grep` for `analyze/` in `src/` finds nothing;
+   scale=sqrt(min*max))` passed to `beat_track`: 7/7 in-window on the click
+   cases, and it steered the mis-read `117.5` to `172.3` for a true-174 track
+   asked for `165–185`. On **real** library audio it steers too (`Confusion -
+   Paramount`, stored 184.6 → 172.3 in `165–185`, `71.8` in `60–100`). But an
+   adversarial sweep of narrow/far windows landed **outside** in 4 of 8
+   (true 128 → `(240,250)` gave `234.9`; true 90 → `(170,172)` gave `172.3`;
+   true 90 → `(200,220)` gave `198.8`; true 70 → `(240,250)` gave `234.9`), and
+   the live check reproduced it on real audio (`240–250` → `234.9` for a 136 BPM
+   track). ⇒ `bpm_fit` is a genuinely reachable branch and the "kept the old
+   value" path is not dead code. The prior never changes the no-range answer
+   (fact 2).
+5. **The wrong `OOS-5` row is real and its ID is duplicated.**
+   `docs/requirements/93_OUT_OF_SCOPE.md:14` and `:15` both carried `OOS-5`; the
+   waveform/beat-detection row is the wrong one and its text ("BPM is entered
+   manually … not computed from audio") has been false since librosa shipped.
+   At the probed rev. Fixed in this branch by renumbering to `OOS-12` and
+   correcting the text — the requirements-doc task below owns it, so a reader
+   following the plan cannot leave it stale.
+6. **No frontend caller existed.** At the probed rev, `grep` for `analyze/` in `src/` finds nothing;
    the only trigger is the library-wide button (`src/pages/LoadFiles.tsx:378`).
    `storage.ts` has **no** analyze method at all (`StorageInterface`,
    `src/lib/storage.ts:152-207`).
-6. **The dialogs are parent-controlled and get focus-return for free.**
+7. **The dialogs are parent-controlled and get focus-return for free.**
    `EditSongDialog` / `LyricsDialog` take `{ song, open, onOpenChange, … }`;
    `DialogContent` injects `useReturnFocus` itself (`src/components/ui/dialog.tsx:39-45`).
-7. **BPM in the table has no component** — a raw `TextCell` with `checkBpm` /
+8. **BPM in the table has no component** — a raw `TextCell` with `checkBpm` /
    `parseBpm` and `BPM_RANGE = {min:40, max:250}` (`src/lib/trackFormat.ts:33-43`,
    `src/components/dj/SongTableRow.tsx:168-185`). The detail page shows BPM/key
    as **read-only** `<Spec>` cells (`src/pages/SongDetailPage.tsx:169-179`).
-8. **The stale doc the issue names is real, and its ID is duplicated.**
-   `docs/requirements/93_OUT_OF_SCOPE.md:14` and `:15` both carry `OOS-5`; the
-   waveform/beat-detection row is the wrong one and its text ("BPM is entered
-   manually … not computed from audio") has been false since librosa shipped.
 9. **`scipy` is already a hard dependency** of librosa (imported here for the
    log-normal prior), so no new dependency is added.
 
@@ -67,8 +83,10 @@ be steered.
 - **How the range constrains the estimate — a bounded prior, not a filter.**
   `prior` = log-normal with median `sqrt(min·max)` and `σ = ln(max/min)/4`
   (≈ ±2σ spans the window), so the autocorrelation is biased toward the window
-  without a hard cut. Verified in fact 4, including that it is a bias and not a
-  guarantee — hence the `bpm_fit` branch below.
+  without a hard cut. It is passed to **`beat_track`**, which already accepts
+  it — *not* to `feature.tempo`, whose different onset aggregation moves the
+  answer on real audio (fact 2). Verified in fact 4, including that it is a
+  bias and not a guarantee — hence the `bpm_fit` branch below.
 - **A range that cannot be satisfied is reported, never hidden.** The response
   carries `bpm_fit: bool` (`min ≤ bpm ≤ max`). When it is `False` the detected
   BPM is **not written** — the stored value stays, and the popup says so.
@@ -107,8 +125,10 @@ be steered.
 - `backend/scanner/audio_analysis.py`
   - `analyze_track(file_path, duration_seconds=120.0, bpm_range: tuple[float, float] | None = None)`.
   - Tempo: `prior = _bpm_prior(*bpm_range) if bpm_range else None`, then
-    `librosa.feature.tempo(y=y, sr=sr, prior=prior)` (identity-preserving when
-    `prior is None`, fact 2), `bpm = round(tempo, 1)` as today.
+    `tempo, _ = librosa.beat.beat_track(y=y, sr=sr, prior=prior)` — the *same*
+    call as today plus a prior, so `prior is None` is bit-identical (fact 2) —
+    and `bpm = round(float(np.asarray(tempo).item()), 1)` as today (`round()`
+    alone would raise on the array `beat_track` returns).
   - `_bpm_prior(lo, hi)` — the log-normal from the decision above, with a clear
     docstring saying *why* a prior and not a filter (fact 3), so nobody
     "simplifies" it back into a candidate filter.
@@ -122,14 +142,19 @@ be steered.
   - `POST /analyze/{song_id}` gains an optional body. Validation, all `422`
     with a readable `detail`: one bound without the other; `min ≥ max`;
     either bound outside `40..250` (the app's `BPM_RANGE`).
-  - Serialisation: `with _analyze_lock:` → `409 "An analysis is already
-    running"` when `_analyze_state["running"]`; hold the lock for the duration
-    of the analysis so the batch route cannot start mid-run.
+  - Serialisation, in both directions: `_analyze_lock.acquire(blocking=False)`
+    → `409 "An analysis is already running"` (refuse, don't wait — a plain
+    `with` would block the caller silently for 3–5 s), released in `finally`.
+    The batch route (`/analyze-all`) takes the same lock the same way, and
+    keeps its `_analyze_state["running"]` check, so neither can start while the
+    other runs (REQ-10-AP).
   - Write: `bpm`/`musical_key` as today **except** `bpm` is skipped when
-    `bpm_fit is False`. `duration` unchanged (only when `None`).
+    `bpm_fit is False`. `duration` unchanged (only when `None`). The song is
+    re-read under the lock, because a 3–5 s run is long enough for an inline
+    edit and `changed` must compare against what the song holds now.
   - Response: `{song_id, bpm, musical_key, duration, bpm_fit, applied}` where
-    `applied` is the patch actually written (so the popup can state the truth
-    without re-deriving it).
+    `applied` holds only the fields that **changed** — so the popup can say a
+    run changed nothing without re-deriving it from a stale copy.
 
 ### Frontend
 
@@ -142,14 +167,32 @@ be steered.
 - `src/components/dj/ReanalyzeDialog.tsx` (new) — `{ song, open, onOpenChange, onSave }`.
   Shows the stored BPM/key, two optional BPM bound inputs (empty = no hint,
   placeholders from `BPM_RANGE`), a Re-analyze button with a pending state
-  (`aria-busy`, disabled while running), then the result as before → after per
-  field. When `bpm_fit` is `False`: a warning line naming the detector's answer
+  (`aria-busy`, disabled while running), then the result as **before → after**
+  per field. The before values are captured when the run starts, because
+  `onSave` refreshes `song` and the live value would otherwise already be the
+  after one. Three distinct results: nothing detected, out-of-range (stored BPM
+  kept), or saved/no-change. When `bpm_fit` is `False`: a warning line naming the detector's answer
   and saying the stored BPM was kept. Errors surface through `describeApiError`
   in a destructive toast (the `LoadFiles`/`Settings` precedent).
 - `src/pages/SongDetailPage.tsx` — a `Re-analyze` button in the header action
   row (after Edit), owning `reanalyzeOpen`; renders the dialog; on a successful
   run refreshes the song so the `<Spec>` cells show the new values.
-- `src/components/dj/00_Index.md`, `src/lib/00_Index.md` — index rows.
+- `docs/plans/00_Index.md` and `backend/tests/00_Index.md` — the folder-index
+  convention (`folder-index` skill) requires a row for each new artifact.
+
+### Requirements docs (spec-first, same change)
+
+Per `AGENTS.md` ("Behavior changes go through the spec before the code; update
+the matching file and `99_CHANGELOG.md` in the same change"):
+
+- `10_LIBRARY_AND_FILE_LOADING.md` — new **REQ-10-RA** section.
+- `91_INVARIANTS.md` — new **INV-13** (analysis never overwrites a human-set
+  value silently).
+- `92_PLANNED_FEATURES.md` — new **PF-79** row.
+- `93_OUT_OF_SCOPE.md` — the wrong OOS-5 row renumbered to **OOS-12** and
+  corrected (fact 5 below).
+- `99_CHANGELOG.md` — the dated entry.
+- `11_SONG_MODEL.md`, `90_NFRS.md` — checked, no change required.
 
 ### Not changing (deliberate)
 

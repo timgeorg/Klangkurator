@@ -75,11 +75,13 @@ def analyze_track(
     bpm = None
     try:
         prior = _bpm_prior(*bpm_range) if bpm_range else None
-        # librosa.feature.tempo is the estimator beat_track uses internally
-        # (beat_track bpm is exactly tempo(prior=None)); calling it directly
-        # gives access to `prior`, which beat_track does not expose.
-        tempo = librosa.feature.tempo(y=y, sr=sr, prior=prior)
-        # tempo is a numpy array (shape [1]) in librosa 0.11
+        # Prior goes through beat_track, NOT feature.tempo: the two build their
+        # onset envelope differently (beat_track aggregates with np.median,
+        # feature.tempo with np.mean), and on real tracks that difference moves
+        # the answer — measured 2 of 14 library tracks land on a different BPM.
+        # beat_track has exposed `prior` since 0.10, so it steers the same
+        # estimator the app already ships and the no-hint answer is identical.
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, prior=prior)
         bpm = round(float(np.asarray(tempo).item()), 1)
     except Exception as e:
         logger.warning(f"BPM detection failed for {file_path}: {e}")
