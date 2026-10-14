@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Monitor, Moon, Pencil, Plus, Sun, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { ChevronRight, Download, Monitor, Moon, Pencil, Plus, Sun, Trash2, Upload, X } from "lucide-react";
 import { useTheme } from "next-themes";
 
+import { ImportMergeDialog, type Conflict, type ImportSummary } from "@/components/dj/ImportMergeDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSection } from "@/components/layout/PageSection";
 import {
@@ -24,7 +25,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { toast } from "@/hooks/use-toast";
-import { describeApiError } from "@/lib/api";
+import { api, API_BASE, describeApiError } from "@/lib/api";
 import { useCoverStyle } from "@/lib/appearance";
 import { getGenreConfig, saveGenreConfig, type GenreConfig } from "@/lib/genreData";
 import { ENTITY_COLORS } from "@/lib/palette";
@@ -58,6 +59,69 @@ export default function Settings() {
   const [editOpen, setEditOpen] = useState(false);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // ── Backup & Export (issue #10, PF-83) ───────────────────
+  const [exporting, setExporting] = useState(false);
+  const [importingFile, setImportingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importPlan, setImportPlan] = useState<{
+    envelope: object;
+    plan: { summary: ImportSummary; conflicts: Conflict[] };
+  } | null>(null);
+
+  /** Download the whole store as the versioned envelope (EC-1). Raw fetch:
+   *  api.get JSON-parses and cannot return a blob. */
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`${API_BASE}/export`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `klangkurator-library-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast({ title: "Export failed", description: describeApiError(e), variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /** Parse the picked file, ask the backend for the merge plan (read-only),
+   *  open the dialog. A foreign file is rejected here (EC-2 / UC-2). */
+  const handleImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file after a fix
+    if (!file) return;
+    setImportingFile(true);
+    try {
+      const envelope = JSON.parse(await file.text());
+      const plan = await api.post<{ summary: ImportSummary; conflicts: Conflict[] }>(
+        "/import/preview",
+        envelope,
+      );
+      setImportPlan({ envelope, plan });
+    } catch (err) {
+      const isJson = err instanceof SyntaxError;
+      toast({
+        title: "Import not possible",
+        description: isJson
+          ? `“${file.name}” is not a valid JSON file.`
+          : describeApiError(err),
+        variant: "destructive",
+      });
+    } finally {
+      setImportingFile(false);
+    }
+  };
+
+  /** The library table listens for this and reloads (bulk data changed). */
+  const reloadAfterImport = () => {
+    window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
+  };
 
   const loadTags = useCallback(async () => {
     try {
@@ -320,7 +384,41 @@ export default function Settings() {
             </ul>
           )}
         </PageSection>
+
+        <PageSection
+          id="data"
+          title="Backup & Export"
+          description="Download everything Klangkurator stores about your library as one JSON file — or restore it from an export. Import is a merge: it fills what is missing and asks before overwriting anything you set."
+        >
+          <div className="flex flex-wrap items-start gap-3">
+            <Button variant="outline" onClick={handleExportData} disabled={exporting}>
+              <Download className="h-4 w-4" />
+              {exporting ? "Preparing…" : "Export library JSON"}
+            </Button>
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importingFile}>
+              <Upload className="h-4 w-4" />
+              {importingFile ? "Reading…" : "Import library JSON"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+          </div>
+        </PageSection>
       </div>
+
+      {importPlan && (
+        <ImportMergeDialog
+          open
+          onOpenChange={(o) => !o && setImportPlan(null)}
+          envelope={importPlan.envelope}
+          plan={importPlan.plan}
+          onImported={reloadAfterImport}
+        />
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">

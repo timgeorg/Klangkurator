@@ -88,3 +88,4 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 |---|---|---|
 | PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the three 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |
 | PF-78 | Decimal ratings | The three 0–5 ratings (`energy`, `danceability`, `social_acceptance`) take one decimal (step 0.1 in the dialog); the 5-bar meter stays and floors on display (stored 3.8 → 3 bars) (issue #7) |
+| PF-83 | Library export / import | Export the whole store as one versioned JSON envelope (`klangkurator-library-<date>.json`); import merges — fill-empty silently, conflicts resolved in a popup (per-conflict overwrite yes/no + apply-to-all). Track identity: file_path → artist+title+duration ±2 s → artist+title. Replaces the old wholesale-replace import. Finishes NFR-2 (issue #10) |

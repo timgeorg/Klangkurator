@@ -168,6 +168,13 @@ export function SongLibrary() {
     loadAllData();
   }, [loadAllData]);
 
+  // A bulk data change (Settings import, issue #10) bumps the whole library.
+  useEffect(() => {
+    const onChanged = () => loadAllData();
+    window.addEventListener("klangkurator:library-changed", onChanged);
+    return () => window.removeEventListener("klangkurator:library-changed", onChanged);
+  }, [loadAllData]);
+
   // Empty library: the table is a dead end, route to the import page.
   // Only when the library itself is empty, not when a filter matches nothing.
   useEffect(() => {

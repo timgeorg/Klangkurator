@@ -5,6 +5,22 @@ Last Updated: 2026-10-13
 
 ## 2026-10-13
 
+### Library export / import: versioned envelope, merge with conflict popup (17, 20, 90, 91; issue #10, NFR-2)
+
+The whole store — songs (+ all user metadata), tags, song_tags, relationships,
+playlists, playlist_songs, blocks, sets — exports as one versioned JSON
+envelope (`klangkurator-library-<date>.json`; `_config` stays machine-local).
+The import **merges, it never replaces**: tracks match by file_path, then
+artist+title+duration within ±2 s, then artist+title; empty local fields fill
+silently; differing values surface as conflicts, resolved per field (overwrite
+yes/no, default local wins) with an apply-to-all checkbox. Matched tracks keep
+their local id and path; added tracks get fresh ids (a foreign uuid is never
+written). Tags match by name; joins never duplicate. Relationships/playlists/
+blocks/sets import wholesale only into an empty store, else they are skipped
+and reported. This ends the old `POST /api/import`, which wholesale-replaced
+the target library — using it with partial data destroyed data. Also corrects
+`17_SETTINGS.md`, which documented a Backup section that did not exist.
+
 ### Inline editing in the library table (12, 13, 90; issue #3)
 
 Every value the user owns now edits in the table, where notes and tags
