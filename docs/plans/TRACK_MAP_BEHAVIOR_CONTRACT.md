@@ -238,6 +238,12 @@ a visible focus ring in both themes.
 **when** the user collapses one section
 **then** only that section closes, and its header stays reachable.
 
+### TM-R11 — filters are shared with the table
+**Given** a search and a genre filter set on the map
+**when** the user goes to the library through the app sidebar
+**then** the table shows the same search and filter; clearing them there and
+coming back to `/map` (the browser's Back) shows the whole library again.
+
 ## Hand-off and motion (phase 4b)
 
 ### TM-H1 — the core
@@ -339,10 +345,10 @@ main genre's cluster.
 subgenres, energy spread from unrated to 5
 **then** the map clusters by energy.
 
-### TM-C7 — no metadata
-**Given** 1,200 tracks with no genre, BPM, subgenre or energy
-**then** the map shows the first tracks with a notice that the rest need
-filtering (unless Tim chose the crate dimension instead).
+### TM-C7 — crate fallback
+**Given** 1,200 tracks with no genre, BPM, subgenre or energy, spread over
+12 crates
+**then** the map clusters by crate.
 
 ### TM-C8 — scale
 **Given** 5,000 tracks
@@ -350,13 +356,27 @@ filtering (unless Tim chose the crate dimension instead).
 limit phase 6 fixes (start: 33 ms), and a re-solve finishes within its fixed
 limit (start: 3 s).
 
+### TM-C9 — artist fallback
+**Given** 1,200 tracks with no genre, BPM, subgenre or energy, in one crate,
+with artists across the alphabet
+**then** the map clusters by the artist's first letter, and choosing "A"
+shows only tracks whose artist starts with A.
+
+### TM-C10 — last resort
+**Given** 1,200 tracks with no genre, BPM, subgenre or energy, in one crate,
+all by one artist
+**then** the map shows the first tracks by title, with a notice that the
+rest need filtering.
+
 ## Entry points (phase 7)
 
 ### TM-E1 — Table | Map
 **Given** the library table
 **when** the user switches to Map
 **then** `/map` opens with the app sidebar's Library item still active, and
-switching back returns to the table.
+switching back returns to the table. **Given** a search and a genre filter in
+the table **when** the user switches to Map **then** the map counts only the
+matching tracks and shows the same filters.
 
 ### TM-E2 — Show on map
 **Given** a song page

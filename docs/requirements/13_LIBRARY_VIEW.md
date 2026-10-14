@@ -109,6 +109,9 @@ focus, and permanently while the filter is active):
 
 - When search and filters exclude every track, the header stays in place and
   a "No track matches" state offers **Clear search and filters**
+- Search and filters are shared with the track map for the session: they
+  carry across the Table | Map switch, both ways
+  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81)
 
 Planned, not built — additional filters for set planning:
 - **Phase Tags** — multi-select (`opening`, `building`, `sunset`, `peak`, `closing`)

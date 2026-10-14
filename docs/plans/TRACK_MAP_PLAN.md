@@ -57,18 +57,13 @@ These are not in the issue yet; the phase 0 PR body carries them too.
 | — | Subgenre clusters | chose "First subgenre" (tracks without one fall back to the main genre) |
 | — | Phase 0 | chose "write it now" |
 
-### Open (Tim)
+### Tim's answers to the open questions (2026-10-15, verbatim)
 
-1. **Table ↔ Map filters.** Do search and filters carry across the switch,
-   both ways? *Default if unanswered:* no; each view keeps its own.
-2. **Release policy.** May a partial map reach `main`? *Default:* no. The
-   route exists from phase 3 for testing, and the entry points (the switch,
-   Open in map, Show on map) are switched on in phase 7. Alternative: entry
-   points ship from phase 3, with a notice instead of clusters until phase 6.
-3. **Libraries with no metadata.** A large library with no genre, BPM,
-   subgenre or energy cannot cluster. *Default:* show the first tracks by
-   title with a notice. Alternative: the crate (`root_folder`) as a fifth
-   dimension.
+| # | Question (as asked, with its default) | Answer | How the plan reads it |
+|---|---|---|---|
+| 1 | Do search and filters carry across the Table \| Map switch? Default: no, each view keeps its own | "yes!" | Both ways: one shared search and filter state for the session |
+| 2 | May a partial map reach `main`? Default: no; the route exists from phase 3 for testing, the entry points turn on in phase 7 | "true." | Read as agreeing with the default: no partial map on `main`, entry points in phase 7. Correct this if "true" meant the opposite |
+| 3 | A large library with no genre, BPM, subgenre or energy cannot cluster. Default: the first tracks with a notice; alternative: the crate as a fifth dimension | "fine. Create also a viable fallback." | The notice stays as the last resort, after two fallback dimensions: crate, then the artist's first letter *(proposed)* |
 
 Everything marked *(proposed)* below is Sterling's starting value, to confirm
 in review or to measure in phase 6.
@@ -166,8 +161,9 @@ in review or to measure in phase 6.
 | `src/App.tsx` | The route | 3 |
 | `src/components/layout/DJLayout.tsx`, `src/components/dj/NowPlaying.tsx` | Route-derived bar on `/map`, without `setDock`; dock buttons hidden there | 3 |
 | `src/components/layout/DJSidebar.tsx` | Library item active on `/map` | 3 |
-| `src/components/dj/SongLibrary.tsx` | Table \| Map switch | 7 (per Open 2) |
-| `src/pages/SongDetailPage.tsx` | Show on map | 7 (per Open 2) |
+| `src/lib/LibraryFilterContext.tsx` *(proposed name)* | Search and filters shared by the table and the map for the session, provided above the routes | 4a |
+| `src/components/dj/SongLibrary.tsx` | Reads search and filters from the shared context; Table \| Map switch | 4a (context), 7 (switch) |
+| `src/pages/SongDetailPage.tsx` | Show on map | 7 |
 | `package.json`, lockfile, `vite.config.ts` (`test`), tsconfig for tests, eslint | Dependencies and test set-up | 1a |
 | `00_Index.md` in `src/lib/trackMap/`, `src/components/map/`, `rail/`, `scripts/`; `src/components/dj/00_Index.md` | Folder indexes | as each folder appears; 2 drops the old graph |
 
@@ -202,7 +198,9 @@ export interface TrackFeatures {
   duration?: number;          // seconds
 }
 
-export type ClusterDimension = "genre" | "bpmRange" | "subgenre" | "energy";
+export type ClusterDimension =
+  | "genre" | "bpmRange" | "subgenre" | "energy"   // Tim's four, in priority order
+  | "crate" | "artistInitial";                     // fallbacks (answer 3)
 export interface ClusterFilter { dimension: ClusterDimension; value: string } // matched by groupKey
 
 export interface TransitionSource {
@@ -386,13 +384,22 @@ Starting rule *(proposed; phase 6 tests alternatives and fixes the numbers)*:
   - subgenre: the first-listed subgenre (lowercased), else the genre key,
     else "No genre"; labels in their first-seen case
   - energy: "Unrated" for 0, "Below 1" under 1, else `floor(energy)` 1–5
+  - crate (fallback): the track's `root_folder`, or "No crate"
+  - artist initial (fallback): the first letter of the artist, uppercased,
+    A–Z; anything else (digits, symbols, an empty artist) is "#"
 - Choice: try genre, BPM range, subgenre and energy in that order. For each,
   count the groups `c`. Take the first with `C_MIN ≤ c ≤ C_MAX` (start: 4 and
   60). A dimension with `c ≤ 1` is never taken. If none fits, take the one
   nearest the band by `|ln(c / C_MIN)|` below it or `|ln(c / C_MAX)|` above
   it, ties by order
-- No dimension with `c ≥ 2` (Open 3): the first `T` tracks by title, with a
-  notice that the rest need filtering
+- Fallback (Tim, answer 3): if none of the four has `c ≥ 2`, try crate,
+  then artist initial *(proposed)*, and cluster by the first with `c ≥ 2`
+  (the band rule does not apply here: any split helps). If both have
+  `c ≤ 1` too, show the first `T` tracks by title, with a notice that the
+  rest need filtering
+- Choosing a cluster and the choice running again (below) go through the
+  fallbacks as well, so a crate cluster that is still too big splits by
+  artist initial
 - Choosing a cluster adds a `ClusterFilter`. It keeps exactly the tracks
   whose `groupKey` for that dimension equals the value, so the reveal shows
   the cluster's members and no one else. If still `N > T`, the choice runs
@@ -413,6 +420,9 @@ Starting rule *(proposed; phase 6 tests alternatives and fixes the numbers)*:
 - 2 genres and BPMs from 90 to 180: genre fails (`c = 2`), BPM range gives
   `c = 10`: BPM range
 - Band edges: `c = 3` fails, 4 passes, 60 passes, 61 fails
+- Fallbacks: 1,200 tracks without genre, BPM, subgenre or energy, in 12
+  crates: crate. The same in one crate: artist initial. One crate and one
+  artist: the notice
 - Nothing fits: genre `c = 2` (distance 0.693), BPM range `c = 3` (0.288),
   subgenre `c = 75` (0.223), energy `c = 1` (never taken): subgenre
 
@@ -466,7 +476,7 @@ storage.getTags()              Tag[]        → names and colours for filters an
 storage.getSongRelationships() ┐
 storage.getBlocks()            ├→ transitions.ts → transition edges + facts
 storage.getSets() (items)      ┘→ connections.ts → R(t)
-filterSongs + core + ClusterFilters → shown ids → N
+filterSongs(search + filters from LibraryFilterContext) + core + ClusterFilters → shown ids → N
 N ≤ T: similarity.ts → nearest → links      N > T: clusters.ts → cluster nodes + links
 buildModel → MapModel → layout.ts solveLayout(seeds) → Positions → TrackMapCanvas (cold, pinned)
 ```
@@ -489,7 +499,8 @@ buildModel → MapModel → layout.ts solveLayout(seeds) → Positions → Track
 2. `features = useMemo([songs, songTags])`
 3. `connections`, `transitions = useMemo([relationships, blocks, sets, songs])`
 4. `config = useMapConfig()`
-5. Filters, search query, core, cluster filters: state
+5. Search and filters from the shared `LibraryFilterContext`; core and
+   cluster filters: page state
 6. `shownIds = useMemo([songs, songTags, filters, searchQuery, core, clusterFilters])`
 7. `model = useMemo([shownIds, songs, features, config.inputs, connections, transitions])`
    (`songs` gives the node labels and covers).
@@ -544,12 +555,12 @@ changelog.
 | 1a | `types.ts` with `DEFAULT_INPUTS`; dependencies `react-force-graph-2d` ^1.29.1, `d3-force` ^3.0.0, `@types/d3-force` ^3.0.10, dev `vitest` ^3.2; `npm test`; vitest config; test files kept out of `tsconfig.app.json`; folder indexes | All gates and one vitest smoke test pass. Merged before 1b and 2 start | 0 |
 | 1b | `features`, `similarity`, `connections`, `transitions`, `groupKey`, `buildModel` (track mode), `syntheticLibrary` | Every worked example and edge case above passes as a vitest test; nearest tracks for 500 synthetic tracks in under 1 s | 1a |
 | 2 | **Spike first:** a pinned, cold `react-force-graph-2d` with a 400 ms position animation: smooth, idle CPU near zero, and rendering in the PyWebView window. Then `layout.ts` with vitest (the same input gives the same positions; linked pairs end closer than unlinked pairs; a re-solve with nothing changed barely moves; unlinked nodes at the edge); `TrackMapCanvas`; `TrackDetails` (compact); the dialog on the new canvas (pre-selected song, partners list, Show its relationships with history, no Open in map yet); `SongRelationshipGraph.tsx` deleted (if the spike fails, stop and ask Tim, and keep it); `14_RELATIONSHIPS.md` › Graph View rewritten; bundle size recorded here | Contract TM-D1–D5 | 1a (types), parallel to 1b |
-| 3 | Route `/map` (no visible entry yet, per Open 2); bar on `/map` from the route, without `setDock`; app sidebar Library item active; the page at default inputs; the map rail with the selected track (full details, nearest, transitions, actions); toolbar with the zoom level; `?focus`; Play and its toggle; Esc; loading, error, empty and below-768 states; the unlinked count in a status line at the top of the map rail; until phase 6, `N > T` shows the first `T` tracks with a notice. Calibration: record the spread of `S` and a screenshot on the real 92 tracks here | Contract TM-M, TM-S | 1b, 2 |
-| 4a | `useMapConfig`, including the `layers` slice (all on) that phase 5 uses; the Similarity section (switch and weight 0.5–3, step 0.5, per input; Reset); `filterSongs` shared with the library; the Filters section on `ui/column-filter.tsx`; the all-off and no-match (Clear filters) states; collapsing the rail and its sections | Contract TM-R1, TM-R3–TM-R10 | 3 |
+| 3 | Route `/map` (no visible entry yet, answer 2); bar on `/map` from the route, without `setDock`; app sidebar Library item active; the page at default inputs; the map rail with the selected track (full details, nearest, transitions, actions); toolbar with the zoom level; `?focus`; Play and its toggle; Esc; loading, error, empty and below-768 states; the unlinked count in a status line at the top of the map rail; until phase 6, `N > T` shows the first `T` tracks with a notice. Calibration: record the spread of `S` and a screenshot on the real 92 tracks here | Contract TM-M, TM-S | 1b, 2 |
+| 4a | The shared `LibraryFilterContext` (the table moves its search and filters into it); `useMapConfig`, including the `layers` slice (all on) that phase 5 uses; the Similarity section (switch and weight 0.5–3, step 0.5, per input; Reset); `filterSongs` shared with the library; the Filters section on `ui/column-filter.tsx`; the all-off and no-match (Clear filters) states; collapsing the rail and its sections | Contract TM-R1, TM-R3–TM-R11 | 3 |
 | 4b | The `?core=` hand-off and the core chip (the dialog's Open in map button comes in phase 7); Show its relationships on the map; the 400 ms re-layout animation and reduced motion; the motion exception written into `DESIGN.md` and `design-system/README.md` | Contract TM-R2, TM-H1–TM-H3 | 4a |
 | 5 | The Layers section; relationship edges (seven types, side by side when a pair has several); the transition layer with labels on selection; the nearest layer; the legend (computed and authored) | Contract TM-L | 4a (parallel to 4b: separate section files) |
-| 6 | `clusters.ts`: the choice rule, `ClusterFilter`, cluster features, cluster nodes, the Clusters section, the no-metadata rule (Open 3); `scripts/make-synthetic-library.ts` (run with `npx vite-node`) writing a sandbox `library.json`; measurements at 500, 1,000 and 5,000 tracks in Chromium and in the PyWebView window; `T`, `C_MIN`, `C_MAX` and the TM-C8 limits fixed here and in NFR-12; a web worker only if the numbers need one | Contract TM-C | 4b, 5 |
-| 7 | Entry points on (Table \| Map switch, Open in map, Show on map), per Open 2; `33_TRACK_MAP.md` to Active, remaining flags resolved; `PRODUCT.md`, `DESIGN.md`, `README.md`; impeccable audit; 1440, 1280, 768 and 375 px in both themes (375: the notice and the dialog); the whole contract; `int` → `main`; close #8 by hand | Contract TM-E and all clauses | all |
+| 6 | `clusters.ts`: the choice rule, `ClusterFilter`, cluster features, cluster nodes, the Clusters section, the fallbacks (crate, artist initial) and the last-resort notice (answer 3); `scripts/make-synthetic-library.ts` (run with `npx vite-node`) writing a sandbox `library.json`; measurements at 500, 1,000 and 5,000 tracks in Chromium and in the PyWebView window; `T`, `C_MIN`, `C_MAX` and the TM-C8 limits fixed here and in NFR-12; a web worker only if the numbers need one | Contract TM-C | 4b, 5 |
+| 7 | Entry points on (Table \| Map switch, Open in map, Show on map); no partial map reaches `main` before this (answer 2); `33_TRACK_MAP.md` to Active, remaining flags resolved; `PRODUCT.md`, `DESIGN.md`, `README.md`; impeccable audit; 1440, 1280, 768 and 375 px in both themes (375: the notice and the dialog); the whole contract; `int` → `main`; close #8 by hand | Contract TM-E and all clauses | all |
 
 ## Tests and gates
 

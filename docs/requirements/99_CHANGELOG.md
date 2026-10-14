@@ -16,7 +16,10 @@ genre, BPM range (10 BPM), subgenre or energy; tags only filter.
 Relationships and transitions are layers, and transitions from
 relationships, sets and blocks merge into one edge per direction with their
 sources. The relationships dialog becomes a small instance of the same
-canvas, where a click selects. PF-42 no longer blocks the map. Starting
+canvas, where a click selects. Search and filters carry across the
+Table | Map switch, both ways. A library without that metadata falls back to
+clusters by crate, then by the artist's first letter. PF-42 no longer
+blocks the map. Starting
 values are marked proposed for Tim's review. The plan and the behavior
 contract are in `docs/plans/TRACK_MAP_*`.
 

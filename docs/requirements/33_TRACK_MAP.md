@@ -11,8 +11,9 @@ map of the collection by feel, not by folder. The map is the other way to see
 the library, beside the table (PF-81).
 
 Points marked *(proposed)* are Sterling's starting values for Tim to confirm.
-Points marked *(open)* wait for Tim's decision. Everything else is decided in
-issue #8 or in Tim's late answers.
+Everything else is decided in issue #8, in Tim's late answers of 2026-10-14,
+or in his answers to the open questions of 2026-10-15 (all quoted in the
+plan).
 
 Two words used throughout: the **app sidebar** is the ink navigation rail on
 the left; the **map rail** is the map's own side rail with its controls.
@@ -58,7 +59,9 @@ Not in the MVP:
 - *(proposed)* `/map?focus=<songId>` selects and centres a song;
   `/map?core=<songId>` starts with that song's core (REQ-33-DG). Both survive
   a reload
-- *(open)* Whether search and filters carry across the Table | Map switch
+- Search and filters carry across the Table | Map switch, both ways: the
+  table and the map share one search and one set of filters for the session.
+  *(proposed)* The core and cluster filters stay on the map
 - On the map page the player shows as the bottom bar, the minimal layout,
   without changing the saved dock preference. The app sidebar and the map
   rail both collapse, and so does each section of the map rail
@@ -163,10 +166,11 @@ Not in the MVP:
   and how many clusters a dimension would create. The mechanism is decided;
   the algorithm and its parameters are tested on synthetic libraries before
   they are fixed (NFR-12). The plan holds the starting rule
-- *(open)* A large library with no genre, BPM, subgenre or energy at all
-  cannot cluster on any of the four. The plan's starting rule shows the first
-  tracks with a notice; the alternative is adding the crate as a fifth
-  dimension
+- Fallback (Tim: *"Create also a viable fallback"*): when none of the four
+  can split the tracks, the map clusters by *(proposed)* crate, then by the
+  first letter of the artist (A–Z, "#" for anything else), which nearly any
+  library can split. Only when even that fails does it show the first tracks
+  by title, with a notice that the rest need filtering
 - A cluster node is sized by its track count and labelled with its value and
   count. *(proposed)* Choosing a cluster narrows the map to exactly its
   members (by the same grouping that made it); if they are still too many,
@@ -245,8 +249,9 @@ Not in the MVP:
 - Beside the map, collapsible as a whole and *(proposed)* per section, in Klangkurator's
   design language (the pattern is Smartimize's sidebar)
 - *(proposed)* Sections: **Similarity** (inputs on or off and their weights,
-  plus Reset to defaults), **Filters** (the library's search and filters,
-  plus the core), **Layers**, **Clusters**, and the **selected track**
+  plus Reset to defaults), **Filters** (the same search and filters as the
+  table, plus the core and any cluster filters), **Layers**, **Clusters**,
+  and the **selected track**
 
 ## Persistence (REQ-33-PS)
 
@@ -254,8 +259,9 @@ Not in the MVP:
   other saved UI state (column configuration, dock preference), in the
   browser's local storage; the plan pins the key. A stored value that does
   not fit is replaced by the default
-- *(proposed)* Filters and the core are session-only, like the library's
-  filters. Positions are never stored
+- Search and filters are shared with the table and session-only, like the
+  library's. *(proposed)* The core and cluster filters are session-only and
+  stay on the map. Positions are never stored
 
 ## States (REQ-33-ST)
 
