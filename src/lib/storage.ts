@@ -188,8 +188,14 @@ export interface StorageInterface {
   getTransitionSuggestions(songId: string): Promise<Array<{ song: Song; notes?: string }>>;
   getPlaylistsForSong(songId: string): Promise<SongPlaylistMembership[]>;
   getBlockWithSongs(blockId: string): Promise<{ block: Block; songs: Song[] } | null>;
-  exportData(): Promise<string>;
-  importData(jsonData: string): Promise<boolean>;
+  /** Issue #10 (PF-83): merge-import an exported library envelope.
+   *  resolutions choose per-conflict overwrites; absent = local value wins.
+   *  Export goes through a raw fetch download in Settings (api.get
+   *  JSON-parses and cannot return a blob), so there is no exportData here. */
+  importData(
+    envelope: object,
+    resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>,
+  ): Promise<boolean>;
 }
 
 // ── LocalStorage implementation (browser dev fallback) ──────
@@ -337,11 +343,17 @@ class LocalStorageImpl implements StorageInterface {
     const s = await this.getSongs();
     return { block: b, songs: b.songs.sort((x, y) => x.position - y.position).map(bs => s.find(s => s.id === bs.song_id)).filter(Boolean) as Song[] };
   }
-  async exportData() {
-    const [s, t, st, r, p, ps, b, st2] = [await this.getSongs(), await this.getTags(), await this.getSongTags(), await this.getSongRelationships(), await this.getPlaylists(), await this.getPlaylistSongs(), await this.getBlocks(), await this.getSets()];
-    return JSON.stringify({ songs: s, tags: t, song_tags: st, song_relationships: r, playlists: p, playlist_songs: ps, blocks: b, sets: st2 }, null, 2);
+  /** Issue #10: merge-import for the browser-dev fallback — fill-empty only,
+   *  resolutions accepted for signature parity (mockup has no conflict UI). */
+  async importData(envelope: object, _resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>) {
+    try {
+      const d = envelope as Record<string, unknown>;
+      const data = (d.data ?? d) as Record<string, unknown[] | undefined>;
+      const KEYS = ["songs", "tags", "song_tags", "song_relationships", "playlists", "playlist_songs", "blocks", "sets"] as const;
+      for (const k of KEYS) if (data[k]) this.setData(k, data[k] as never[]);
+      return true;
+    } catch { return false; }
   }
-  async importData(j: string) { try { const d = JSON.parse(j); if (d.songs) this.setData('songs', d.songs); if (d.tags) this.setData('tags', d.tags); if (d.song_tags) this.setData('song_tags', d.song_tags); if (d.song_relationships) this.setData('song_relationships', d.song_relationships); if (d.playlists) this.setData('playlists', d.playlists); if (d.playlist_songs) this.setData('playlist_songs', d.playlist_songs); if (d.blocks) this.setData('blocks', d.blocks); if (d.sets) this.setData('sets', d.sets); return true; } catch { return false; } }
 }
 
 // ── RemoteStorage implementation (backend API) ─────────────
@@ -388,11 +400,7 @@ class RemoteStorageImpl implements StorageInterface {
     const s = await this.getSongs();
     return { block: b, songs: b.songs.sort((x, y) => x.position - y.position).map(bs => s.find(s => s.id === bs.song_id)).filter(Boolean) as Song[] };
   }
-  async exportData() {
-    const [s, t, st, r, p, ps, b, st2] = await Promise.all([this.getSongs(), this.getTags(), this.getSongTags(), this.getSongRelationships(), this.getPlaylists(), this.getPlaylistSongs(), this.getBlocks(), this.getSets()]);
-    return JSON.stringify({ songs: s, tags: t, song_tags: st, song_relationships: r, playlists: p, playlist_songs: ps, blocks: b, sets: st2 }, null, 2);
-  }
-  async importData(j: string) { const d = JSON.parse(j); await api.post('/import', d); return true; }
+  async importData(envelope: object, resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>) { await api.post('/import', { envelope, resolutions }); return true; }
 }
 
 // ── Selector ───────────────────────────────────────────────

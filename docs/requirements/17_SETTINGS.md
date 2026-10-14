@@ -29,13 +29,20 @@ Lives on the Import page, not in Settings (see 10_LIBRARY_AND_FILE_LOADING):
 - Change root folder (triggers re-scan)
 - List of detected crates (subfolders) with track counts
 
-## Backup & Export
+## Backup & Export (built 2026-10-13, PF-83, issue #10)
 
 - **Full JSON export**: entire library (songs, tags, song_tags, relationships,
-  playlists, blocks, sets) in a single `.json` file
-- **Full JSON import**: restore from backup file (replaces all data, with
-  confirmation)
-- **Set export**: export individual sets as markdown / text / JSON
+  playlists, playlist_songs, blocks, sets) in a single versioned envelope
+  `klangkurator-library-<date>.json`. The machine-local `_config` (root path)
+  is excluded.
+- **Merge import with a conflict popup**: matched tracks are found by
+  file_path → artist+title+duration ±2 s → artist+title; empty local fields
+  are filled silently, differing values are resolved one by one (overwrite
+  yes/no per field, default local wins) with an apply-to-all checkbox. Local
+  `file_path` is never rewritten; foreign song ids are never written — added
+  tracks get fresh ids.
+- **Set export**: export individual sets as markdown / text / JSON (still
+  open — set-level export is not this feature)
 
 ## Preferences
 

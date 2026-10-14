@@ -10,3 +10,5 @@ tags:
 - [[test_concurrent_writes.py]] — Concurrent saves keep library.json whole and hold every song's last write (the store's save lock).
 - [[test_song_update.py]] — Partial song updates: an explicit null clears an optional field, omitted fields stay, required and list fields can't be blanked.
 - [[test_rank.py]] — The per-track rank (issue #4): create round-trips, PUT sets it, and a song without a rank reads back as 0.
+- [[test_decimal_energy.py]] — Decimal ratings (issue #7): fractional round-trips, rank stays int, legacy fractional JSON lists without 500.
+- [[test_export_import.py]] — Export/import (issue #10): envelope, match precedence, fill/clobber, conflict resolutions, uuid protection, tag identity, other-store skip, wholesale-replace regression.

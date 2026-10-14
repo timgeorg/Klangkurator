@@ -18,3 +18,5 @@ Source: Requirements.md section 2.4
 | INV-8 | No "Reset to Defaults" button for genres/subgenres | Settings page — button must not exist |
 | INV-9 | Range filters must use empty defaults (no auto-applied 0–200 that hides everything) | Filter popover component |
 | INV-10 | No cloud, no login, no Supabase — all data local | Architecture constraint, no network calls in data layer |
+| INV-11 | An import never overwrites a matched track's `file_path` (paths are machine-truth; a moved file keeps its local path) | Import merge, `import_merge.apply_import` (issue #10) |
+| INV-12 | An import never writes a foreign song id — matched tracks keep the local id, added tracks get fresh uuids (INV-1 holds across machines) | Import merge, `import_merge.apply_import` (issue #10) |

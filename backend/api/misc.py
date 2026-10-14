@@ -1,7 +1,12 @@
-"""Misc endpoints — flat data access, playlists, import."""
+"""Misc endpoints — flat data access, playlists, export/import."""
+
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
+from backend.services.import_merge import (
+    ENVELOPE_FORMAT, ENVELOPE_VERSION, apply_import, plan_import,
+)
 from backend.storage import get_library_store, get_blocks_store, get_sets_store
 
 router = APIRouter(tags=["misc"])
@@ -58,33 +63,56 @@ def remove_playlist_song(playlist_id: str, song_id: str):
         raise HTTPException(404, "Playlist song not found")
 
 
-# ── Import ─────────────────────────────────────────────────
+# ── Export / Import (issue #10, PF-83; NFR-2) ─────────────
+
+@router.get("/api/export")
+def export_data():
+    """The whole store as a versioned envelope. `_config` (root path) is
+    machine-local and excluded."""
+    library = get_library_store()
+    return {
+        "format": ENVELOPE_FORMAT,
+        "version": ENVELOPE_VERSION,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "data": {
+            "songs": library.get_songs(),
+            "tags": library.get_tags(),
+            "song_tags": library.get_song_tags(),
+            "song_relationships": library.get_relationships(),
+            "playlists": library.get_playlists(),
+            "playlist_songs": library.get_playlist_songs(),
+            "blocks": get_blocks_store().get_blocks(),
+            "sets": get_sets_store().get_sets(),
+        },
+    }
+
+
+@router.post("/api/import/preview")
+def import_preview(envelope: dict):
+    """Read-only import plan: match summary + the conflict list the dialog
+    resolves (MC-4). Writes nothing."""
+    plan = plan_import(
+        envelope, get_library_store(), get_blocks_store(), get_sets_store()
+    )
+    if not plan.get("valid"):
+        raise HTTPException(422, plan.get("error", "Invalid export file"))
+    plan.pop("_plan", None)  # internals stay internal
+    return plan
+
 
 @router.post("/api/import")
 def import_data(body: dict):
-    library = get_library_store()
-    blocks = get_blocks_store()
-    sets = get_sets_store()
-
-    if "songs" in body:
-        library._data["songs"] = body["songs"]
-    if "tags" in body:
-        library._data["tags"] = body["tags"]
-    if "song_tags" in body:
-        library._data["song_tags"] = body["song_tags"]
-    if "song_relationships" in body:
-        library._data["relationships"] = body["song_relationships"]
-    if "playlists" in body:
-        library._data["playlists"] = body["playlists"]
-    if "playlist_songs" in body:
-        library._data["playlist_songs"] = body["playlist_songs"]
-    if "blocks" in body:
-        blocks._data["blocks"] = body["blocks"]
-    if "sets" in body:
-        sets._data["sets"] = body["sets"]
-
-    library._save_fn()
-    blocks._save_fn()
-    sets._save_fn()
-
-    return {"status": "ok"}
+    """Merge-import (issue #10). Replaces the old wholesale-replace behaviour,
+    which assigned each incoming array wholesale — it matched nothing and
+    destroyed the target library. Body = {envelope, resolutions:
+    [{song_id, field, overwrite}]}; an absent resolution means the local value
+    wins."""
+    envelope = body.get("envelope")
+    resolutions = body.get("resolutions") or []
+    result = apply_import(
+        envelope, resolutions, get_library_store(), get_blocks_store(),
+        get_sets_store(),
+    )
+    if not result.get("valid"):
+        raise HTTPException(422, result.get("error", "Invalid export file"))
+    return result
