@@ -159,7 +159,12 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
 
         {result && (
           <div className={result.bpm_fit ? "text-[13px]" : "text-[13px] text-warning"} role="status">
-            {result.bpm_fit ? (
+            {result.bpm === null ? (
+              <>
+                The tempo could not be detected in this file. Nothing was changed
+                {result.musical_key ? ` except the key (${result.musical_key})` : ""}.
+              </>
+            ) : result.bpm_fit ? (
               <>
                 Detected <span className="k-num">{formatBpm(result.bpm)}</span> BPM,{" "}
                 <span className="k-num">{result.musical_key || "no key"}</span>
