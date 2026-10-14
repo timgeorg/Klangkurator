@@ -131,6 +131,10 @@ export function TextCell({
 
   const commit = (byEnter: boolean) => {
     if (!session.current || draft === null) return;
+    if (draft === value) {
+      finish(byEnter);
+      return;
+    }
     const next = parse(draft);
     if ("error" in next) {
       if (byEnter) {
@@ -210,7 +214,7 @@ export function TextCell({
             />
           )}
         </TooltipTrigger>
-        <TooltipContent side="bottom" align={align === "end" ? "end" : "start"}>
+        <TooltipContent side="bottom" align={align === "end" ? "end" : "start"} collisionPadding={8}>
           {error}
         </TooltipContent>
       </Tooltip>
@@ -222,6 +226,24 @@ export function TextCell({
 }
 
 // ── One value from a list: genre, key ──────────────────────
+
+/**
+ * cmdk highlights its first row when it has no value, which reads as "this
+ * one". A value that matches no row keeps every row plain until the user
+ * types or moves.
+ */
+const NO_ROW = "\u0000";
+
+/** Scrolls the highlighted row to the middle of its list, not just inside it. */
+function centreHighlighted(event: Event) {
+  const list = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>("[cmdk-list]");
+  requestAnimationFrame(() => {
+    const row = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !row) return;
+    const offset = row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    list.scrollTop += offset - (list.clientHeight - row.offsetHeight) / 2;
+  });
+}
 
 interface Choice {
   value: string;
@@ -272,15 +294,20 @@ function ChoiceCell({ field, track, current, choices, placeholder, noneLabel, on
       <PopoverTrigger asChild>
         <CellButton aria-label={`${field} for ${track}: ${current ?? "none"}`}>{children}</CellButton>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-60 p-0">
-        <Command shouldFilter={false} defaultValue={current}>
+      <PopoverContent align="start" collisionPadding={8} className="w-60 p-0" onOpenAutoFocus={centreHighlighted}>
+        <Command shouldFilter={false} defaultValue={current ?? NO_ROW}>
           <CommandInput placeholder={placeholder} value={search} onValueChange={setSearch} />
           <CommandList>
             <CommandEmpty>Nothing matches “{search.trim()}”.</CommandEmpty>
             {shown.length > 0 && (
               <CommandGroup>
                 {shown.map((choice) => (
-                  <CommandItem key={choice.value} value={choice.value} onSelect={() => choose(choice.value)}>
+                  <CommandItem
+                    key={choice.value}
+                    value={choice.value}
+                    onSelect={() => choose(choice.value)}
+                    className={choice.color ? undefined : "pl-3"}
+                  >
                     {choice.color && (
                       <span
                         aria-hidden
@@ -301,7 +328,7 @@ function ChoiceCell({ field, track, current, choices, placeholder, noneLabel, on
             )}
             {current && !q && (
               <CommandGroup className="border-t border-border">
-                <CommandItem value={`none:${field}`} onSelect={() => choose(null)} className="text-muted-foreground">
+                <CommandItem value={`none:${field}`} onSelect={() => choose(null)} className="pl-3 text-muted-foreground">
                   {noneLabel}
                 </CommandItem>
               </CommandGroup>
@@ -444,9 +471,9 @@ export function SubgenresCell({ song, onPatch }: { song: Song; onPatch: PatchSon
           )}
         </CellButton>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-0">
+      <PopoverContent align="start" collisionPadding={8} className="w-64 p-0">
         {/* Filtered here, not by cmdk, so the order stays fixed and Create comes last. */}
-        <Command shouldFilter={false}>
+        <Command shouldFilter={false} defaultValue={subgenres[0] ?? NO_ROW}>
           <CommandInput placeholder={genre ? `${genre} subgenres` : "Subgenres"} value={search} onValueChange={setSearch} />
           <CommandList>
             {!genre && (
@@ -622,6 +649,7 @@ export function RatingCell({ field, track, value, onChange, stars, emptyText = "
       </PopoverAnchor>
       <PopoverContent
         align="start"
+        collisionPadding={8}
         className="w-auto p-1.5"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
@@ -637,18 +665,22 @@ export function RatingCell({ field, track, value, onChange, stars, emptyText = "
             <button
               key={n}
               type="button"
-              aria-pressed={n === v}
+              // A decimal (3.8) marks its whole value, as its bars do.
+              aria-pressed={n === Math.floor(v)}
               aria-label={n ? `${n} of 5` : emptyText}
               onClick={() => {
                 set(n);
                 setPicking(false);
               }}
               className={cn(
-                "k-num inline-flex h-11 w-11 items-center justify-center rounded-md text-[13px] transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                n === v ? "bg-signal-soft text-signal-text" : "text-foreground hover:bg-accent",
+                "inline-flex h-11 items-center justify-center rounded-md text-[13px] transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                n ? "k-num w-11" : "mr-1 px-3",
+                n === Math.floor(v)
+                  ? "bg-signal-soft text-signal-text"
+                  : cn(n ? "text-foreground" : "text-muted-foreground", "hover:bg-accent"),
               )}
             >
-              {n || "–"}
+              {n || emptyText}
             </button>
           ))}
         </div>
