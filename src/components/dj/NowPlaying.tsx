@@ -302,14 +302,14 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
       {/* The title gives way before the scrubber does: the bar is narrower when the sidebar is open */}
       <Scrubber {...props} className="h-8 min-w-14 flex-1 sm:min-w-20" bars="full" />
       <span className="k-num hidden w-10 text-[11px] text-muted-foreground sm:block">{formatTime(duration)}</span>
-      {/* Below 1280px only the mute button: the slider's width goes to the scrubber */}
-      <VolumeControl {...props} className="hidden md:flex xl:w-28" sliderClassName="hidden xl:flex" />
+      {/* From 768px to 1279px only the mute button: the slider's width goes to the scrubber */}
+      <VolumeControl {...props} className="hidden shrink-0 md:flex xl:w-28" sliderClassName="hidden xl:flex" />
       {onUndock && (
-        <Button variant="ghost" size="icon-sm" onClick={onUndock} aria-label="Show the player panel" title="Show the panel">
+        <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={onUndock} aria-label="Show the player panel" title="Show the panel">
           <PanelRight />
         </Button>
       )}
-      <Button variant="ghost" size="icon-sm" onClick={onStop} aria-label="Stop playback" title="Stop">
+      <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={onStop} aria-label="Stop playback" title="Stop">
         <Square />
       </Button>
     </div>

@@ -110,6 +110,16 @@ same change.
 12. `99_CHANGELOG.md`: PR #15 inserts under `## 2026-10-13`. This branch adds
     a `## 2026-10-14` section above it, so the hunks stay apart.
 
+**Update at ship time:** PRs #15 (issue #10) and #16 (issue #6) landed first,
+and the flow is now feature → `int` → `main` (#16, #17, open PR #18). Tim chose
+`int` as this PR's base (2026-10-14), so the branch sits on `int` (35afd7c,
+the same tree as main 15364d0). The only conflict was the changelog's
+2026-10-14 section; all three entries are kept. `Closes #5` does not fire from
+a PR into `int`: the issue closes at the `int` → `main` release. Main's conflict
+markers in `docs/plans/00_Index.md` (fact 9) were removed by #15. Tim's main
+worktree still has uncommitted edits to `92_PLANNED_FEATURES.md` and
+`docs/plans/00_Index.md`, so pulling main there needs a stash and pop.
+
 ## The queue model
 
 The whole design is one piece of state in `PlayerProvider`:
