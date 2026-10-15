@@ -5,6 +5,24 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map — the zoom readout and when covers collapse (#31, #33)
+
+Two fixes from using the shipped map:
+
+- **The zoom percentage only moved when a toolbar button was pressed.** The
+  canvas reported nothing for a wheel, a pinch or a drag, so the toolbar's
+  readout went stale while the map zoomed. The canvas now reports every camera
+  change (throttled while moving, exact once it settles) and the readout
+  follows.
+- **Covers are drawn far longer before they collapse** (Tim: *"album covers can
+  be displayed a lot longer, only very late at zoomout they shall be
+  collapsed"*). The artwork threshold drops from 1.1 to 0.35, so the covers are
+  on at a 92-track map's own fit zoom (~0.42) instead of only very close in; a
+  hysteresis band keeps them from flickering around the boundary. The cover
+  cache is sized to the map's own track threshold, which it had been smaller
+  than — a track-mode map can show up to 500 covers, so the old 400-entry cap
+  would have evicted and re-decoded covers every frame.
+
 ### Track map — nodes, labels, focus, hover, and the split rail (issues #31–#37)
 
 Seven follow-ups to the track map, all from Tim's 2026-10-15 review of the

@@ -161,14 +161,16 @@ Not in the MVP:
   times the earlier radius, in its main genre's user colour as the **outer
   ring**. (A bigger node also lets the whole map fit at a lower zoom, so on
   screen the gain is smaller than the radius ratio; the radius is the
-  observable, and the drawn disc is still visibly larger.) From a
-  zoom level on (measured on a 5,000-track library, where the fit zoom lands
-  near 0.4), the track's **cover** sits in the centre of the ring, drawn in the
-  app's cover mode — black and white in editorial, the user's choice in
-  Settings for colour — exactly as `CoverArt` draws it in the DOM. Zoomed
-  further out the node is the **full genre colour** with no cover, so a large
-  map never draws thousands of artworks. A track with no artwork keeps the
-  genre fill. Cluster nodes keep their own look
+  observable, and the drawn disc is still visibly larger.) The track's **cover**
+  sits in the centre of the ring, drawn in the app's cover mode — black and
+  white in editorial, the user's choice in Settings for colour — exactly as
+  `CoverArt` draws it in the DOM. Covers stay on **as far out as they usefully
+  can** (Tim, 2026-10-15: *"album covers can be displayed a lot longer, only very
+  late at zoomout they shall be collapsed"*): they are dropped only at a low
+  zoom, and a hysteresis band keeps them from flickering on and off around that
+  point. Zoomed further out the node is the **full genre colour** with no cover,
+  so a large map never tries to draw thousands of artworks. A track with no
+  artwork keeps the genre fill. Cluster nodes keep their own look
 - **Every title draws, in full (issue #37).** No title is trimmed to an
   ellipsis and none is hidden: a long title **wraps** onto as many lines as it
   needs — a word wider than the line is broken rather than dropped — at a
