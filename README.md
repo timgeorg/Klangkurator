@@ -94,6 +94,23 @@ Requires Node.js/npm and Python 3.10+.
 ./run.sh help       # full usage
 ```
 
+`dev` and `server` need only the two. **`desktop` needs a GUI backend as well** —
+PyWebView on Linux draws through GTK/WebKit2, which is a system package, not a
+Python one:
+
+```sh
+sudo apt install python3-gi gir1.2-webkit2-4.1
+```
+
+`python3-gi` is built for the *system* Python, so a virtualenv cannot see it
+even when it is installed. The launcher handles that: when the venv's
+interpreter is the same version as the system one, it links the system
+`dist-packages` into the venv (a `_dist-packages.pth` in site-packages). If the
+versions differ, point the launcher at an apt-built interpreter instead:
+`KLANGKURATOR_PYTHON=/usr/bin/python3 ./run.sh desktop`. It also points
+`GSETTINGS_SCHEMA_DIR` at the system schemas, because a sandboxed shell (VS Code
+runs as a snap) can otherwise make GTK abort before the window opens.
+
 The launcher finds a Python interpreter that has the backend deps (or honors
 `KLANGKURATOR_PYTHON`), reuses a healthy backend instead of failing on a port conflict,
 and skips package installs with `NO_INSTALL=1`. Default ports: `BACKEND_PORT=8000`,
