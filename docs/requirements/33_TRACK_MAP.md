@@ -1,6 +1,6 @@
 # Track Map (Similarity Canvas)
 
-Status: Draft (issue #8, phase 0)
+Status: Active
 Last Updated: 2026-10-15
 Source: issue #8 (brainstorm 2026-10-13, round two 2026-10-14) and Tim's
 answers of 2026-10-14 late, quoted verbatim in
@@ -10,7 +10,15 @@ All tracks on one canvas, placed so that similar tracks sit near each other: a
 map of the collection by feel, not by folder. The map is the other way to see
 the library, beside the table (PF-81).
 
-Points marked *(proposed)* are Sterling's starting values for Tim to confirm.
+This spec was drafted with points marked *(proposed)* — Sterling's starting
+values to confirm. They are settled now (phase 7, 2026-10-15): the route, the
+entry points, the default weights and their 0.5–3 grid, the 8 nearest tracks,
+the minimum overlap, the 400 ms re-layout, the cluster fallbacks, the layers,
+the dialog's actions and the rail's sections all **shipped as proposed**, and
+none was settled differently; the cluster thresholds were fixed at their
+starting values by phase 6's measurements. Two things stay open by decision,
+and both are marked below: the graph's own keyboard navigation stays deferred,
+and a song's `transition_notes` and the phase/vibe tags stay out of the MVP.
 Everything else is decided in issue #8, in Tim's late answers of 2026-10-14,
 or in his answers to the open questions of 2026-10-15 (all quoted in the
 plan).
@@ -39,8 +47,10 @@ Not in the MVP:
 - Notes as a similarity input: a later opt-in (`32_AI_CURATION.md`)
 - Audio similarity: phrase-level, under PF-52; whole-track `waveform_peaks`
   are rejected as an input
-- *(proposed)* A song's own `transition_notes`, a set's alternative
-  transitions, `phase_tags` and `vibe_tags` as inputs or layers
+- A song's own `transition_notes`, a set's alternative transitions,
+  `phase_tags` and `vibe_tags` as inputs or layers. Confirmed as out of the
+  MVP: notes are a later opt-in (`32_AI_CURATION.md`), and the other three
+  were never built as inputs or layers
 - Cluster naming, add-to-set from the map, and PF-42 compatibility scores.
   PF-42 does not block the map
 - The follow-ups planned after #8: Journeys (a chain from one track to
@@ -49,26 +59,31 @@ Not in the MVP:
 
 ## Surface and entry (REQ-33-SV)
 
-- Its own route, *(proposed)* `/map`, fullscreen in the main area: the
-  alternative library view, not an inset and not a mode of the library page
+- Its own route, `/map`, fullscreen in the main area: the alternative library
+  view, not an inset and not a mode of the library page
 - Entry points:
-  - *(proposed)* a **Table | Map** switch in the Library header; the app
+  - a **Table | Map** switch in the Library header, in both views; the app
     sidebar's Library item stays active on both
   - **Open in map** in the relationships dialog (REQ-33-DG)
-  - *(proposed)* **Show on map** on the song page, focusing that song
-- *(proposed)* `/map?focus=<songId>` selects and centres a song;
+  - **Show on map** on the song page, focusing that song
+- `/map?focus=<songId>` selects and centres a song;
   `/map?core=<songId>` starts with that song's core (REQ-33-DG). Both survive
   a reload
 - Search and filters carry across the Table | Map switch, both ways: the
   table and the map share one search and one set of filters for the session.
-  *(proposed)* The core and cluster filters stay on the map
+  The core and cluster filters stay on the map
 - On the map page the player shows as the bottom bar, the minimal layout,
   without changing the saved dock preference. The app sidebar and the map
-  rail both collapse, and so does each section of the map rail
-  *(proposed)*. Beyond that, a small map area is accepted
-- *(proposed)* Below 768 px (the app's existing mobile breakpoint) the Table
-  | Map switch hides and `/map` shows a short notice with a link to the
-  table. The relationships dialog keeps working at every width
+  rail both collapse, and so does each section of the map rail. Beyond that,
+  a small map area is accepted
+- Below 768 px (the app's existing mobile breakpoint) the Table | Map switch
+  hides and `/map` shows a short notice with a link to the table. The
+  relationships dialog keeps working at every width
+- The route is lazy-loaded (`React.lazy` under `Suspense` in `src/App.tsx`),
+  and so is the relationships dialog's graph tab, so the map's renderer
+  (`react-force-graph-2d`, `d3-force`) never sits in the library's first
+  paint; it arrives when the map or the graph tab is opened. The sizes are in
+  `TRACK_MAP_PLAN.md` › Risks and spikes › Bundle size
 
 ## Similarity (REQ-33-SM)
 
@@ -80,8 +95,8 @@ Not in the MVP:
 - Inputs, each switched on or off and weighted in the map rail: BPM, tags,
   relationships, genre, subgenre, key, energy, danceability, social
   acceptance; year and duration exist but start off
-- Default weights *(proposed; Tim: key matters least, BPM, tags and
-  relationships most)*:
+- Default weights **(shipped as proposed; Tim: key matters least, BPM, tags
+  and relationships most)**:
 
 | Input | Default weight |
 |---|---|
@@ -94,9 +109,9 @@ Not in the MVP:
 | Danceability | 1 |
 | Social acceptance | 1 |
 | Key | 0.5 |
-| Year, Duration | 1 each, switched off *(proposed)* |
+| Year, Duration | 1 each, switched off |
 
-- *(proposed)* A switched-on input weighs from 0.5 to 3, in steps of 0.5;
+- A switched-on input weighs from 0.5 to 3, in steps of 0.5;
   only its switch turns it off
 - How two tracks compare per input (the exact formulas are the plan's
   algorithm contract):
@@ -104,17 +119,16 @@ Not in the MVP:
     (87 ≈ 174)
   - **Key:** by distance on the Camelot wheel
   - **Tags:** by overlap of the two sets
-  - **Subgenre** *(proposed: by overlap too)*, **genre** *(proposed: same
-    main genre or not)*
+  - **Subgenre** (by overlap too), **genre** (same main genre or not)
   - **Ratings:** by difference on the 0–5 scale; 0 means unrated and is
     never compared
-  - **Relationships** *(proposed)*: two tracks that are connected count as
-    alike, two tracks that share connections count as partly alike.
+  - **Relationships**: two tracks that are connected count as alike, two
+    tracks that share connections count as partly alike.
     Connected means a relationship of any of the eight types, or a
     transition from a set or a block, in either direction
 - A value one of the two tracks lacks is **skipped** for that pair: the
   composite is the weighted mean over the inputs both tracks have
-- *(proposed)* A pair is only compared when at least two enabled inputs are
+- A pair is only compared when at least two enabled inputs are
   available for both tracks (one, if only one input is enabled), so two
   tracks that share nothing but their BPM do not look identical
 - Any change of an input or weight recomputes the similarity and re-solves
@@ -123,28 +137,35 @@ Not in the MVP:
 ## Layout (REQ-33-LO)
 
 - A force-directed layout (d3-force), computed headless: each track is
-  linked to its *(proposed)* 8 most similar tracks, and more similar pairs
+  linked to its 8 most similar tracks, and more similar pairs
   pull closer. The renderer only draws positions; it does not simulate
-- *(proposed)* A fresh load of the same library with the same settings
+- A fresh load of the same library with the same settings
   gives the same map. A re-solve starts from the current positions, so the map keeps its
   shape
 - The first layout appears in place; nothing animates on page load. After a
   change, the nodes move to their new places in one animation, the one named
-  exception to the 150–220 ms motion rule (*(proposed)* 400 ms ease-out, in
-  the 300–500 ms range the issue noted). Under reduced motion the nodes jump
+  exception to the 150–220 ms motion rule (400 ms ease-out, in the 300–500 ms
+  range the issue noted). Under reduced motion the nodes jump
 - The axes carry no meaning; only distance does
 
 ## Nodes, edges and colour (REQ-33-NE)
 
-- A node is a track. *(proposed)* A disc in its main genre's user colour,
+- A node is a track. A disc in its main genre's user colour,
   neutral when it has none; its cover appears at close zoom, black and white
   or in colour as the app's cover mode says; its title shows at close zoom,
   on hover and when selected
+- **Titles never stack.** Where the map is dense — the fit zoom of a
+  one-crate library puts most tracks within a few pixels of each other —
+  labels are placed collision-aware: a title is drawn only when the space
+  around it is free in that frame, and the hovered, selected and cluster
+  labels always draw. A suppressed title appears on hover or on zooming in,
+  so nothing is lost; it only stops the dense centre from becoming an
+  unreadable pile of overlapping text
 - Orange means "this one": the playing track carries the orange cut, and the
   selected track carries the focus ring. Hover emphasis uses the foreground
   colour. Orange is never a genre, cluster or hover colour
 - Relationship edges keep their line styles (`src/lib/relationshipStyle.ts`).
-  Computed similarity is not drawn as edges by default; *(proposed)* the
+  Computed similarity is not drawn as edges by default; the
   selected track's nearest tracks show as thin neutral lines. Computed and
   authored edges stay visually distinct, and the legend lists every kind on
   screen
@@ -160,19 +181,20 @@ Not in the MVP:
 - Cluster dimensions, for now: **genre** (main genre), **BPM range** (bins of
   10 BPM, each `[120, 130)` and labelled "120–130"), **subgenre** (a track's
   first-listed subgenre; without one, its main genre) and **energy**
-  (*(proposed)* by the meter's whole bars: "Below 1", 1 to 5, and "Unrated"
+  (by the meter's whole bars: "Below 1", 1 to 5, and "Unrated"
   for 0). Tags never cluster; they only filter
 - Choosing the dimension: by priority, depending on how many nodes there are
-  and how many clusters a dimension would create. The mechanism is decided;
-  the algorithm and its parameters are tested on synthetic libraries before
-  they are fixed (NFR-12). The plan holds the starting rule
+  and how many clusters a dimension would create. Fixed in phase 6: genre,
+  BPM range, subgenre, energy in that order, the first with 4–60 groups, else
+  the one nearest that band; `T` = 500, `C_MIN` = 4 and `C_MAX` = 60 are
+  measured and recorded in NFR-12 and the plan
 - Fallback (Tim: *"Create also a viable fallback"*): when none of the four
-  can split the tracks, the map clusters by *(proposed)* crate, then by the
+  can split the tracks, the map clusters by crate, then by the
   first letter of the artist (A–Z, "#" for anything else), which nearly any
   library can split. Only when even that fails does it show the first tracks
   by title, with a notice that the rest need filtering
 - A cluster node is sized by its track count and labelled with its value and
-  count. *(proposed)* Choosing a cluster narrows the map to exactly its
+  count. Choosing a cluster narrows the map to exactly its
   members (by the same grouping that made it); if they are still too many,
   the next dimension clusters them. Each chosen cluster shows as a removable
   chip in the Filters section; removing it brings the clusters back
@@ -183,22 +205,22 @@ Not in the MVP:
 ## Layers (REQ-33-LY)
 
 - Three layers on the map, each switched on or off in the map rail
-  (*(proposed)* all on by default):
+  (all on by default):
   - **Relationships:** the seven non-transition types, each in its own line
     style
   - **Transitions:** one edge kind with many sources. A `transition`
     relationship, two consecutive tracks in a set's running order (blocks
     expanded in place) and two consecutive tracks in a block are the same
     kind of fact, and each is a valid transition
-  - *(proposed)* **Nearest:** the selected track's nearest tracks
+  - **Nearest:** the selected track's nearest tracks
 - Transitions are deduplicated per direction: A→B and B→A are separate
   edges. Each edge keeps its sources (which relationships, sets and blocks)
-  and their notes. *(proposed)* A gap in a set or block (a deleted track)
-  breaks the chain; it never joins its neighbours
+  and their notes. A gap in a set or block (a deleted track) breaks the
+  chain; it never joins its neighbours
 - The selected track's transitions list shows every transition in and out,
-  with sources and notes; *(proposed)* when a track is selected, the notes of
+  with sources and notes; when a track is selected, the notes of
   its transitions also show as edge labels
-- *(proposed)* The dialog has no layers: it draws all eight relationship
+- The dialog has no layers: it draws all eight relationship
   types
 
 ## Interaction (REQ-33-IN)
@@ -207,24 +229,24 @@ Not in the MVP:
   - clicking a track selects it and shows its details
   - clicking empty canvas clears the selection
   - hovering a track highlights it and its edges and dims the rest
-  - *(proposed)* Esc clears the selection
+  - Esc clears the selection
 - The map's details, in the map rail: cover, title, artist, BPM, key, genre,
   ratings and tags; the nearest tracks under the current weights, each with
-  its similarity as a percentage *(proposed)*; the transitions in and out. Each list entry selects that track and
-  *(proposed)* pans to it. Actions: **Play**, **Properties** (the Edit
+  its similarity as a percentage; the transitions in and out. Each list entry selects that track and
+  pans to it. Actions: **Play**, **Properties** (the Edit
   dialog), **Song page**, **Show its relationships**
 - **Play** starts a run of one: no previous or next, like the song page.
-  *(proposed)* On the track that is already playing it pauses and resumes,
+  On the track that is already playing it pauses and resumes,
   like the library's row control
-- *(proposed)* Selecting a track replaces `?focus=` in the URL, so a reload
+- Selecting a track replaces `?focus=` in the URL, so a reload
   keeps the selection
 - **Show its relationships** on the map: the core becomes that track and its
-  relationship partners, *(proposed)* replacing any core
+  relationship partners, replacing any core
 - Zoom and pan with the wheel, drag and pinch; the toolbar zooms in and out,
-  fits the map and resets the view, and *(proposed)* shows the zoom level as
+  fits the map and resets the view, and shows the zoom level as
   text
-- *(proposed)* Nodes cannot be dragged: positions are computed
-- *(proposed)* After **Properties** saves a change, the map reloads its
+- Nodes cannot be dragged: positions are computed
+- After **Properties** saves a change, the map reloads its
   tracks and re-solves
 
 ## Relationships dialog (REQ-33-DG)
@@ -232,23 +254,24 @@ Not in the MVP:
 - The dialog's graph becomes a small instance of the same canvas: only its
   song and that song's relationship partners (all eight types), never the
   whole collection. The list view is unchanged
-- *(proposed)* The dialog opens with its song selected. Its details are
+- The dialog opens with its song selected. Its details are
   compact: title,
   artist, the selected track's relationship partners as a list (each entry
   selects that track), and the actions **Play**, **Song page**, **Show its
   relationships** and **Open in map**. It shows no nearest tracks
 - Re-centring, which used to be the click, becomes **Show its
   relationships**, with back-button history as before
-- **Open in map** continues into `/map` with the dialog's core, its song and
-  that song's relationship partners, as a filter. The filter shows in the map
-  rail as a removable chip, and the map starts on those tracks; removing the
-  chip also clears it from the URL
+- **Open in map** continues into `/map?core=<its song's id>` (phase 7,
+  TM-E3), so the map opens on that song and its relationship partners as in
+  TM-H1: the map recomputes the core from the loaded relationships, the rail
+  shows it as a removable chip, and removing the chip also clears `core` from
+  the URL
 
 ## Map rail (REQ-33-RL)
 
-- Beside the map, collapsible as a whole and *(proposed)* per section, in Klangkurator's
+- Beside the map, collapsible as a whole and per section, in Klangkurator's
   design language (the pattern is Smartimize's sidebar)
-- *(proposed)* Sections: **Similarity** (inputs on or off and their weights,
+- Sections: **Similarity** (inputs on or off and their weights,
   plus Reset to defaults), **Filters** (the same search and filters as the
   table, plus the core and any cluster filters), **Layers**, **Clusters**,
   and the **selected track**
@@ -260,20 +283,31 @@ Not in the MVP:
   browser's local storage; the plan pins the key. A stored value that does
   not fit is replaced by the default
 - Search and filters are shared with the table and session-only, like the
-  library's. *(proposed)* The core and cluster filters are session-only and
+  library's. The core and cluster filters are session-only and
   stay on the map. Positions are never stored
+
+## Bundle (REQ-33-BU)
+
+- The map's renderer (`react-force-graph-2d`, `d3-force`) and the layout,
+  canvas and page it needs are **lazy-loaded**: `/map` is a `React.lazy` route
+  under `Suspense` in `src/App.tsx`, and the relationships dialog's graph tab
+  is lazy-loaded the same way, so the renderer never sits in the library's
+  first paint. It arrives when the map or the graph tab is opened, which are
+  the two deliberate ways the canvas is ever shown. Phase 7 measured the
+  entry and lazy chunk sizes (`npx vite build`); the plan's bundle note keeps
+  the phase 2 baseline for the before/after comparison
 
 ## States (REQ-33-ST)
 
 - Loading: a skeleton, as elsewhere in the app; a load failure offers Try
   again
-- *(proposed)* An empty library: the same empty state as the library, with a
+- An empty library: the same empty state as the library, with a
   link to Import
 - No track matching the filters, with Clear filters; every input switched off
   ("Pick at least one input")
 - `?focus=` with an unknown id: a short notice, nothing selected
 - Tracks with no similarity above 0 to any other track have no links; they
-  settle at the edge of the map, and *(proposed)* a status line at the top
+  settle at the edge of the map, and a status line at the top
   of the map rail says how many there are
 
 ## Accessibility (REQ-33-AX)

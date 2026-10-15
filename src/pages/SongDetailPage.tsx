@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Pause, Pencil, Play, Share2, Wand2 } from "lucide-react";
+import { ArrowLeft, Map as MapIcon, Pause, Pencil, Play, Share2, Wand2 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
@@ -14,6 +14,7 @@ import { ColorChip } from "@/components/ui/color-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Waveform } from "@/components/ui/waveform";
 import { getMainGenreColor } from "@/lib/genreData";
+import { MAP_PATH } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
 import { relationshipPhrase } from "@/lib/relationshipStyle";
 import { storage, Song, SongRelationship, Tag } from "@/lib/storage";
@@ -165,6 +166,13 @@ export default function SongDetailPage() {
               <Button variant="outline" onClick={() => setRelationsOpen(true)}>
                 <Share2 />
                 Relationships
+              </Button>
+              {/* TM-E2: the song page's way onto the map, focusing this track. */}
+              <Button variant="outline" asChild>
+                <Link to={`${MAP_PATH}?focus=${encodeURIComponent(song.id)}`}>
+                  <MapIcon />
+                  Show on map
+                </Link>
               </Button>
             </div>
           </div>

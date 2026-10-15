@@ -5,7 +5,7 @@ tags:
 ---
 # Index — src
 
-- [[App.tsx]] — Root React component; sets up providers (theme, react-query, tooltip, router, player) and defines the route table (index, load-files, song detail, sets, settings, 404).
+- [[App.tsx]] — Root React component; sets up providers (theme, react-query, tooltip, router, player) and defines the route table (index, load-files, song detail, sets, settings, 404). Since phase 7 the `/map` route is lazy-loaded (`React.lazy` under `Suspense`), so the map's renderer stays out of the library's first paint.
 - [[main.tsx]] — Entry point: applies the stored cover style (black and white or original colours) and mounts App at #root.
 - [[index.css]] — Global stylesheet; imports design-system fonts/tokens/base, chains Tailwind, and defines the k-shell app layout grid (rail + main + player).
 - [[vite-env.d.ts]] — TypeScript type definitions for Vite client-side build features.

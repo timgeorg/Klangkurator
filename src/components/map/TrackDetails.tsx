@@ -4,9 +4,10 @@
 // (REQ-33-AX): cover, title, artist, BPM, key, genre, ratings and tags; the
 // nearest tracks under the current weights, each with its similarity as a whole
 // percentage; the transitions in and out; and the actions Play, Properties,
-// Song page and Show its relationships.
+// Song page, Show its relationships and — in the dialog, since phase 7 — Open
+// in map.
 import { Link } from "react-router-dom";
-import { Pause, Pencil, Play, Share2 } from "lucide-react";
+import { Map as MapIcon, Pause, Pencil, Play, Share2 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
@@ -59,6 +60,12 @@ interface TrackDetailsProps {
   onSongPage?: (song: Song) => void;
   /** Show its relationships: re-centres (dialog) or cores the map (phase 4b). */
   onShowRelationships?: (song: Song) => void;
+  /**
+   * Open in map: continues into the full map with the core as in TM-H1
+   * (phase 7, TM-E3). No argument: the target is the dialog's own song, not
+   * whichever track the details are showing.
+   */
+  onOpenInMap?: () => void;
   /** A list entry selects that track. */
   onSelect?: (id: string) => void;
   className?: string;
@@ -77,7 +84,8 @@ const formatSimilarity = (s: number): string => `${Math.round(s * 100)}%`;
  * variant (the map rail, phase 3) adds BPM, key, genre, ratings and tags, and
  * takes the nearest tracks. Each list appears only when its data is given, and
  * each entry selects that track. Actions: Play (a run of one), Properties
- * (given an Edit handler), Song page, Show its relationships.
+ * (given an Edit handler), Song page, Show its relationships and Open in map
+ * (the dialog's way onto the full map, phase 7, TM-E3).
  */
 export function TrackDetails({
   song,
@@ -92,6 +100,7 @@ export function TrackDetails({
   onProperties,
   onSongPage,
   onShowRelationships,
+  onOpenInMap,
   onSelect,
   className,
 }: TrackDetailsProps) {
@@ -169,7 +178,7 @@ export function TrackDetails({
         </>
       )}
 
-      {Boolean(onPlay || onProperties || onShowRelationships || onSongPage) && (
+      {Boolean(onPlay || onProperties || onShowRelationships || onSongPage || onOpenInMap) && (
         <div className="flex flex-wrap gap-2">
           {onPlay && (
             <Button size="sm" onClick={() => onPlay(song)}>
@@ -196,6 +205,12 @@ export function TrackDetails({
             <Button variant="outline" size="sm" onClick={() => onShowRelationships(song)}>
               <Share2 />
               Show its relationships
+            </Button>
+          )}
+          {onOpenInMap && (
+            <Button variant="outline" size="sm" onClick={onOpenInMap}>
+              <MapIcon />
+              Open in map
             </Button>
           )}
         </div>

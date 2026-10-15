@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { ChevronsRight, FolderInput, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { EmptyState } from "@/components/layout/EmptyState";
+import { LibraryViewSwitch } from "@/components/layout/LibraryViewSwitch";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
 import { getMainGenreColor } from "@/lib/genreData";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
@@ -63,6 +65,8 @@ export function SongLibrary() {
   const navigate = useNavigate();
   const player = usePlayer();
   const columnConfig = useColumnConfig();
+  // The Table | Map switch hides below the app's mobile breakpoint (TM-E4).
+  const isMobile = useIsMobile();
 
   // Core data
   const [songs, setSongs] = useState<Song[]>([]);
@@ -403,6 +407,7 @@ export function SongLibrary() {
         meta={meta}
         actions={
           <>
+            {!isMobile && <LibraryViewSwitch />}
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

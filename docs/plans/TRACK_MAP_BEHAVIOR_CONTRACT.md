@@ -14,8 +14,12 @@ cross-reference: user-facing behavior change → behavior contract, judged
 source-blind by the Validator against a sandbox copy of the library). The
 requirements are [33_TRACK_MAP.md](../requirements/33_TRACK_MAP.md); the
 phases are in [TRACK_MAP_PLAN.md](TRACK_MAP_PLAN.md). Each phase's PR is
-validated against its own group of clauses. Numbers still marked *(proposed)*
-in the spec (weights, 400 ms, thresholds) are checked as the plan fixes them.
+validated against its own group of clauses; phase 7 is validated against the
+whole contract, TM-D, TM-M, TM-S, TM-R, TM-H, TM-L, TM-C and TM-E alike.
+Numbers marked *(proposed)* in the spec (weights, 400 ms, thresholds) are
+settled now — every one shipped as proposed, and phase 6's measurements fixed
+the cluster thresholds at their starting values — so they are checked as the
+spec and the plan read today.
 
 ## How to observe
 
@@ -392,3 +396,9 @@ matching tracks and shows the same filters.
 **Given** a 375 px wide window
 **then** the library has no Table | Map switch, `/map` shows a notice with a
 link to the table, and the relationships dialog's graph still works.
+
+Phase 7 is the last phase: it is judged against every clause above, not only
+TM-E1–TM-E4. The map is reachable only through the entry points this phase
+adds — the Table | Map switch, Show on map on the song page and Open in map in
+the dialog — so the whole contract is checked here on the sandbox library, in
+both themes at 1440, 1280, 768 and 375 px.

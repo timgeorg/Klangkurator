@@ -98,6 +98,7 @@ All in `src/components`. Reuse them before writing new markup.
 - `ui/swatch-picker`: choose a palette colour (radio group with arrow keys).
 - `layout/PageHeader`: title, mono meta, actions, optional tab row.
 - `layout/SectionHeader`: a section title with an optional mono count.
+- `layout/LibraryViewSwitch`: the library's Table | Map switch, a pair of links so each view is a real destination; used in the header of both views.
 - `layout/EmptyState` (+ `ShapeCluster`): a serif line, one sentence, the action, a shape composition; `size="page"` or `"inline"`; three arrangements so empty states don't repeat.
 - `dj/NowPlaying`: the preview player, a panel on wide screens and a bar otherwise.
 - `ui/*`: shadcn primitives restyled on the tokens. Buttons: `default` (orange, ink text) for the one primary action in view, `outline` for the rest, `ghost` for icon buttons, `link` for text actions.

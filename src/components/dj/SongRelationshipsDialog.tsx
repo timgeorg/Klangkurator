@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, ChevronsUpDown, List, Network, Plus, Trash2 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { EmptyState } from "@/components/layout/EmptyState";
-import { TrackDetails, type PartnerRow } from "@/components/map/TrackDetails";
-import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
+import type { PartnerRow } from "@/components/map/TrackDetails";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/color-chip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -14,15 +13,21 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { usePlayer } from "@/lib/PlayerContext";
+import { MAP_PATH } from "@/lib/mapRoute";
 import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, RelationshipType, relationshipPhrase } from "@/lib/relationshipStyle";
 import { Song, SongPlaylistMembership, SongRelationship, storage } from "@/lib/storage";
-import { trackGenre } from "@/lib/trackFormat";
-import { solveLayout, GOLDEN_ANGLE } from "@/lib/trackMap/layout";
-import type { MapEdge, MapLink, MapNode, Positions } from "@/lib/trackMap/types";
 import { cn } from "@/lib/utils";
+
+import type { DialogPartner } from "./RelationshipGraphTab";
+
+// The graph tab carries the map's canvas and layout, so it is loaded only when
+// the user opens Graph — the renderer's modules stay out of the library's first
+// paint (plan › Risks and spikes › Bundle size, the phase 7 checklist item).
+const RelationshipGraphTab = lazy(() => import("./RelationshipGraphTab"));
 
 interface SongRelationshipsDialogProps {
   song: Song | null;
@@ -32,78 +37,8 @@ interface SongRelationshipsDialogProps {
   onSave?: () => void;
 }
 
-interface ExistingRelationship {
-  id: string;
-  type: string;
-  direction: "source" | "target";
-  otherSong: Song;
-  notes?: string;
-}
-
-/** The constant pull the dialog's links use: the graph is authored, so `s`
- * is not a similarity — it only spreads the partners around their song. */
-const DIALOG_LINK_PULL = 0.2;
-
-/** A ring of seeds so the dialog's partners settle around their song. */
-const DIALOG_SEED_RADIUS = 100;
-
-interface DialogGraph {
-  nodes: MapNode[];
-  links: MapLink[];
-  edges: MapEdge[];
-  positions: Positions;
-  /** The relationship types on screen, in the order the legends list them. */
-  legend: string[];
-}
-
-/**
- * The dialog's graph: its song and that song's relationship partners, never the
- * whole collection. The song sits at the origin with its partners on a seeded
- * ring; the same canvas renderer and the same headless layout draw it.
- */
-function buildDialogGraph(song: Song, partners: readonly ExistingRelationship[]): DialogGraph {
-  const seen = new Set<string>([song.id]);
-  const others: Song[] = [];
-  for (const partner of partners) {
-    if (seen.has(partner.otherSong.id)) continue;
-    seen.add(partner.otherSong.id);
-    others.push(partner.otherSong);
-  }
-
-  const nodes: MapNode[] = [song, ...others].map((entry) => ({
-    id: entry.id,
-    kind: "track",
-    label: entry.title,
-    coverUrl: entry.artwork_url,
-    genreLabel: trackGenre(entry),
-  }));
-
-  const edges: MapEdge[] = partners.map((partner) => ({
-    source: song.id,
-    target: partner.otherSong.id,
-    kind: partner.type === "transition" ? "transition" : "relationship",
-    relationshipType: partner.type,
-  }));
-
-  const links: MapLink[] = others.map((other) => {
-    const [source, target] = song.id < other.id ? [song.id, other.id] : [other.id, song.id];
-    return { source, target, s: DIALOG_LINK_PULL };
-  });
-
-  const seeds: Positions = new Map([[song.id, { x: 0, y: 0 }]]);
-  others.forEach((other, index) => {
-    const angle = index * GOLDEN_ANGLE - Math.PI / 2;
-    const radius = DIALOG_SEED_RADIUS * Math.sqrt(index + 1);
-    seeds.set(other.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-  });
-
-  const legend: string[] = [];
-  for (const type of RELATIONSHIP_TYPES) {
-    if (partners.some((partner) => partner.type === type)) legend.push(type);
-  }
-
-  return { nodes, links, edges, positions: solveLayout(nodes, links, seeds), legend };
-}
+/** The dialog's own name for a relationship seen from its song. */
+type ExistingRelationship = DialogPartner;
 
 /** The relationships seen from one song, built from the fetched rows. */
 function relationshipsFor(song: Song, rels: SongRelationship[], byId: Map<string, Song>): ExistingRelationship[] {
@@ -264,11 +199,6 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
 
   const selectedSong = useMemo(() => availableSongs.find((s) => s.id === newTargetId), [availableSongs, newTargetId]);
 
-  const graph = useMemo(
-    () => (song && viewMode === "graph" ? buildDialogGraph(song, existing) : null),
-    [existing, song, viewMode],
-  );
-
   /** The partners of the song on screen, as the details list them. */
   const shownSong = useMemo(() => {
     if (!song) return null;
@@ -305,12 +235,20 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
     navigate(`/song/${target.id}`);
   };
 
+  // TM-E3: the dialog's way onto the full map. The core is the dialog's own
+  // song — the one the graph is centred on — and its relationship partners,
+  // which the map recomputes from `?core=<id>` on arrival (TM-H1), so the
+  // hand-off carries only the id.
+  const openInMap = () => {
+    if (!song) return;
+    handleOpenChange(false);
+    navigate(`${MAP_PATH}?core=${encodeURIComponent(song.id)}`);
+  };
+
   if (!song) return null;
 
   const hasRelationships = existing.length > 0;
   const previous = history[history.length - 1];
-
-  const graphLabel = `Relationships of ${song.title}: ${graph ? graph.nodes.length : 0} tracks`;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -350,39 +288,23 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
         )}
 
         <div className="-mx-6 min-h-0 flex-1 space-y-5 overflow-y-auto px-6">
-          {viewMode === "graph" && hasRelationships && graph ? (
-            <div className="space-y-4">
-              <div className="h-[24rem] w-full overflow-hidden rounded-lg border border-border">
-                <TrackMapCanvas
-                  nodes={graph.nodes}
-                  edges={graph.edges}
-                  positions={graph.positions}
-                  selectedId={selectedId}
-                  playingId={current?.id ?? null}
-                  label={graphLabel}
-                  onSelect={setSelectedId}
-                />
-              </div>
-              <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-label="Relationship line styles">
-                {graph.legend.map((type) => (
-                  <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <RelationLine type={type} />
-                    {RELATIONSHIP_STYLES[type as RelationshipType]?.label ?? type}
-                  </li>
-                ))}
-              </ul>
-              {shownSong && (
-                <TrackDetails
-                  song={shownSong}
-                  partners={shownPartners}
-                  isPlaying={current?.id === shownSong.id && isPlaying}
-                  onPlay={handlePlay}
-                  onSongPage={openSongPage}
-                  onShowRelationships={navigateTo}
-                  onSelect={setSelectedId}
-                />
-              )}
-            </div>
+          {viewMode === "graph" && hasRelationships && song ? (
+            <Suspense fallback={<Skeleton className="h-[24rem] w-full rounded-lg" />}>
+              <RelationshipGraphTab
+                song={song}
+                partners={existing}
+                selectedId={selectedId}
+                playingId={current?.id ?? null}
+                onSelect={setSelectedId}
+                shownSong={shownSong}
+                shownPartners={shownPartners}
+                isPlaying={!!current && current.id === shownSong?.id && isPlaying}
+                onPlay={handlePlay}
+                onSongPage={openSongPage}
+                onShowRelationships={navigateTo}
+                onOpenInMap={openInMap}
+              />
+            </Suspense>
           ) : (
             <>
               {playlists.length > 0 && (

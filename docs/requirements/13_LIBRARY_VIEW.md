@@ -28,13 +28,16 @@ removed earlier — the table handles all of it.
   tracks" while a search or filter is active)
 - Search field (title, artist, genres, key), **Columns** (column settings),
   **Import** (goes to the Import page — the only import surface)
-- **Crate tabs**: "All tracks" plus one tab per crate with its count; a tab
+- Crate tabs: "All tracks" plus one tab per crate with its count; a tab
   sets the Crate filter to that crate
 - **Active-filter chips**: one chip per active column filter, each removable,
   plus "Clear all"
-- *(proposed)* A **Table | Map** switch: the map (`/map`) is the other view
+- A **Table | Map** switch: the map (`/map`) is the other view
   of the library, placed by similarity
-  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81)
+  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81). Both views are links, so each
+  is a real destination and the browser's Back works; the app sidebar's
+  Library item stays active on both. It is left out below 768 px, where the
+  table is the way to browse and `/map` shows its own notice (TM-E1, TM-E4)
 
 ## Table Layout
 
@@ -110,8 +113,10 @@ focus, and permanently while the filter is active):
 - When search and filters exclude every track, the header stays in place and
   a "No track matches" state offers **Clear search and filters**
 - Search and filters are shared with the track map for the session: they
-  carry across the Table | Map switch, both ways
-  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81)
+  carry across the Table | Map switch, both ways, and survive the browser's
+  Back; clearing them in either view clears them for both
+  ([33_TRACK_MAP.md](33_TRACK_MAP.md), PF-81). The map's core and cluster
+  filters stay on the map; the table keeps its own sort
 
 Planned, not built — additional filters for set planning:
 - **Phase Tags** — multi-select (`opening`, `building`, `sunset`, `peak`, `closing`)
