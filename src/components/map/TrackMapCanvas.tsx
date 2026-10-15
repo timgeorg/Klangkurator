@@ -29,6 +29,17 @@ import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-grap
 import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipStyle } from "@/lib/relationshipStyle";
 import { offsetEdges, transitionNotes } from "@/lib/trackMap/layerEdges";
+import {
+  labelBox,
+  labelFontSize,
+  wrapLabel,
+  LABEL_BOX_PAD_X,
+  LABEL_GRAPH_FONT,
+  LABEL_GAP,
+  LABEL_MAX_SCREEN_PX,
+  LABEL_MIN_SCREEN_PX,
+  LABEL_WRAP_WIDTH,
+} from "@/lib/trackMap/labels";
 import { nodeRadius } from "@/lib/trackMap/layout";
 import { animationProgress, easeOutCubic, interpolatePositions } from "@/lib/trackMap/positionsAnimation";
 import type { MapEdge, MapNode, Positions, TrackMapCanvasHandle, TrackMapCanvasProps } from "@/lib/trackMap/types";
@@ -41,60 +52,31 @@ const FIT_PADDING = 48;
 const ZOOM_STEP = 1.3;
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 8;
-/** Above this zoom every node is labelled; below it only the hovered and selected ones. */
-const LABEL_SCALE = 0.9;
-const LABEL_MAX_WIDTH = 132;
-/**
- * A label's footprint in the frame's placement grid. A track's title rarely
- * repeats, so at the fit zoom the map's dense centre would otherwise stack
- * dozens of labels over each other. A label is only drawn when its cell and the
- * ring of cells around it are free; the hovered and selected nodes (and
- * clusters, which are few and carry the map's own grouping) always draw.
- */
-const LABEL_CELL = 44;
 /** A hovered or selected node's halo, past the disc. */
-const RING_GAP = 4;
+const RING_GAP = 5;
+/**
+ * The zoom at which a track's artwork replaces its plain genre disc (issue #31).
+ * Far out the map would otherwise try to draw one cover per track — at 5,000
+ * tracks that is impossible — so a node is the full genre colour until the
+ * camera is close enough for the covers to be worth it. Measured on the 5,000
+ * track synthetic library, where the fit zoom lands near 0.4.
+ */
+const ARTWORK_SCALE = 1.1;
+/** The cover's inset inside the genre ring: the ring stays visible as a contour. */
+const ARTWORK_INSET = 0.24;
+/** How long a cover is cached before it is dropped again, so a big map keeps a
+ *  bounded number of decoded images. */
+const ARTWORK_CACHE_MAX = 400;
 /** The gap a line leaves at a node's edge. */
 const EDGE_GAP = 3;
-
-/**
- * A tiny occupancy grid for label placement, in graph coordinates. It is reset
- * on every frame, so a label's position is a function of what is drawn in that
- * frame and the map is reproducible. `claim` returns false when the cell — or
- * any cell in the ring around it, so labels keep a little air — is already
- * taken.
- */
-function createLabelGrid() {
-  const taken = new Set<string>();
-  const cellOf = (x: number, y: number) => `${Math.floor(x / LABEL_CELL)}:${Math.floor(y / LABEL_CELL)}`;
-  return {
-    reset() {
-      taken.clear();
-    },
-    claim(x: number, y: number, force: boolean): boolean {
-      const cx = Math.floor(x / LABEL_CELL);
-      const cy = Math.floor(y / LABEL_CELL);
-      let free = true;
-      for (let dx = -1; dx <= 1 && free; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (taken.has(`${cx + dx}:${cy + dy}`)) {
-            free = false;
-            break;
-          }
-        }
-      }
-      if (!free && !force) return false;
-      taken.add(cellOf(x, y));
-      return true;
-    },
-  };
-}
 /** The extra room an arrowhead leaves at the target node. */
 const ARROW_GAP = 6;
 /** The widest a transition's note may draw as an edge label before it is trimmed. */
 const EDGE_LABEL_MAX_WIDTH = 160;
 /** How far the pointer may move between down and up and still count as a click. */
 const CLICK_SLOP = 5;
+/** The gap between two clicks that still counts as a double-click. */
+const DOUBLE_CLICK_MS = 350;
 /** The slop a node's hit area gains, so small discs are still easy to hit. */
 const HIT_SLOP = 4;
 /** A position change below this is not worth animating. */
@@ -134,6 +116,8 @@ interface Palette {
   sans: string;
   /** Opacity of the flat orange disc over the multiplied one (--cut-tint). */
   cutTint: number;
+  /** The app's cover mode, so a canvas cover matches a DOM one (issue #31). */
+  covers: string;
 }
 
 /**
@@ -152,12 +136,50 @@ function readPalette(): Palette {
     labelBg: hsl("popover", 0.9),
     sans: css.getPropertyValue("--font-sans").trim() || "Inter, system-ui, sans-serif",
     cutTint: parseFloat(css.getPropertyValue("--cut-tint")) || 0.8,
+    covers: document.documentElement.dataset.covers ?? "editorial",
   };
 }
 
 /** Whether the user asked for less motion; a position change then jumps. */
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * The track covers the canvas draws (issue #31), kept as decoded images so a
+ * frame never waits on a network or a decode. Far out the map draws genre
+ * colours instead, so a big library never loads thousands of covers: the cache
+ * fills only while the artwork zoom holds, and it is trimmed oldest-first once
+ * it passes `ARTWORK_CACHE_MAX`.
+ */
+const artworkCache = new Map<string, HTMLImageElement | "loading" | "failed">();
+
+function artworkFor(url: string | undefined, onReady: () => void): HTMLImageElement | null {
+  if (!url) return null;
+  const cached = artworkCache.get(url);
+  if (cached === "failed") return null;
+  if (cached === "loading") return null;
+  if (cached) return cached;
+  artworkCache.set(url, "loading");
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    artworkCache.set(url, image);
+    trimArtworkCache();
+    onReady();
+  };
+  image.onerror = () => artworkCache.set(url, "failed");
+  image.src = url;
+  return null;
+}
+
+function trimArtworkCache(): void {
+  if (artworkCache.size <= ARTWORK_CACHE_MAX) return;
+  for (const [key, value] of artworkCache) {
+    if (value === "loading") continue;
+    artworkCache.delete(key);
+    if (artworkCache.size <= ARTWORK_CACHE_MAX) break;
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -223,7 +245,7 @@ function samePositions(a: Positions, b: Positions, nodes: readonly MapNode[]): b
  * the details beside it are DOM, not canvas, and are the keyboard path.
  */
 export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasProps>(function TrackMapCanvas(
-  { nodes, edges, positions, selectedId, playingId, label, onSelect, onDisplayedPositions },
+  { nodes, edges, positions, selectedId, playingId, label, onSelect, onDoubleClick, onHover, onDisplayedPositions },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -243,12 +265,10 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   const nodeIndex = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const animationRef = useRef<number | null>(null);
   const idSetRef = useRef<string>("");
-  /**
-   * The frame's label placement grid. Cleared at the start of every frame; each
-   * label claims a cell, and a label whose neighbourhood is taken stays hidden
-   * until the zoom or pan frees it. See LABEL_CELL and drawNode.
-   */
-  const labelGridRef = useRef(createLabelGrid());
+  /** Bumped to ask the pinned renderer for exactly one more frame (a cover
+   *  finished decoding, or the artwork zoom was crossed). */
+  const [repaint, setRepaint] = useState(0);
+  const requestRepaint = useCallback(() => setRepaint((tick) => tick + 1), []);
   /** The first layout appears in place; nothing animates on mount. */
   const firstRunRef = useRef(true);
   /** Set when a fit is wanted; performed once the positions have settled. */
@@ -260,6 +280,10 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   // The animation effect must not re-run when the parent hands in a new callback
   // identity, so it reads the latest one through a ref.
   const onDisplayedPositionsRef = useRef(onDisplayedPositions);
+  /** Issue #32 / #35: the latest double-click and hover handlers, read by the
+   *  pointer effect without re-binding it. */
+  const onDoubleClickRef = useRef(onDoubleClick);
+  const onHoverRef = useRef(onHover);
 
   const selected = selectedId ?? null;
   const playing = playingId ?? null;
@@ -474,6 +498,11 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
     [hoveredId],
   );
 
+  // `repaint` is bumped when a cover decodes; reading it here keeps the frame's
+  // render callbacks changing identity, which is how the pinned canvas is asked
+  // for one more frame.
+  void repaint;
+
   /** A transition's note, on a chip over the edge's own middle. */
   const drawEdgeLabel = useCallback(
     (ctx: CanvasRenderingContext2D, text: string, x: number, y: number) => {
@@ -594,17 +623,6 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const isCluster = mapNode.kind === "cluster";
       const genre = mapNode.genreLabel;
 
-      // Claim this label's cell before anything draws, so the occupancy grid
-      // reflects what is on screen this frame (empty at the frame's start). The
-      // hovered and selected nodes always win a cell; clusters are few and carry
-      // the grouping, so they claim one too. Everything else yields to a
-      // neighbour so titles never stack over each other.
-      const claimed =
-        isSelected || isHovered || isCluster
-          ? labelGridRef.current.claim(x, y, true)
-          : labelGridRef.current.claim(x, y, false);
-      const showLabel = isSelected || isHovered || isCluster || (globalScale >= LABEL_SCALE && claimed);
-
       // The disc: the user's genre colour when the track has one, neutral when
       // not. A cluster draws hollow — a hairline outline over a tinted fill —
       // so a group never reads as one track (REQ-33-CL).
@@ -615,6 +633,39 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       ctx.globalAlpha = isCluster ? 0.25 : 1;
       ctx.fill();
       ctx.restore();
+
+      // Issue #31: from `ARTWORK_SCALE` on, a track's cover sits in the centre
+      // and the genre reads as the outer ring. Far out the node stays the full
+      // genre colour, so a large map never draws thousands of covers.
+      if (!isCluster && mapNode.coverUrl && globalScale >= ARTWORK_SCALE) {
+        const cover = artworkFor(mapNode.coverUrl, requestRepaint);
+        if (cover) {
+          const inner = radius * (1 - ARTWORK_INSET);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(x, y, inner, 0, Math.PI * 2);
+          ctx.clip();
+          // The app's cover mode: editorial draws covers black and white, the
+          // user's choice in Settings draws them in colour (REQ-33-NE). The
+          // canvas reads the same flag the DOM does, so the two never disagree.
+          ctx.filter = palette.covers === "editorial" ? "grayscale(1) contrast(1.05)" : "none";
+          ctx.drawImage(cover, x - inner, y - inner, inner * 2, inner * 2);
+          ctx.restore();
+        }
+      }
+
+      // The genre ring: the outer contour, always drawn, so the genre stays
+      // legible over artwork and the cover reads as an inset (issue #31).
+      if (!isCluster && genre) {
+        ctx.save();
+        ctx.strokeStyle = getMainGenreColor(genre);
+        ctx.lineWidth = Math.max(2, radius * ARTWORK_INSET);
+        ctx.beginPath();
+        ctx.arc(x, y, radius - ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       if (isCluster) {
         ctx.save();
         ctx.strokeStyle = palette.border;
@@ -643,37 +694,71 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
         ctx.restore();
       }
 
-      // The focus ring marks the selected track; hover uses the foreground.
+      // The focus ring marks the selected track; hover uses the foreground. It
+      // sits outside the genre ring, so it stays readable over artwork.
       const ring = isSelected ? palette.signal : isHovered ? palette.fg : null;
-      ctx.save();
-      ctx.strokeStyle = ring ?? palette.border;
-      ctx.lineWidth = ring ? 2 : 1;
-      ctx.beginPath();
-      ctx.arc(x, y, ring ? radius + RING_GAP : radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      if (ring) {
+        ctx.save();
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = 2 / globalScale;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + RING_GAP / globalScale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
-      // Labels: the title at close zoom, and always for the hovered and selected
-      // nodes; a cluster shows its value and count instead. A title that would
-      // collide with one already placed this frame stays hidden until the map is
-      // zoomed or panned (showLabel, claimed above).
+      // Issue #37: every track's title draws in full, wrapped onto as many lines
+      // as it needs — nothing is trimmed and nothing is hidden. The layout
+      // reserves the room (the label-aware collide radius), so the labels do not
+      // overlap however the map settles.
       if (!fontsReady) return;
-      if (!showLabel) return;
-      const text = mapNode.kind === "cluster" ? `${mapNode.label} · ${mapNode.count ?? 0}` : mapNode.label;
+      const title = mapNode.kind === "cluster" ? `${mapNode.label} · ${mapNode.count ?? 0}` : mapNode.label;
+      if (!title) return;
+      // The context is scaled by the zoom, so a label that should read at a
+      // constant size on screen is drawn at `screen px / globalScale`. It is
+      // then capped at the size the layout reserved, and — because the layout
+      // sizes a label from an *estimate* of the text's width, which the real
+      // font can beat on a wide title — any label whose measured lines would
+      // exceed the reserved box is shrunk until they fit. Drawing inside the
+      // reserved box is what makes "no two labels overlap" true rather than
+      // likely (TM-L9).
+      const screenPx = clamp(labelFontSize(title) * globalScale, LABEL_MIN_SCREEN_PX, LABEL_MAX_SCREEN_PX);
+      const reserved = labelBox(title);
+      const reservedText = reserved.halfWidth * 2 - LABEL_BOX_PAD_X * 2;
+      let fontPx = Math.min(screenPx / globalScale, labelFontSize(title));
+      const lineHeight = () => fontPx * 1.25;
       ctx.save();
-      ctx.font = `600 12px ${palette.sans}`;
-      const shown = truncate(ctx, text, LABEL_MAX_WIDTH);
-      const width = ctx.measureText(shown).width;
-      ctx.fillStyle = palette.labelBg;
-      roundedRect(ctx, x - width / 2 - 5, y + radius + 5, width + 10, 17, 5);
-      ctx.fill();
-      ctx.fillStyle = palette.fg;
+      ctx.font = `600 ${fontPx}px ${palette.sans}`;
+      let lines = wrapLabel(title, LABEL_WRAP_WIDTH, LABEL_GRAPH_FONT);
+      let widest = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      if (widest > reservedText && widest > 0) {
+        fontPx *= reservedText / widest;
+        ctx.font = `600 ${fontPx}px ${palette.sans}`;
+        // Re-wrap at the drawn size too, so the lines are as wide as allowed
+        // rather than merely scaled.
+        lines = wrapLabel(title, reservedText, fontPx);
+        widest = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      }
+      const top = y + radius + LABEL_GAP / globalScale + fontPx / 2;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(shown, x, y + radius + 14);
+      ctx.fillStyle = palette.labelBg;
+      roundedRect(
+        ctx,
+        x - widest / 2 - fontPx * 0.35,
+        top - fontPx / 2 - fontPx * 0.18,
+        widest + fontPx * 0.7,
+        lines.length * lineHeight() + fontPx * 0.2,
+        fontPx * 0.3,
+      );
+      ctx.fill();
+      ctx.fillStyle = palette.fg;
+      lines.forEach((line, index) => {
+        ctx.fillText(line, x, top + index * lineHeight());
+      });
       ctx.restore();
     },
-    [fontsReady, hoveredId, palette, playing, selected],
+    [fontsReady, hoveredId, palette, playing, requestRepaint, selected],
   );
 
   /**
@@ -717,22 +802,37 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       if (pressed) return;
       const node = nodeAt(event.clientX, event.clientY);
       setHoveredId((current) => (current === (node?.id ?? null) ? current : node?.id ?? null));
+      onHoverRef.current?.(node?.id ?? null, node ? event.clientX : null, node ? event.clientY : null);
     };
     const onDown = (event: PointerEvent) => {
       pressed = { x: event.clientX, y: event.clientY, node: nodeAt(event.clientX, event.clientY) };
     };
+    let lastClick: { id: string; node: MapNode | null; at: number } | null = null;
     const onUp = (event: PointerEvent) => {
       const start = pressed;
       pressed = null;
       if (!start) return;
       if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP) return;
       const node = nodeAt(event.clientX, event.clientY);
+      const now = performance.now();
+      const id = node?.id ?? null;
+      // Issue #32: two clicks on the same track inside the window play it. The
+      // first click still selects immediately — a single click is never held
+      // back waiting for a second one — so a double-click reads as "select,
+      // then play".
+      if (node && lastClick && lastClick.id === id && now - lastClick.at <= DOUBLE_CLICK_MS) {
+        lastClick = null;
+        onDoubleClickRef.current?.(node.id);
+        return;
+      }
+      lastClick = node ? { id: node.id, node, at: now } : null;
       if (node) onSelect(node.id);
       else if (!start.node) onSelect(null);
     };
     const onLeave = () => {
       pressed = null;
       setHoveredId((current) => (current === null ? current : null));
+      onHoverRef.current?.(null, null, null);
     };
 
     container.addEventListener("pointermove", onMove);
@@ -748,6 +848,14 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       container.removeEventListener("pointerleave", onLeave);
     };
   }, [nodeAt, onSelect]);
+
+  // The double-click and hover callbacks are read through refs, so the pointer
+  // effect does not re-bind (and lose a pending first click) when the page hands
+  // in a new callback identity.
+  useEffect(() => {
+    onDoubleClickRef.current = onDoubleClick;
+    onHoverRef.current = onHover;
+  }, [onDoubleClick, onHover]);
 
   return (
     <div
@@ -776,9 +884,6 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
           minZoom={MIN_SCALE}
           maxZoom={MAX_SCALE}
           nodeRelSize={1}
-          // Cleared here, then filled by drawNode as the frame's nodes draw, so
-          // label placement reflects this frame and no other.
-          onRenderFramePre={() => labelGridRef.current.reset()}
           nodeCanvasObject={(node, ctx, globalScale) => drawNode(node.map, ctx, globalScale)}
           nodeCanvasObjectMode={() => "replace"}
           // These two are deliberately not memoised: a prop whose identity changed

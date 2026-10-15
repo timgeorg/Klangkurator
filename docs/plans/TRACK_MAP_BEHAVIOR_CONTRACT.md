@@ -402,3 +402,81 @@ TM-E1–TM-E4. The map is reachable only through the entry points this phase
 adds — the Table | Map switch, Show on map on the song page and Open in map in
 the dialog — so the whole contract is checked here on the sandbox library, in
 both themes at 1440, 1280, 768 and 375 px.
+
+## Nodes, labels and focus (issues #31–#37)
+
+Follow-ups of #8, judged the same way (source-blind, on a sandbox copy).
+
+### TM-N1 — big nodes with artwork (#31)
+**Given** a track with artwork and a genre
+**when** the map is at the fit zoom
+**then** the node draws as a filled disc in its genre colour — its radius is
+about three times the earlier one, so at the *same zoom* the disc is visibly
+bigger (a bigger node also makes the whole map fit at a lower zoom, which partly
+offsets that on screen; the radius is the observable). **When** the camera zooms
+in past the artwork zoom **then** the cover draws in the node's centre, in the
+app's cover mode, with the genre as the outer ring.
+
+### TM-N2 — no artwork far out (#31)
+**Given** the 5,000-track library at the fit zoom
+**then** no artwork is requested and every node is a full genre-colour disc.
+
+### TM-L8 — every label, in full (#37)
+**Given** a track whose title is longer than a node's width
+**then** its label draws in full, wrapped onto several lines, with no ellipsis —
+and the same holds for every other track at the same time: no label is hidden
+because a neighbour took its place.
+
+### TM-L9 — labels never overlap (#37)
+**Given** the map at any zoom
+**then** no two labels overlap, because the layout reserved each one's room.
+**When** the user zooms in **then** the labels stay inside a readable band (they
+do not grow without bound).
+
+### TM-I8 — double-click plays (#32)
+**Given** a track on the map
+**when** the user double-clicks it
+**then** it plays as a run of one (no previous or next). **Given** the same
+track is already playing **when** it is double-clicked **then** it pauses or
+resumes, like the details' Play.
+
+### TM-I9 — a single click is not delayed (#32)
+**Given** a track on the map
+**when** the user clicks it once
+**then** it is selected at once — the selection does not wait for a possible
+second click.
+
+### TM-I10 — Focus (#33)
+**Given** a selected track
+**when** the user presses Focus **then** the camera centres on it and the other
+nodes are re-arranged around it by similarity (the tracks closest to it sit
+closest). **Then** pressing Fit or Reset leaves that arrangement. **Given**
+nothing is selected **then** Focus is disabled.
+
+### TM-I11 — the playing track on arrival from the table (#34)
+**Given** a track playing and a search or filter that keeps it on the map
+**when** the user switches Table → Map
+**then** that track is selected and centred.
+**Given** a search that excludes the playing track
+**when** the user switches Table → Map
+**then** a short toast says the playing track is not on the map, nothing is
+selected, and playback carries on.
+
+### TM-I12 — the hover popover (#35)
+**Given** a track on the map
+**when** the pointer rests on it
+**then** a popover shows at once with its full title and artist, BPM, key,
+duration and its tags. **When** the pointer leaves **then** the popover goes.
+**Given** a touch viewport **then** no popover appears.
+
+### TM-RL1 — two rails (#36)
+**Given** the map
+**then** the **left** rail holds the status line, Similarity, Filters, Layers
+and Clusters, and the **right** rail holds the selected track. **Given**
+nothing is selected **then** the right rail shows the empty state.
+
+### TM-RL2 — both rails collapse and persist (#36)
+**Given** the map
+**when** the user collapses the left rail, then the right one
+**then** each collapses independently, the canvas takes the freed width, a named
+control reopens each, and both states are still collapsed after a reload.
