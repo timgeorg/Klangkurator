@@ -71,6 +71,16 @@ describe("visibleEdges — the layer switches", () => {
     expect(drawn).toEqual(model);
     expect(drawn.every((edge, index) => edge === model[index])).toBe(true);
   });
+
+  it("shows a clustered model's links in full, since no selection can pick a cluster (phase 6)", () => {
+    const links: MapEdge[] = [nearestEdge("cluster:genre:a", "cluster:genre:b"), nearestEdge("cluster:genre:b", "cluster:genre:c")];
+    // A selection never matches a cluster id, so without the flag nothing draws.
+    expect(visibleEdges(links, ALL_ON, "song-1")).toEqual([]);
+    expect(visibleEdges(links, ALL_ON, null)).toEqual([]);
+    // Clustered, the nearest switch alone decides.
+    expect(visibleEdges(links, ALL_ON, "song-1", { clusterLinks: true })).toEqual(links);
+    expect(visibleEdges(links, { ...ALL_ON, nearest: false }, "song-1", { clusterLinks: true })).toEqual([]);
+  });
 });
 
 describe("offsetEdges — side by side, never on top", () => {

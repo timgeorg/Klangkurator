@@ -5,6 +5,62 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 6 — clusters, fallbacks and scale (issue #8, PF-81)
+
+Past the node threshold the map now groups instead of showing every track, and
+the fixed numbers behind it are measured:
+
+- `src/lib/trackMap/clusters.ts` gains the phase 6 half. `clusterChoice` returns
+  the dimension **and why** (`band`, `nearest`, `fallback`, `lastResort`) for
+  the rail's Clusters section, and `buildClusters` builds the cluster nodes and
+  links: one node per `groupKey` value, labelled in its display case where there
+  is one, carrying its value and count. Cluster **features** are the plan's —
+  median BPM, most-common genre and key, the subgenres and tags at least 25 % of
+  members carry, the mean of the rated values, and the union of the members'
+  connections (so a cluster is never directly connected, and only the
+  shared-connections half of the relationships rule applies between clusters).
+  Cluster similarity reuses the same rules with `k = min(8, c − 1)`. Every phase
+  1b export (`groupKey`, `groupCount`, `chooseClusterDimension`,
+  `shouldCluster`, `C_MIN`, `C_MAX`, `DEFAULT_NODE_THRESHOLD`,
+  `FALLBACK_DIMENSIONS`) is unchanged, and its tests stay green.
+- `src/lib/trackMap/buildModel.ts` gains cluster mode: when `N > T` it returns
+  cluster nodes and links instead of tracks, `clusterDimension` and
+  `clusterReason` say which dimension and why, and `lastResort` is true when not
+  even the crate and the artist could split the tracks — then it shows the first
+  `T` by title (phase 3's stopgap becomes this real path, TM-C10). Track mode is
+  unchanged, and `linksFromNearest` (new in `similarity.ts`) is the one
+  undirected-union build both modes share.
+- Cluster filters (`ClusterFilter`): choosing a cluster — in the rail's Clusters
+  list or by clicking a cluster node — adds a filter matched by `groupKey` for
+  that dimension, keeps **exactly** the members, shows a removable chip in the
+  Filters section, and re-runs the choice if still `N > T`; removing the chip
+  runs the choice again, which brings the clusters back (TM-C3).
+- `src/components/map/rail/ClustersSection.tsx` is the new section: the
+  dimension, the reason and the list with counts. Tags are never a dimension, so
+  the section can never name them (TM-C5).
+- The fallbacks (crate, then the artist's first letter; TM-C7, TM-C9) and the
+  last-resort notice (TM-C10) are real paths now, in the cluster module.
+- `src/lib/trackMap/syntheticLibrary.ts` gains the fixture flags the contract
+  needs (genre/subgenre/crate counts, BPM range, energy spread, artist spread,
+  omitted fields); `scripts/make-synthetic-library.ts` (run with `npx vite-node`)
+  writes a sandbox `library.json` shaped for one TM-C fixture, **reusing** the
+  generator rather than duplicating it. `src/lib/trackMap/measure-track-map.ts`
+  measures the re-solve at 500, 1,000 and 5,000 tracks. *(Both scripts live in
+  `src/lib/trackMap/` in the phase 6 commit; the dispatcher moves
+  `make-synthetic-library.ts` into `scripts/`.)*
+- `src/components/map/TrackMapCanvas.tsx` draws a cluster differently: hollow, a
+  tinted arc of its genre colour with a hairline outline, sized by count and
+  labelled with its value and count, so a group never reads as one track.
+- `NFR-12` and the plan fix `T` = 500, `C_MIN` = 4, `C_MAX` = 60 and the TM-C8
+  limits (95th-percentile pan frame ≤ 33 ms, re-solve ≤ 3 s); **no web worker**,
+  because the re-solve is bounded by `T`.
+- Tests: `clusters.test.ts` covers the node level of every contract example —
+  the choice at 1,200 in 9 genres → genre; 2 genres + BPM 90–180 → BPM range
+  (labelled "120–130"); the band edges 3/4/60/61; a subgenre cluster with a
+  track lacking one sitting in its genre cluster; energy last; the crate
+  fallback; the artist fallback ("A" keeping only A's); the last resort — over
+  the seeded generator. `syntheticLibrary.test.ts` covers the fixture flags.
+
 ### Track map phase 5 — layers, edges and the legend (issue #8, PF-81)
 
 The map's edges become switchable, and the map says what it is drawing:

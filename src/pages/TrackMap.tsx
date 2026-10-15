@@ -15,8 +15,7 @@
 // routes, so the table and the map narrow the library together (TM-R11), and
 // `filterSongs` (extracted from the table) is the one predicate both use. The
 // rail carries the Similarity and Filters sections and collapses as a whole and
-// per section. Above `T` shown tracks the stopgap of phase 6 still lists the
-// first `T` by title. The entry points (the Table | Map switch, Open in map,
+// per section. The entry points (the Table | Map switch, Open in map,
 // Show on map) are phase 7: this route exists for testing.
 //
 // Phase 4b: the core. `/map?core=<id>` anchors the map on that song and its
@@ -34,6 +33,15 @@
 // selection. The layers are deliberately not a dependency of the model, so
 // switching one redraws and never re-solves, and no node moves (TM-L4). The
 // legend in the rail names the kinds actually on screen (TM-L1, TM-L5).
+//
+// Phase 6: above the node threshold (`T`) the shown tracks collapse into the
+// chosen dimension's clusters (`lib/trackMap/clusters.ts`), the rail's Clusters
+// section names the dimension and why, and choosing a cluster — there or on the
+// canvas — adds a `ClusterFilter`, matched by the cluster's own `groupKey`, kept
+// in the Filters section as a removable chip; removing it re-runs the choice,
+// which brings the clusters back (TM-C1–TM-C5). The fallbacks (crate, then the
+// artist's first letter) and the last resort (the first `T` by title, with the
+// notice) are the cluster module's (TM-C7, TM-C9, TM-C10).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
@@ -63,7 +71,12 @@ import {
 } from "@/lib/storage";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { buildModel } from "@/lib/trackMap/buildModel";
-import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
+import {
+  clusterGroups,
+  CLUSTER_DIMENSION_LABELS,
+  DEFAULT_NODE_THRESHOLD,
+  filterByClusterFilters,
+} from "@/lib/trackMap/clusters";
 import { buildConnections } from "@/lib/trackMap/connections";
 import { coreMemberIds } from "@/lib/trackMap/core";
 import { buildFeatures } from "@/lib/trackMap/features";
@@ -71,7 +84,7 @@ import { visibleEdges as edgesForLayers } from "@/lib/trackMap/layerEdges";
 import { solveLayout } from "@/lib/trackMap/layout";
 import { nearest } from "@/lib/trackMap/similarity";
 import { buildTransitions } from "@/lib/trackMap/transitions";
-import type { Positions, TrackMapCanvasHandle } from "@/lib/trackMap/types";
+import type { ClusterDimension, ClusterFilter, Positions, TrackMapCanvasHandle } from "@/lib/trackMap/types";
 
 /** How long the camera takes to land; the canvas's own 220 ms, plus a frame. */
 const ZOOM_SETTLE_MS = 260;
@@ -159,8 +172,9 @@ export default function TrackMap() {
   const [coreId, setCoreId] = useState<string | null>(() => searchParams.get("core"));
 
   // (6) The shown tracks: the library narrowed by the shared search and filters
-  // and by the core, or — until phase 6 — the first `T` by title when that is
-  // larger than the node threshold.
+  // and by the core, then by the chosen cluster filters. Above the node
+  // threshold the model below clusters what is left (phase 6); the last resort
+  // is the first `T` by title, with the notice (TM-C10).
   const songTagsById = useMemo<SongTagsById>(() => {
     const bySong: Record<string, { id: string }[]> = {};
     for (const link of songTags) (bySong[link.song_id] ??= []).push({ id: link.tag_id });
@@ -191,18 +205,17 @@ export default function TrackMap() {
     [coreMembers, filtered],
   );
 
-  const shown = useMemo(() => {
-    if (narrowed.length <= DEFAULT_NODE_THRESHOLD) return { songs: narrowed, truncated: false };
-    const byTitle = [...narrowed].sort(
-      (a, b) => collator.compare(a.title, b.title) || (a.id < b.id ? -1 : 1),
-    );
-    return { songs: byTitle.slice(0, DEFAULT_NODE_THRESHOLD), truncated: true };
-  }, [narrowed]);
+  // (6b) The chosen cluster filters: page state, session-only like the core
+  // (REQ-33-PS). Each one keeps exactly the tracks whose `groupKey` for its
+  // dimension equals its value, so choosing a cluster reveals its members and
+  // no one else; the model below re-runs the choice over what is left, and
+  // removing a chip brings the clusters back (TM-C3).
+  const [clusterFilters, setClusterFilters] = useState<ClusterFilter[]>([]);
 
-  // TM-R7: the filters exclude every shown track. The shown set is the filtered
-  // library narrowed by the core, so a core whose members the filters all
-  // exclude reports the same way — Clear filters brings the core's tracks back.
-  const noMatches = isFiltering && narrowed.length === 0;
+  const clusterNarrowed = useMemo(
+    () => filterByClusterFilters(narrowed, features, clusterFilters),
+    [clusterFilters, features, narrowed],
+  );
 
   const filterOptions = useMemo<FilterOptions>(() => {
     const mainGenres = new Set<string>();
@@ -231,20 +244,38 @@ export default function TrackMap() {
     };
   }, [songs, tags]);
 
-  // (7) The model. Layers and collapse states are deliberately not dependencies,
-  // so switching a layer never re-solves the layout.
+  // (7) The model. Below the node threshold it is the shown tracks; above it the
+  // tracks collapse into the chosen dimension's clusters, and the last resort
+  // shows the first `T` by title (phase 6, TM-C1–TM-C10). Layers and collapse
+  // states are deliberately not dependencies, so switching a layer never
+  // re-solves the layout.
   const model = useMemo(
     () =>
       buildModel({
-        songs: shown.songs,
+        songs: clusterNarrowed,
         features,
         inputs: config.inputs,
         connections,
         relationships,
         transitions,
       }),
-    [config.inputs, connections, features, relationships, shown.songs, transitions],
+    [clusterNarrowed, config.inputs, connections, features, relationships, transitions],
   );
+
+  /** The dimension, the reason and the clusters with their counts, for the rail (TM-C1). */
+  const clusters = useMemo(
+    () => ({ groups: clusterGroups(model.nodes), dimension: model.clusterDimension, reason: model.clusterReason ?? null }),
+    [model.clusterDimension, model.clusterReason, model.nodes],
+  );
+
+  /** The dimension the canvas is really drawing clusters for; the last resort is tracks, not clusters. */
+  const clusterDimension = model.lastResort ? null : clusters.dimension;
+
+  // TM-R7: the filters exclude every shown track. The shown set is the filtered
+  // library narrowed by the core, so a core whose members the filters all
+  // exclude reports the same way — Clear filters brings the core's tracks back.
+  // A chosen cluster filter that keeps nothing (a stale chip) reports it too.
+  const noMatches = (isFiltering || clusterFilters.length > 0) && clusterNarrowed.length === 0;
 
   // (8) The seeds the canvas reports back, and the positions the solve effect
   // writes. A re-solve starts from the positions on screen, so the map keeps
@@ -313,8 +344,51 @@ export default function TrackMap() {
     if (id && centre) setCentreRequest(id);
   }, []);
 
-  const handleCanvasSelect = useCallback((id: string | null) => selectTrack(id), [selectTrack]);
   const handleListSelect = useCallback((id: string) => selectTrack(id, true), [selectTrack]);
+
+  // (9a) Choosing a cluster — in the Clusters list or on the canvas — adds a
+  // `ClusterFilter` matched by the cluster's own dimension and value, so the map
+  // then shows exactly its members. If they are still above the threshold the
+  // model re-runs the choice over what is left (TM-C3).
+  const clusterNodeById = useMemo(
+    () => new Map(model.nodes.filter((node) => node.kind === "cluster").map((node) => [node.id, node])),
+    [model.nodes],
+  );
+
+  const addClusterFilter = useCallback((dimension: ClusterDimension, value: string) => {
+    setSelectedId(null);
+    setClusterFilters((prev) =>
+      prev.some((filter) => filter.dimension === dimension && filter.value === value)
+        ? prev
+        : [...prev, { dimension, value }],
+    );
+  }, []);
+
+  const handleCanvasNodeSelect = useCallback(
+    (id: string | null) => {
+      const node = id ? clusterNodeById.get(id) : undefined;
+      // A cluster node chooses that cluster; a track node (or empty canvas)
+      // selects the track, exactly as track mode does.
+      if (node && node.clusterDimension !== undefined && node.clusterValue !== undefined) {
+        addClusterFilter(node.clusterDimension, node.clusterValue);
+        return;
+      }
+      selectTrack(id);
+    },
+    [addClusterFilter, clusterNodeById, selectTrack],
+  );
+
+  /** Removing a cluster chip runs the choice again, which brings the clusters back (TM-C3). */
+  const handleRemoveClusterFilter = useCallback((filter: ClusterFilter) => {
+    setClusterFilters((prev) =>
+      prev.filter((candidate) => !(candidate.dimension === filter.dimension && candidate.value === filter.value)),
+    );
+  }, []);
+
+  const handleChooseCluster = useCallback(
+    (dimension: ClusterDimension, value: string) => addClusterFilter(dimension, value),
+    [addClusterFilter],
+  );
 
   // (9b) The core's URL effect. `?core=<id>` on arrival is the source: the core
   // is that song and its relationship partners, recomputed from the loaded
@@ -369,6 +443,16 @@ export default function TrackMap() {
   /** TM-H2: removing the chip drops the core, and with it `core` from the URL. */
   const handleRemoveCore = useCallback(() => setCoreId(null), []);
 
+  /**
+   * The way out of the no-match state: clears the shared search and filters and
+   * the chosen cluster filters, so whatever left nothing to show is resolved —
+   * the cluster chips are session-only page state, not the shared filters.
+   */
+  const handleClearFilters = useCallback(() => {
+    clearAll();
+    setClusterFilters([]);
+  }, [clearAll]);
+
   const handlePlay = useCallback(
     (song: Song) => {
       // A run of one: no previous or next. The playing track pauses and resumes.
@@ -415,13 +499,16 @@ export default function TrackMap() {
   // (10) What the renderer may draw. The layers come from `useMapConfig`
   // (defaults on, phase 5 switches them); the filter is pure and tested in
   // `lib/trackMap/layerEdges.ts`. The nearest layer follows the selection, so
-  // the map is not a hairball of every link. This list is what the rail's
-  // Layers legend names, and it is no dependency of the model above, so
+  // the map is not a hairball of every link — except on a clustered map, whose
+  // nearest edges are the cluster links (phase 6), which no selection can pick
+  // and which therefore follow the layer switch alone. This list is what the
+  // rail's Layers legend names, and it is no dependency of the model above, so
   // switching a layer redraws and never re-solves (TM-L4). The authored
   // relationships and transitions keep the model's order and its edge objects.
+  const clustered = clusterDimension !== null;
   const visibleEdges = useMemo(
-    () => edgesForLayers(model.edges, config.layers, selectedId),
-    [config.layers, model.edges, selectedId],
+    () => edgesForLayers(model.edges, config.layers, selectedId, { clusterLinks: clustered }),
+    [clustered, config.layers, model.edges, selectedId],
   );
 
   // The selected track's rail data (PM-8 keeps these after the model).
@@ -443,15 +530,17 @@ export default function TrackMap() {
   const nearestRows = useMemo<NearestRow[]>(() => {
     const feature = selectedId ? featureById.get(selectedId) : undefined;
     if (!feature) return [];
-    const shownFeatures = shown.songs.flatMap((song) => {
-      const entry = featureById.get(song.id);
+    // The tracks the map is showing, in node order: in track mode the shown set,
+    // in cluster mode none, because a cluster node is not a track.
+    const shownFeatures = model.nodes.flatMap((node) => {
+      const entry = node.kind === "track" ? featureById.get(node.id) : undefined;
       return entry ? [entry] : [];
     });
     return nearest(feature, shownFeatures, { inputs: config.inputs, connections }).flatMap((entry) => {
       const song = songById.get(entry.id);
       return song ? [{ song, s: entry.s }] : [];
     });
-  }, [config.inputs, connections, featureById, selectedId, shown.songs, songById]);
+  }, [config.inputs, connections, featureById, model.nodes, selectedId, songById]);
 
   const partnerRows = useMemo<PartnerRow[]>(() => {
     if (!selectedId) return [];
@@ -520,7 +609,13 @@ export default function TrackMap() {
     return () => window.clearTimeout(timer);
   }, [positions, readZoom]);
 
-  const canvasLabel = `Map of ${model.nodes.length} tracks`;
+  // The canvas's accessible name (REQ-33-AX): the whole library is "Map of N
+  // tracks"; a clustered map says how many tracks and how many clusters, like
+  // "Map of 1,200 tracks in 9 genre clusters" (TM-C1).
+  const shownTrackCount = clustered ? clusterNarrowed.length : model.nodes.length;
+  const canvasLabel = clusterDimension
+    ? `Map of ${shownTrackCount} tracks in ${clusters.groups.length} ${CLUSTER_DIMENSION_LABELS[clusterDimension]} clusters`
+    : `Map of ${model.nodes.length} tracks`;
   if (status === "error") {
     return (
       <div className="mx-auto w-full max-w-5xl">
@@ -574,7 +669,7 @@ export default function TrackMap() {
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader
         title="Map"
-        meta={`${model.nodes.length} ${model.nodes.length === 1 ? "track" : "tracks"}`}
+        meta={`${shownTrackCount} ${shownTrackCount === 1 ? "track" : "tracks"}`}
         actions={
           <div role="group" aria-label="Map zoom" className="flex items-center gap-2">
             <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomIn())}>
@@ -612,7 +707,7 @@ export default function TrackMap() {
                 selectedId={selectedId}
                 playingId={current?.id ?? null}
                 label={canvasLabel}
-                onSelect={handleCanvasSelect}
+                onSelect={handleCanvasNodeSelect}
                 onDisplayedPositions={handleDisplayedPositions}
               />
             )}
@@ -640,9 +735,9 @@ export default function TrackMap() {
                       : "The active filters exclude every track on the map."
                   }
                   action={
-                    // Clears the search and the filters, so the way out always
-                    // resolves whatever left nothing to show.
-                    <Button variant="outline" size="sm" onClick={clearAll}>
+                    // Clears the search, the filters and the cluster chips, so
+                    // the way out always resolves whatever left nothing to show.
+                    <Button variant="outline" size="sm" onClick={handleClearFilters}>
                       Clear filters
                     </Button>
                   }
@@ -657,11 +752,17 @@ export default function TrackMap() {
           filterOptions={filterOptions}
           coreSong={activeCoreId ? songById.get(activeCoreId) ?? null : null}
           onRemoveCore={handleRemoveCore}
-          shownCount={model.nodes.length}
+          shownCount={shownTrackCount}
           unlinkedCount={model.unlinkedCount}
           focusNotice={focusNotice}
-          truncated={shown.truncated}
+          truncated={model.lastResort === true}
           noMatches={noMatches}
+          clusterDimension={clusters.dimension}
+          clusterReason={clusters.reason}
+          clusterGroups={clusters.groups}
+          clusterFilters={clusterFilters}
+          onChooseCluster={handleChooseCluster}
+          onRemoveClusterFilter={handleRemoveClusterFilter}
           edges={visibleEdges}
           song={selectedSong}
           tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}

@@ -92,6 +92,17 @@ export interface ClusterFilter {
   value: string;
 }
 
+/** Why a cluster dimension was chosen, for the rail's Clusters section (TM-C1). */
+export type ClusterChoiceReason =
+  /** The first of the four dimensions whose group count is inside the band. */
+  | "band"
+  /** None fitted the band, so the one nearest it. */
+  | "nearest"
+  /** No dimension of the four could split the tracks, so the crate or the artist. */
+  | "fallback"
+  /** Nothing at all can split the tracks: the first `T` by title, with a notice (TM-C10). */
+  | "lastResort";
+
 export interface TransitionSource {
   kind: "relationship" | "block" | "set";
   id: string;
@@ -132,6 +143,10 @@ export interface MapModel {
   /** What the renderer may draw */
   edges: MapEdge[];
   clusterDimension: ClusterDimension | null;
+  /** Why the dimension was chosen, for the rail's Clusters section (phase 6, TM-C1); null in track mode. */
+  clusterReason?: ClusterChoiceReason | null;
+  /** Whether the map fell back to the first `T` tracks by title (phase 6, TM-C10). */
+  lastResort?: boolean;
   unlinkedCount: number;
 }
 

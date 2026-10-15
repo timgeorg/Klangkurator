@@ -12,6 +12,10 @@
 //
 // Nothing here is a dependency of the model (`buildModel`), so switching a
 // layer redraws and never re-solves the layout: no node moves (TM-L4).
+//
+// Phase 6: a clustered model's "nearest" edges are its cluster links, which the
+// nearest switch shows in full (`options.clusterLinks`) instead of following the
+// selection, because a cluster is never the selected track.
 import { RELATIONSHIP_TYPES } from "@/lib/relationshipStyle";
 
 import type { MapEdge } from "./types";
@@ -27,6 +31,15 @@ export interface LayerFlags {
 const KIND_ORDER: Record<MapEdge["kind"], number> = { relationship: 0, transition: 1, nearest: 2 };
 /** The gap two edges on the same pair leave each other, in px. */
 export const PARALLEL_EDGE_SPACING = 6;
+
+/** How `visibleEdges` reads a clustered model (phase 6). */
+export interface VisibleEdgesOptions {
+  /**
+   * Whether the model is clustered: then every nearest edge is a cluster link,
+   * and the nearest switch alone decides it, not the selection.
+   */
+  clusterLinks?: boolean;
+}
 
 /** An edge with the side-by-side place it takes among the edges on its pair. */
 export interface OffsetEdge {
@@ -51,18 +64,27 @@ export interface EdgeKinds {
  * not a hairball of every link. Switching a layer changes this list and nothing
  * else — the layout is solved from the model, never from the layers (TM-L4).
  *
+ * When the model is clustered (`options.clusterLinks`, phase 6) its nearest
+ * edges are the cluster links, which are the map's own structure rather than one
+ * track's neighbourhood: no cluster is ever the selected track, so the
+ * selection rule would hide every one of them. They then follow the nearest
+ * switch alone — `c ≤ C_MAX` keeps that a small, legible set.
+ *
  * @param edges - Every edge the model holds.
  * @param layers - The rail's layer switches.
  * @param selectedId - The selected track, or null; the nearest layer follows it.
+ * @param options - Whether the model is clustered, so its nearest edges are cluster links.
  */
 export function visibleEdges(
   edges: readonly MapEdge[],
   layers: LayerFlags,
   selectedId: string | null = null,
+  options: VisibleEdgesOptions = {},
 ): MapEdge[] {
   return edges.filter((edge) => {
     if (edge.kind === "relationship") return layers.relationships;
     if (edge.kind === "transition") return layers.transitions;
+    if (options.clusterLinks) return layers.nearest;
     return layers.nearest && (edge.source === selectedId || edge.target === selectedId);
   });
 }
