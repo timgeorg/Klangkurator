@@ -5,22 +5,31 @@
 // table's own `ui/column-filter.tsx` over the table's `FILTER_CONFIG`, so both
 // views offer exactly the same set.
 //
-// The core chip arrives in phase 4b (`?core=`, TM-H1/H2) and the cluster-filter
-// chips in phase 6 (TM-C3); both slots are marked below and deliberately render
-// nothing yet.
+// Phase 4b adds the core chip above the filters: the core is the track the map
+// is anchored on (`?core=<id>`, or Show its relationships on the map), and it
+// narrows the shown set to that track and its relationship partners, alongside
+// these filters. Removing the chip drops the core and `core` from the URL
+// (TM-H1, TM-H2). The cluster-filter chips arrive in phase 6 (TM-C3); that slot
+// is marked below and deliberately renders nothing yet.
 import { Search, X } from "lucide-react";
 
 import { FILTER_CONFIG, type FilterOptions, isFilterActive } from "@/components/dj/libraryTable";
 import { Button } from "@/components/ui/button";
+import { ColorChip } from "@/components/ui/color-chip";
 import { ColumnFilter } from "@/components/ui/column-filter";
 import { Input } from "@/components/ui/input";
 import { COLUMN_DEFINITIONS } from "@/hooks/useColumnConfig";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
+import type { Song } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 interface FiltersSectionProps {
   /** The filter options from the loaded library, in the table's own shape. */
   options: FilterOptions;
+  /** The core track, or null when the map carries no core. */
+  coreSong: Song | null;
+  /** Removing the core chip drops the core (TM-H2). */
+  onRemoveCore(): void;
 }
 
 /** The filter keys in `FILTER_CONFIG`'s own order, which is the table's. */
@@ -30,9 +39,11 @@ const FILTER_KEYS = Object.keys(FILTER_CONFIG) as (keyof typeof FILTER_CONFIG)[]
  * The library's search and filters, shared with the table. Each filter is the
  * table's own column filter: a named, Tab-reachable button that shows the
  * filter's state and opens its popover. When anything is active, Clear filters
- * resets the filters (and nothing else) for both views.
+ * resets the filters (and nothing else) for both views. Above them sits the
+ * core chip, when the map carries a core, which narrows the map to that track
+ * and its relationship partners and can be removed to show the whole library.
  */
-export function FiltersSection({ options }: FiltersSectionProps) {
+export function FiltersSection({ options, coreSong, onRemoveCore }: FiltersSectionProps) {
   const { searchQuery, setSearchQuery, filters, updateFilter, activeFilterKeys, clearFilters } = useLibraryFilters();
   const activeCount = activeFilterKeys.length;
 
@@ -59,8 +70,22 @@ export function FiltersSection({ options }: FiltersSectionProps) {
         )}
       </div>
 
-      {/* Phase 4b: the core chip (`?core=<id>`) goes here, above the filters,
-          as a removable chip naming the core track (TM-H1, TM-H2). */}
+      {/* The core chip (TM-H1, TM-H2): the track the map is anchored on, which
+          narrows the shown set to it and its relationship partners. Removing it
+          drops the core, and the canvas counts the whole library again. */}
+      {coreSong && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Core</span>
+          <ColorChip
+            size="md"
+            label={coreSong.title}
+            title={`The core: ${coreSong.title} — ${coreSong.artist}. Remove it to show the whole library.`}
+            onRemove={onRemoveCore}
+            className="min-w-0 shrink"
+          />
+        </div>
+      )}
+
       {/* Phase 6: the chosen cluster filters go here, one removable chip per
           `ClusterFilter`, removing it bringing the clusters back (TM-C3). */}
 

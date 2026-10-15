@@ -47,6 +47,10 @@ interface MapRailProps {
   config: RailConfig;
   /** The filter options from the loaded library, for the Filters section. */
   filterOptions: FilterOptions;
+  /** The core track the map is anchored on, or null (TM-H1). */
+  coreSong: Song | null;
+  /** Removing the core chip drops the core and `core` from the URL (TM-H2). */
+  onRemoveCore(): void;
   /** How many tracks the map shows (the model's nodes). */
   shownCount: number;
   /** How many of them are in no nearest list at all (TM-M11). */
@@ -80,6 +84,8 @@ interface MapRailProps {
 export function MapRail({
   config,
   filterOptions,
+  coreSong,
+  onRemoveCore,
   shownCount,
   unlinkedCount,
   focusNotice,
@@ -168,11 +174,13 @@ export function MapRail({
             Pick at least one input.
           </p>
         )}
-        {/* TM-R7: the shared filters match nothing. Reported alongside the
-            all-off state when both hold, and on the canvas too. */}
+        {/* TM-R7: the shared filters match nothing shown. Reported alongside
+            the all-off state when both hold, and on the canvas too. With a core
+            active the core's own tracks can be what the filters exclude, so the
+            wording promises only that clearing the filters widens the map. */}
         {noMatches && (
           <p role="status" className="mt-1 text-[13px] text-foreground">
-            No track matches. Clear the filters to see the whole library.
+            No track matches. Clear the filters to show more.
           </p>
         )}
       </div>
@@ -187,7 +195,7 @@ export function MapRail({
       </RailSection>
 
       <RailSection title="Filters" {...section("filters")}>
-        <FiltersSection options={filterOptions} />
+        <FiltersSection options={filterOptions} coreSong={coreSong} onRemoveCore={onRemoveCore} />
       </RailSection>
 
       <SelectedTrackSection

@@ -5,6 +5,54 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 4b — the core hand-off and the re-layout motion (issue #8, PF-81)
+
+The map gains its hand-off from a track's relationships and its one animation:
+
+- `src/lib/trackMap/core.ts` resolves a core: `coreMemberIds(coreId,
+  relationships)` is the core song and every track it has a relationship with,
+  of any of the eight types, in either direction — the dialog's own partner
+  list (`14_RELATIONSHIPS.md`), not the wider `R(t)` of `connections.ts`, which
+  also counts transitions found in a block's or a set's running order. Pure, so
+  the members are recomputed from the loaded relationships on every arrival.
+- `/map?core=<id>` (`src/pages/TrackMap.tsx`) anchors the map on that song and
+  its partners. The URL carries only the id, so a reload keeps the core; the
+  core narrows the shown set **alongside** the shared filters, and the rail's
+  Filters section shows it as a removable chip naming the track
+  (`rail/FiltersSection.tsx`). Removing the chip drops the core, and with it
+  `core` from the URL, and the canvas counts the whole library again
+  (TM-H1, TM-H2). An unknown `?core=` id is dropped from the URL rather than
+  left to shadow the whole library on every reload.
+- **Show its relationships** on the map (`TrackDetails` → the rail) makes that
+  track the core, replacing any existing one, and selects and centres it, in
+  place of phase 3's stand-in (TM-H3). The dialog's own Show its relationships
+  still re-centres with back history, and its **Open in map** button is still
+  phase 7.
+- The 400 ms re-layout: `src/lib/trackMap/positionsAnimation.ts` holds the
+  timing as pure, tested functions — `POSITION_ANIMATION_MS` (400),
+  `easeOutCubic`, `animationProgress` and `interpolatePositions` — and
+  `TrackMapCanvas.tsx` samples them once per frame, in place of the inline
+  arithmetic it carried since phase 2. A change of a similarity weight has
+  animated since phase 2; phase 4b also animates a change of the **shown set**
+  (a filter, the core) rather than jumping it, so the map visibly rearranges.
+  The first layout still appears in place, nothing animates on load, and a
+  re-solve that lands where the nodes already are does not animate at all.
+  Under `prefers-reduced-motion: reduce` the nodes jump, so screenshots 100 ms
+  and 1.5 s after a change are identical (TM-R2). The warm start is unchanged:
+  the canvas reports the positions on screen into the page's `seedsRef`, so a
+  re-solve barely moves; a node new to the shown set appears at its new place
+  rather than flying in from the origin.
+- The motion exception is written down where the rule lives: `DESIGN.md` gains
+  a **Motion** section naming the 400 ms canvas re-layout as the one exception
+  to the 150–220 ms rule, with its duration, where it applies (the track map's
+  canvas, camera moves staying at 220 ms) and its reduced-motion behaviour, and
+  `design-system/README.md` records the same rule beside the canvas guidance.
+- Tests: `core.test.ts` covers the core's membership (both directions, all
+  eight types, a repeated pair counted once, an empty id never a member) and
+  `positionsAnimation.test.ts` the animation timing (the ease-out's ends and
+  clamping, progress over the 400 ms and the instantly-finished zero duration,
+  interpolation and a new node starting at its new place).
+
 ### Track map phase 4a — shared filters, map config and the rail sections (issue #8, PF-81)
 
 The map's controls land, and the library's search and filters become one shared

@@ -242,7 +242,7 @@ Klangkurator presents a DJ's library the way a record label prints its catalog. 
 
 The density is a working tool's density. Tables run 44px rows at 13px with hairlines between them. Page titles are bold Inter rather than display serif. Editorial weight goes to the places where nothing is being operated: empty states, the 404, the import start screen, a track's title on its own page, set names, notes. Those grounds carry fine paper grain, which gives texture without roughness. The geometric vocabulary (circle, half disc, quarter disc, block) illustrates edge states and marks the active rail item. It never encodes data.
 
-Depth stays flat until something floats. Panels and cards sit on hairlines. Only overlays (menus, popovers, dialogs, sheets, toasts) lift, with an offset soft shadow. Motion signals state only, at 150–220ms ease-out, and is cut to near zero under reduced motion.
+Depth stays flat until something floats. Panels and cards sit on hairlines. Only overlays (menus, popovers, dialogs, sheets, toasts) lift, with an offset soft shadow. Motion signals state only, at 150–220ms ease-out, and is cut to near zero under reduced motion — with one named exception, the track map's canvas re-layout (see Motion).
 
 **Key Characteristics:**
 - Ink and paper themes from one set of roles; the rail is ink in both.
@@ -334,6 +334,16 @@ The system is flat with hairlines, and only floating things lift. Cards, panels,
 ### Named Rules
 **The Flat-Until-It-Floats Rule.** A surface that belongs to the page gets a hairline. Only a surface that sits above the page gets a shadow, and that shadow is Lift 1 or Lift 2.
 
+## Motion
+
+Motion signals state only, at 150ms (`duration-fast`) or 220ms (`duration-base`), ease-out, and nothing animates on page load. Under `prefers-reduced-motion: reduce` it is cut to near zero: state changes land instead of moving, and the orange cut appears without its sweep.
+
+**The One Named Exception.** The track map's canvas is the single place where a change moves over 400ms ease-out rather than 150–220ms. Every track is one node, and a change of the shown set or of a similarity weight re-solves the whole map; the nodes then travel from the positions on screen to their new ones in one 400ms ease-out run (`src/components/map/TrackMapCanvas.tsx`, the timing in `src/lib/trackMap/positionsAnimation.ts`). It is the one motion that is longer than `duration-base`, and it is still state, not decoration: nothing moves on load, and a change that solves to the positions already on screen does not animate at all.
+
+- **Duration:** 400ms, ease-out cubic.
+- **Where it applies:** the track map's canvas — the one canvas in the app that re-lays out, in `/map` and in the relationships dialog's graph. Camera moves (zoom, fit, centre) stay at the app's 220ms.
+- **Reduced motion:** no animation. The nodes jump to their new positions, so a screenshot 100ms after a change and one 1.5s after it are identical.
+
 ## Shapes
 
 Corners come in three steps: 10px for cards, panels, dialogs, popovers and the large now-playing cover; 8px for buttons and inputs; 6px for small icon buttons, tooltips and inline edits. Table cover thumbnails get 3px, just enough to soften a 32px square. Pills (full radius) are reserved for selection and identity: tabs, segmented controls, the search field, color chips and badges.
@@ -395,7 +405,7 @@ Dialogs, popovers, menus and selects use the popover surface, 10px corners, a ha
 - **Do** separate content with 1px hairlines and space, and keep shadows to Lift 1 and Lift 2 on floating surfaces.
 - **Do** keep covers black and white by default and use the cut, not a border or a glow, to mark the current cover.
 - **Do** use one orange shape per composition in empty and edge states.
-- **Do** keep every motion to 150–220ms ease-out and only for state changes, and make every hover action reachable by keyboard focus.
+- **Do** keep every motion to 150–220ms ease-out and only for state changes, and make every hover action reachable by keyboard focus. The one exception is the track map's canvas re-layout, at 400ms ease-out (see Motion).
 
 ### Don't:
 - **Don't** use orange as a tag, genre or category color, as decoration, or as a region fill.

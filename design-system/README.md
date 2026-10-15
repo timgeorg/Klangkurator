@@ -68,7 +68,7 @@ Colours are HSL triplets so Tailwind can add opacity (`bg-signal/20`). Plain-hex
 | `waveform` / `waveform-played` | | | Waveform ink and the played part |
 | `sidebar-*` | ink | ink | The rail is ink in both themes |
 
-Shape and motion: `--radius` 10px (cards, dialogs), `--radius-control` 8px (buttons, inputs), `rounded-chip` for pills. Durations 150ms (`duration-fast`), 220ms (`duration-base` and `duration-cut`, the orange cut); easing `ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`). Motion shows state; nothing animates on page load.
+Shape and motion: `--radius` 10px (cards, dialogs), `--radius-control` 8px (buttons, inputs), `rounded-chip` for pills. Durations 150ms (`duration-fast`), 220ms (`duration-base` and `duration-cut`, the orange cut); easing `ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`). Motion shows state; nothing animates on page load. The one exception is the track map's canvas re-layout: 400ms ease-out, and it jumps under reduced motion (see below).
 
 ## Type roles
 
@@ -123,6 +123,10 @@ ctx.fillStyle = color("signal");
 ```
 
 Wait for `document.fonts.ready` before drawing text, scale the backing store by `devicePixelRatio`, and redraw when the theme class on `<html>` changes. Series colours come from `--data-1` … `--data-5`; categories the user named (genres, tags) keep the user's colour.
+
+### Motion on a canvas
+
+Everything else in the system moves at 150–220ms ease-out, and nothing animates on page load (`DESIGN.md` › Motion). A canvas that re-lays out has **one named exception**: the track map's nodes travel from the positions on screen to their new ones in a single **400ms ease-out** run, because a re-solve moves the whole map at once and 220ms reads as a jump. Under `prefers-reduced-motion: reduce` the nodes jump to their new positions instead — no animation at all. It applies to the track map's canvas (`src/components/map/TrackMapCanvas.tsx`, timed by `src/lib/trackMap/positionsAnimation.ts`) and to the same canvas in the relationships dialog; a camera move (zoom, fit, centre) stays at the app's 220ms. Keep the easing and the duration in the source, not in the component, so the timing stays testable.
 
 ## Accessibility floor
 

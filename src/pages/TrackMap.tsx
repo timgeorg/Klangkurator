@@ -6,8 +6,8 @@
 //
 // The hook order is the plan's PM-8 order, consumers after their dependencies:
 // data state and its load effect, features, connections and transitions, the
-// config, the filters, the shown set, the model, the seeds and positions, the
-// selection and its URL effect, then the visible edges.
+// config, the filters and the core, the shown set, the model, the seeds and
+// positions, the selection and its URL effect, then the visible edges.
 //
 // Phase 4a: the inputs, the layers and the collapse states come from
 // `useMapConfig` (saved under `klangkurator.map.v1`, validated on read); the
@@ -18,6 +18,15 @@
 // per section. Above `T` shown tracks the stopgap of phase 6 still lists the
 // first `T` by title. The entry points (the Table | Map switch, Open in map,
 // Show on map) are phase 7: this route exists for testing.
+//
+// Phase 4b: the core. `/map?core=<id>` anchors the map on that song and its
+// relationship partners, recomputed from the loaded relationships on arrival so
+// a reload keeps it, and narrowed alongside the shared filters; the Filters
+// section carries it as a removable chip, and removing the chip drops `core`
+// from the URL and counts the whole library again (TM-H1, TM-H2). Show its
+// relationships on the map makes that track the core, replacing any existing one
+// (TM-H3). The re-layout motion is the canvas's, in
+// `components/map/TrackMapCanvas.tsx` over `lib/trackMap/positionsAnimation.ts`.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
@@ -49,6 +58,7 @@ import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { buildModel } from "@/lib/trackMap/buildModel";
 import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
 import { buildConnections } from "@/lib/trackMap/connections";
+import { coreMemberIds } from "@/lib/trackMap/core";
 import { buildFeatures } from "@/lib/trackMap/features";
 import { solveLayout } from "@/lib/trackMap/layout";
 import { nearest } from "@/lib/trackMap/similarity";
@@ -133,9 +143,16 @@ export default function TrackMap() {
   // is the table's own predicate, extracted so both views agree.
   const { searchQuery, filters, isFiltering, clearAll } = useLibraryFilters();
 
-  // (6) The shown tracks: the library narrowed by the shared search and filters,
-  // or — until phase 6 — the first `T` by title when that is larger than the
-  // node threshold.
+  // The core: the track the map is anchored on, from `?core=<id>` on arrival or
+  // from Show its relationships on the map. Page state, like the plan's step 5;
+  // the URL is the source on arrival and the chip writes it back (TM-H1–TM-H3).
+  // It is read from the URL on the first render, so the map solves straight to
+  // the core's tracks and nothing animates on load.
+  const [coreId, setCoreId] = useState<string | null>(() => searchParams.get("core"));
+
+  // (6) The shown tracks: the library narrowed by the shared search and filters
+  // and by the core, or — until phase 6 — the first `T` by title when that is
+  // larger than the node threshold.
   const songTagsById = useMemo<SongTagsById>(() => {
     const bySong: Record<string, { id: string }[]> = {};
     for (const link of songTags) (bySong[link.song_id] ??= []).push({ id: link.tag_id });
@@ -147,15 +164,37 @@ export default function TrackMap() {
     [filters, searchQuery, songTagsById, songs],
   );
 
+  // The core narrows that set alongside the shared filters: only the core song
+  // and its relationship partners stay, in the filter order (TM-H1, TM-H3). The
+  // members are recomputed from the loaded relationships every time, which is
+  // what makes a reload keep the core (its id is all the URL carries). A core
+  // naming no song in the library narrows nothing, so a bad `?core=` id shows
+  // the whole library while the URL effect drops it, instead of flashing an
+  // empty map.
+  const activeCoreId = coreId && songById.has(coreId) ? coreId : null;
+
+  const coreMembers = useMemo(
+    () => (activeCoreId ? coreMemberIds(activeCoreId, relationships) : null),
+    [activeCoreId, relationships],
+  );
+
+  const narrowed = useMemo(
+    () => (coreMembers ? filtered.filter((song) => coreMembers.has(song.id)) : filtered),
+    [coreMembers, filtered],
+  );
+
   const shown = useMemo(() => {
-    if (filtered.length <= DEFAULT_NODE_THRESHOLD) return { songs: filtered, truncated: false };
-    const byTitle = [...filtered].sort(
+    if (narrowed.length <= DEFAULT_NODE_THRESHOLD) return { songs: narrowed, truncated: false };
+    const byTitle = [...narrowed].sort(
       (a, b) => collator.compare(a.title, b.title) || (a.id < b.id ? -1 : 1),
     );
     return { songs: byTitle.slice(0, DEFAULT_NODE_THRESHOLD), truncated: true };
-  }, [filtered]);
+  }, [narrowed]);
 
-  const noMatches = isFiltering && filtered.length === 0;
+  // TM-R7: the filters exclude every shown track. The shown set is the filtered
+  // library narrowed by the core, so a core whose members the filters all
+  // exclude reports the same way — Clear filters brings the core's tracks back.
+  const noMatches = isFiltering && narrowed.length === 0;
 
   const filterOptions = useMemo<FilterOptions>(() => {
     const mainGenres = new Set<string>();
@@ -268,7 +307,59 @@ export default function TrackMap() {
 
   const handleCanvasSelect = useCallback((id: string | null) => selectTrack(id), [selectTrack]);
   const handleListSelect = useCallback((id: string) => selectTrack(id, true), [selectTrack]);
-  const handleShowRelationships = useCallback((song: Song) => selectTrack(song.id, true), [selectTrack]);
+
+  // (9b) The core's URL effect. `?core=<id>` on arrival is the source: the core
+  // is that song and its relationship partners, recomputed from the loaded
+  // relationships, so a reload keeps it (TM-H1). A changed core writes `core`
+  // back, so removing the chip drops it from the URL (TM-H2) and Show its
+  // relationships replaces it (TM-H3).
+  const coreParam = searchParams.get("core");
+  const handledCoreRef = useRef<string | null>(null);
+  const firstCoreWriteRef = useRef(true);
+
+  useEffect(() => {
+    if (status !== "ready" || !coreParam) return;
+    if (coreParam === handledCoreRef.current) return;
+    handledCoreRef.current = coreParam;
+    if (songById.has(coreParam)) {
+      setCoreId(coreParam);
+      return;
+    }
+    // A core that names no song in the library is no core (the map shows the
+    // whole library; `activeCoreId` is null for it), and the stale id is dropped
+    // from the URL rather than left telling every reload otherwise.
+    setCoreId(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("core");
+    setSearchParams(next, { replace: true });
+  }, [coreParam, searchParams, setSearchParams, songById, status]);
+
+  useEffect(() => {
+    if (firstCoreWriteRef.current) {
+      firstCoreWriteRef.current = false;
+      return;
+    }
+    if ((coreId ?? null) === coreParam) return;
+    const next = new URLSearchParams(searchParams);
+    if (coreId) next.set("core", coreId);
+    else next.delete("core");
+    handledCoreRef.current = coreId ?? null;
+    setSearchParams(next, { replace: true });
+  }, [coreId, coreParam, searchParams, setSearchParams]);
+
+  // Show its relationships on the map: the core becomes that track and its
+  // partners, replacing any existing core, and the track is selected and centred
+  // so the map reads as its neighbourhood (TM-H3, REQ-33-IN).
+  const handleShowRelationships = useCallback(
+    (song: Song) => {
+      setCoreId(song.id);
+      selectTrack(song.id, true);
+    },
+    [selectTrack],
+  );
+
+  /** TM-H2: removing the chip drops the core, and with it `core` from the URL. */
+  const handleRemoveCore = useCallback(() => setCoreId(null), []);
 
   const handlePlay = useCallback(
     (song: Song) => {
@@ -539,7 +630,7 @@ export default function TrackMap() {
                   body={
                     searchQuery.trim()
                       ? `Nothing in your ${songs.length} tracks matches “${searchQuery.trim()}” with the current filters.`
-                      : "The active filters exclude every track."
+                      : "The active filters exclude every track on the map."
                   }
                   action={
                     // Clears the search and the filters, so the way out always
@@ -557,6 +648,8 @@ export default function TrackMap() {
         <MapRail
           config={config}
           filterOptions={filterOptions}
+          coreSong={activeCoreId ? songById.get(activeCoreId) ?? null : null}
+          onRemoveCore={handleRemoveCore}
           shownCount={model.nodes.length}
           unlinkedCount={model.unlinkedCount}
           focusNotice={focusNotice}
