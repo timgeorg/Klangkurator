@@ -10,6 +10,9 @@ import type { TransitionEdge } from "@/lib/trackMap/transitions";
 import { RailSection } from "./RailSection";
 
 interface SelectedTrackSectionProps {
+  /** Whether the section is open; the map's saved config holds this. */
+  open: boolean;
+  onOpenChange(open: boolean): void;
   /** The selected track, or null when nothing is selected. */
   song: Song | null;
   /** The selected track's tags, for the tag chips. */
@@ -31,6 +34,8 @@ interface SelectedTrackSectionProps {
 
 /** The selected track's details, in the rail's collapsible section. */
 export function SelectedTrackSection({
+  open,
+  onOpenChange,
   song,
   tags,
   nearest,
@@ -44,7 +49,7 @@ export function SelectedTrackSection({
   onSelect,
 }: SelectedTrackSectionProps) {
   return (
-    <RailSection title="Selected track">
+    <RailSection title="Selected track" open={open} onOpenChange={onOpenChange}>
       {song ? (
         <TrackDetails
           song={song}

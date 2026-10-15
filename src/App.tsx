@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PlayerProvider } from "@/lib/PlayerContext";
+import { LibraryFilterProvider } from "@/lib/LibraryFilterContext";
 import { THEME_STORAGE_KEY } from "@/lib/appearance";
 import { DJLayout } from "@/components/layout/DJLayout";
 import Index from "./pages/Index";
@@ -29,20 +30,25 @@ function App() {
         <TooltipProvider delayDuration={300}>
           <Toaster />
           <BrowserRouter>
-            <PlayerProvider>
-              <DJLayout>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/load-files" element={<LoadFiles />} />
-                  <Route path="/song/:id" element={<SongDetailPage />} />
-                  <Route path="/sets" element={<Sets />} />
-                  <Route path="/map" element={<TrackMap />} />
-                  <Route path="/settings" element={<Settings />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </DJLayout>
-            </PlayerProvider>
+            {/* Above the routes: the one search and one set of filters the
+                table and the map share for the session, so they survive
+                navigating between them and the browser's Back (TM-R11). */}
+            <LibraryFilterProvider>
+              <PlayerProvider>
+                <DJLayout>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/load-files" element={<LoadFiles />} />
+                    <Route path="/song/:id" element={<SongDetailPage />} />
+                    <Route path="/sets" element={<Sets />} />
+                    <Route path="/map" element={<TrackMap />} />
+                    <Route path="/settings" element={<Settings />} />
+                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </DJLayout>
+              </PlayerProvider>
+            </LibraryFilterProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
 import { getMainGenreColor } from "@/lib/genreData";
+import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
 import { createSongWriter, type SongWriter } from "@/lib/songWriter";
 import { storage, Song, SongPatch, SongTag, Tag } from "@/lib/storage";
@@ -18,27 +19,19 @@ import { cn } from "@/lib/utils";
 
 import { ColumnSettingsDialog } from "./ColumnSettingsDialog";
 import { EditSongDialog } from "./EditSongDialog";
-import { FILTER_CONFIG, FilterOptions, FilterState, FilterValue, RangeValue, SortState, isFilterActive } from "./libraryTable";
+import {
+  FILTER_CONFIG,
+  FilterOptions,
+  FilterState,
+  FilterValue,
+  INITIAL_FILTERS,
+  RangeValue,
+  SortState,
+  filterSongs,
+} from "./libraryTable";
 import { LyricsDialog } from "./LyricsDialog";
 import { SongTableHeader } from "./SongTableHeader";
 import { SongTableRow } from "./SongTableRow";
-
-const INITIAL_FILTERS: FilterState = {
-  title: "",
-  artist: "",
-  album: "",
-  rootFolder: [],
-  genre: [],
-  subgenres: [],
-  bpm: {},
-  key: [],
-  energy: {},
-  danceability: {},
-  social: {},
-  rank: {},
-  duration: {},
-  tags: [],
-};
 
 const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null> = {
   title: (s) => s.title,
@@ -79,11 +72,14 @@ export function SongLibrary() {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // UI state (session only: search, filters and sort reset when you leave)
-  const [searchQuery, setSearchQuery] = useState("");
+  // Search and filters are shared with the map for the session (TM-R11): they
+  // come from the context above the routes, so they carry across the Table |
+  // Map switch both ways and survive the browser's Back; clearing them here
+  // clears them on the map too. Sort stays this page's own.
+  const { searchQuery, setSearchQuery, filters, updateFilter, activeFilterKeys, isFiltering, clearAll } =
+    useLibraryFilters();
   const songsRef = useRef(songs);
   songsRef.current = songs;
-  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [sort, setSort] = useState<SortState>(null);
 
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -242,10 +238,6 @@ export function SongLibrary() {
     setEditDialogOpen(true);
   }, []);
 
-  const updateFilter = useCallback((key: keyof FilterState, value: FilterValue) => {
-    setFilters((prev) => ({ ...prev, [key]: value ?? INITIAL_FILTERS[key] }));
-  }, []);
-
   // Filter options come from the loaded data (NFR-4: memoised)
   const filterOptions: FilterOptions = useMemo(() => {
     const mainGenres = new Set<string>();
@@ -284,47 +276,9 @@ export function SongLibrary() {
   }, [songs]);
 
   const filteredSongs = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const rows = songs.filter((song) => {
-      if (q) {
-        const hit =
-          song.title.toLowerCase().includes(q) ||
-          song.artist.toLowerCase().includes(q) ||
-          song.mainGenre?.toLowerCase().includes(q) ||
-          song.subgenres?.some((g) => g.toLowerCase().includes(q)) ||
-          song.genres?.some((g) => g.toLowerCase().includes(q)) ||
-          song.genre?.toLowerCase().includes(q) ||
-          song.musical_key?.toLowerCase().includes(q);
-        if (!hit) return false;
-      }
-      if (filters.title && !song.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
-      if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
-      if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
-      if (filters.rootFolder.length > 0 && !filters.rootFolder.includes(crateOf(song))) return false;
-      if (filters.genre.length > 0) {
-        const g = [song.mainGenre, ...(song.genres || []), song.genre].filter(Boolean) as string[];
-        if (!g.some((x) => filters.genre.includes(x))) return false;
-      }
-      if (filters.subgenres.length > 0 && !(song.subgenres || []).some((g) => filters.subgenres.includes(g))) return false;
-      if (filters.key.length > 0 && (!song.musical_key || !filters.key.includes(song.musical_key))) return false;
-      if (filters.bpm.min !== undefined && (!song.bpm || song.bpm < filters.bpm.min)) return false;
-      if (filters.bpm.max !== undefined && (!song.bpm || song.bpm > filters.bpm.max)) return false;
-      if (filters.energy.min !== undefined && song.energy < filters.energy.min) return false;
-      if (filters.energy.max !== undefined && song.energy > filters.energy.max) return false;
-      if (filters.danceability.min !== undefined && song.danceability < filters.danceability.min) return false;
-      if (filters.danceability.max !== undefined && song.danceability > filters.danceability.max) return false;
-      if (filters.social.min !== undefined && song.social_acceptance < filters.social.min) return false;
-      if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
-      if (filters.rank.min !== undefined && (song.rank ?? 0) < filters.rank.min) return false;
-      if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
-      if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;
-      if (filters.tags.length > 0) {
-        const ids = songTags[song.id]?.map((t) => t.id) || [];
-        if (!filters.tags.some((id) => ids.includes(id))) return false;
-      }
-      return true;
-    });
-
+    // The predicate itself is `filterSongs` in libraryTable.ts, shared with the
+    // map so the table and the map agree on what matches (phase 4a, TM-R11).
+    const rows = filterSongs(songs, songTags, filters, searchQuery);
     if (!sort || !SORT_VALUE[sort.column]) return rows;
     const get = SORT_VALUE[sort.column];
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -353,14 +307,8 @@ export function SongLibrary() {
     setFrozen((prev) => (prev && prev.key !== viewKey ? null : prev));
   }, [viewKey]);
 
-  const activeFilterKeys = (Object.keys(FILTER_CONFIG) as (keyof FilterState)[]).filter((key) =>
-    isFilterActive(FILTER_CONFIG[key].type, filters[key]),
-  );
-  const isFiltering = activeFilterKeys.length > 0 || searchQuery.trim() !== "";
-  const clearAll = () => {
-    setFilters(INITIAL_FILTERS);
-    setSearchQuery("");
-  };
+  // `activeFilterKeys`, `isFiltering` and `clearAll` come from the shared
+  // context with the search and filters themselves (TM-R11).
 
   // The table's right edge while more columns lie beyond it. A sliver of a
   // cut column is covered by the page ground, so the visible table ends on a
