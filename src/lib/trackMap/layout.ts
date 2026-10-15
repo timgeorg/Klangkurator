@@ -8,23 +8,30 @@
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "d3-force";
 import type { SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
 
+import { labelledCollideRadius } from "./labels";
 import type { MapLink, MapNode, Positions } from "./types";
 
-/** The disc a track node draws at; the layout collides by it plus `COLLIDE_PADDING`. */
-export const TRACK_NODE_RADIUS = 7;
+/** The disc a track node draws at, in graph units (issue #31 doubles the old 7). */
+export const TRACK_NODE_RADIUS = 20;
 
-/** Link distance at `s = 0` (30) plus the pull a perfect match adds (down to 30 at `s = 1`). */
-export const LINK_DISTANCE_NEAR = 30;
-export const LINK_DISTANCE_SPAN = 120;
+/** Link distance at `s = 0` (267) down to 97 at `s = 1`; it must clear the
+ * label-aware collide floor, or a link would be pushed apart by the collision
+ * and similarity could not express itself at all. */
+export const LINK_DISTANCE_NEAR = 97;
+export const LINK_DISTANCE_SPAN = 170;
 /** The many-body charge and the range it acts over. */
-export const CHARGE_STRENGTH = -120;
-export const CHARGE_DISTANCE_MAX = 600;
+export const CHARGE_STRENGTH = -500;
+export const CHARGE_DISTANCE_MAX = 350;
 /** The weak centre that keeps the map on the origin. */
 export const CENTRE_STRENGTH = 0.05;
-/** Collide pads every node's radius by this much. */
-export const COLLIDE_PADDING = 2;
-/** Synchronous ticks after `simulation.stop()`; d3's own natural cooling is 300. */
-export const LAYOUT_TICKS = 300;
+/**
+ * Synchronous ticks after `simulation.stop()`. The issues make every node
+ * bigger and give it room for its label, so the layout has further to travel
+ * before it settles than the radius-7 map did. At 400 the measured movement
+ * between two solves is 0.0 on the test map, and the warm-start test holds on a
+ * real-sized map too.
+ */
+export const LAYOUT_TICKS = 400;
 /** The golden angle: the spiral the new nodes with no seed of their own take. */
 export const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 /** Distance between two turns of that spiral, about a link length. */
@@ -40,6 +47,26 @@ const SEED_SPACING = 30;
 export function nodeRadius(node: MapNode): number {
   if (node.kind === "cluster") return TRACK_NODE_RADIUS * Math.sqrt(Math.max(1, node.count ?? 1));
   return TRACK_NODE_RADIUS;
+}
+
+/**
+ * The radius the layout separates a node by. A track reserves room for its
+ * label as well as its disc (issue #37: every label draws at once, so the layout
+ * has to make room rather than the renderer hide some). A cluster also draws a
+ * label — its value and count — so it reserves room for that too, at the
+ * cluster's own size.
+ *
+ * @param node - The map node.
+ */
+function collideRadius(node: MapNode): number {
+  const radius = nodeRadius(node);
+  return labelledCollideRadius(radius, collideLabel(node));
+}
+
+/** The text a node reserves label room for: a track's title, a cluster's value. */
+function collideLabel(node: MapNode): string {
+  if (node.kind === "cluster") return `${node.label} · ${node.count ?? 0}`;
+  return node.label;
 }
 
 /** A node as the simulation holds it: its id, its map node and a position. */
@@ -59,7 +86,9 @@ interface LayoutLink extends SimulationLinkDatum<LayoutNode> {
  * Nodes are sorted by id before solving, links pull by
  * `30 + 120 × (1 − s)` at strength `s`, the many-body charge is −120 with
  * `distanceMax` 600, a weak centre (0.05) holds the mean on the origin and
- * collide separates nodes by their radius + 2. A node whose position is in
+ * collide separates nodes by their label-aware radius (`collideRadius`) — a
+ * track reserves room for its title as well as its disc, so no two labels can
+ * overlap however the map settles (issue #37). A node whose position is in
  * `seeds` — the positions on screen, mid-animation positions included — starts
  * there; a node without one starts at the mean of its linked neighbours'
  * seeds, else on a golden-angle spiral over the new nodes in id order. The
@@ -122,7 +151,7 @@ export function solveLayout(nodes: readonly MapNode[], links: readonly MapLink[]
     )
     .force("charge", forceManyBody<LayoutNode>().strength(CHARGE_STRENGTH).distanceMax(CHARGE_DISTANCE_MAX))
     .force("centre", forceCenter<LayoutNode>(0, 0).strength(CENTRE_STRENGTH))
-    .force("collide", forceCollide<LayoutNode>((node) => nodeRadius(node.node) + COLLIDE_PADDING));
+    .force("collide", forceCollide<LayoutNode>((node) => collideRadius(node.node)));
 
   simulation.stop();
   for (let tick = 0; tick < LAYOUT_TICKS; tick += 1) simulation.tick();

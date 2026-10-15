@@ -162,6 +162,10 @@ export interface TrackMapCanvasProps {
   /** The canvas's accessible name */
   label: string;
   onSelect(id: string | null): void;
+  /** Issue #32: a double-click on a track plays it (a run of one). */
+  onDoubleClick?(id: string): void;
+  /** Issue #35: the node under the pointer, with its screen point for a popover. */
+  onHover?(id: string | null, clientX: number | null, clientY: number | null): void;
   /** Mid-animation positions, for warm starts */
   onDisplayedPositions?(p: Positions): void;
 }

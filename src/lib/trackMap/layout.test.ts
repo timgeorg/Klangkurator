@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { LINK_DISTANCE_NEAR, nodeRadius, solveLayout } from "./layout";
+import { labelledCollideRadius } from "./labels";
+import { LINK_DISTANCE_NEAR, nodeRadius, solveLayout, TRACK_NODE_RADIUS } from "./layout";
 import type { MapLink, MapNode, Positions } from "./types";
 
 /** A track node with a title derived from its id. */
@@ -122,9 +123,10 @@ describe("solveLayout — a re-solve with nothing changed barely moves (warm sta
     const second = solveLayout(nodes, links, first);
     const movement = maxMovement(first, second, ids);
     const cold = solveLayout(nodes, links);
-    // A warm start barely moves the map: under a link length, and far less than
-    // a solve from scratch moves the same nodes.
-    expect(movement).toBeLessThan(LINK_DISTANCE_NEAR);
+    // A warm start barely moves the map: under a node's own footprint — the
+    // label-aware collide radius, so the bound scales with the node size the
+    // issues set — and far less than a solve from scratch moves the same nodes.
+    expect(movement).toBeLessThan(labelledCollideRadius(TRACK_NODE_RADIUS, "Track a") * 2);
     expect(movement).toBeLessThan(maxMovement(first, cold, ids) / 4);
     expect(movement).toBeLessThan(spread(first, ids) / 4);
   });

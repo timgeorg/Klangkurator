@@ -41,8 +41,10 @@ export interface MapConfig {
   layers: MapLayers;
   /** Whether each rail section is open, by the section's own id; a section not named here is open. */
   sections: Record<string, boolean>;
-  /** Whether the map rail itself is shown. */
+  /** Whether the right-hand rail (the selected track) is shown. */
   railOpen: boolean;
+  /** Whether the left-hand rail (similarity, filters, layers, clusters) is shown. */
+  leftRailOpen: boolean;
 }
 
 export const DEFAULT_MAP_CONFIG: MapConfig = {
@@ -50,6 +52,7 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   layers: DEFAULT_MAP_LAYERS,
   sections: {},
   railOpen: true,
+  leftRailOpen: true,
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -110,6 +113,8 @@ const loadPersistedMapConfig = (): MapConfig => {
       layers: readLayers(parsed.layers),
       sections: readSections(parsed.sections),
       railOpen: typeof parsed.railOpen === "boolean" ? parsed.railOpen : DEFAULT_MAP_CONFIG.railOpen,
+      leftRailOpen:
+        typeof parsed.leftRailOpen === "boolean" ? parsed.leftRailOpen : DEFAULT_MAP_CONFIG.leftRailOpen,
     };
   } catch {
     return DEFAULT_MAP_CONFIG;
@@ -162,6 +167,10 @@ export function useMapConfig() {
     setConfig((prev) => ({ ...prev, railOpen: open }));
   }, []);
 
+  const setLeftRailOpen = useCallback((open: boolean) => {
+    setConfig((prev) => ({ ...prev, leftRailOpen: open }));
+  }, []);
+
   const sectionOpen = useCallback((id: string) => config.sections[id] ?? true, [config.sections]);
 
   const enabledCount = useMemo(
@@ -173,6 +182,7 @@ export function useMapConfig() {
     inputs: config.inputs,
     layers: config.layers,
     railOpen: config.railOpen,
+    leftRailOpen: config.leftRailOpen,
     /** How many inputs are on; 0 is the map's "Pick at least one input" state (TM-R5). */
     enabledCount,
     sectionOpen,
@@ -182,6 +192,7 @@ export function useMapConfig() {
     setLayer,
     setSectionOpen,
     setRailOpen,
+    setLeftRailOpen,
   };
 }
 
