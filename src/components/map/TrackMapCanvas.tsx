@@ -30,8 +30,10 @@ import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipStyle } from "@/lib/relationshipStyle";
 import { offsetEdges, transitionNotes } from "@/lib/trackMap/layerEdges";
 import {
+  labelBox,
   labelFontSize,
   wrapLabel,
+  LABEL_BOX_PAD_X,
   LABEL_GRAPH_FONT,
   LABEL_GAP,
   LABEL_MAX_SCREEN_PX,
@@ -713,32 +715,46 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const title = mapNode.kind === "cluster" ? `${mapNode.label} · ${mapNode.count ?? 0}` : mapNode.label;
       if (!title) return;
       // The context is scaled by the zoom, so a label that should read at a
-      // constant size on screen is drawn at `screen px / globalScale`. A long
-      // title drops a notch smaller, and the result stays inside the readable
-      // band however far the camera moves.
+      // constant size on screen is drawn at `screen px / globalScale`. It is
+      // then capped at the size the layout reserved, and — because the layout
+      // sizes a label from an *estimate* of the text's width, which the real
+      // font can beat on a wide title — any label whose measured lines would
+      // exceed the reserved box is shrunk until they fit. Drawing inside the
+      // reserved box is what makes "no two labels overlap" true rather than
+      // likely (TM-L9).
       const screenPx = clamp(labelFontSize(title) * globalScale, LABEL_MIN_SCREEN_PX, LABEL_MAX_SCREEN_PX);
-      const fontPx = screenPx / globalScale;
-      const lineHeight = fontPx * 1.25;
+      const reserved = labelBox(title);
+      const reservedText = reserved.halfWidth * 2 - LABEL_BOX_PAD_X * 2;
+      let fontPx = Math.min(screenPx / globalScale, labelFontSize(title));
+      const lineHeight = () => fontPx * 1.25;
       ctx.save();
       ctx.font = `600 ${fontPx}px ${palette.sans}`;
-      const lines = wrapLabel(title, LABEL_WRAP_WIDTH, LABEL_GRAPH_FONT);
+      let lines = wrapLabel(title, LABEL_WRAP_WIDTH, LABEL_GRAPH_FONT);
+      let widest = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      if (widest > reservedText && widest > 0) {
+        fontPx *= reservedText / widest;
+        ctx.font = `600 ${fontPx}px ${palette.sans}`;
+        // Re-wrap at the drawn size too, so the lines are as wide as allowed
+        // rather than merely scaled.
+        lines = wrapLabel(title, reservedText, fontPx);
+        widest = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      }
       const top = y + radius + LABEL_GAP / globalScale + fontPx / 2;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = palette.labelBg;
-      const widest = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
       roundedRect(
         ctx,
         x - widest / 2 - fontPx * 0.35,
         top - fontPx / 2 - fontPx * 0.18,
         widest + fontPx * 0.7,
-        lines.length * lineHeight + fontPx * 0.2,
+        lines.length * lineHeight() + fontPx * 0.2,
         fontPx * 0.3,
       );
       ctx.fill();
       ctx.fillStyle = palette.fg;
       lines.forEach((line, index) => {
-        ctx.fillText(line, x, top + index * lineHeight);
+        ctx.fillText(line, x, top + index * lineHeight());
       });
       ctx.restore();
     },

@@ -157,8 +157,11 @@ Not in the MVP:
 
 ## Nodes, edges and colour (REQ-33-NE)
 
-- A node is a track, and it is **big** (issue #31): a disc about twice the
-  earlier size, in its main genre's user colour as the **outer ring**. From a
+- A node is a track, and it is **big** (issue #31): a disc at about three
+  times the earlier radius, in its main genre's user colour as the **outer
+  ring**. (A bigger node also lets the whole map fit at a lower zoom, so on
+  screen the gain is smaller than the radius ratio; the radius is the
+  observable, and the drawn disc is still visibly larger.) From a
   zoom level on (measured on a 5,000-track library, where the fit zoom lands
   near 0.4), the track's **cover** sits in the centre of the ring, drawn in the
   app's cover mode — black and white in editorial, the user's choice in

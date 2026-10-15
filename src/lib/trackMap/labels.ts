@@ -111,18 +111,26 @@ export function labelBox(title: string, fontPx: number = LABEL_GRAPH_FONT): Labe
 const LABEL_MIN_TEXT_WIDTH = 26;
 
 /**
- * The circle the layout collides a labelled node by: big enough to hold the
- * disc and the label box under it, so two labelled tracks never land on top of
- * each other. Cluster nodes keep their own sizing (a cluster is never labelled
- * with a track title; it draws its value and count).
+ * The circle the layout collides a labelled node by. It has to cover the whole
+ * footprint — the disc and the label box under it — closely enough that two
+ * labels can never overlap, and the arithmetic is exact rather than generous:
+ * both labels hang the *same* distance below their own node, so their boxes
+ * overlap only when the nodes are closer than `hypot(2 × halfWidth, height)`
+ * apart in that axis pair. A collision radius of `hypot(halfWidth, height / 2)`
+ * is therefore exactly what rules overlap out — no more, so the map does not
+ * have to balloon to satisfy it.
+ *
+ * The renderer caps a drawn label at the size reserved here and shrinks any
+ * label whose real font measures wider than the estimate, so the layout's
+ * assumption holds whatever the typeface does.
  *
  * @param nodeRadius - The node's own drawn radius.
  * @param title - The track's title.
  */
 export function labelledCollideRadius(nodeRadius: number, title: string): number {
   const box = labelBox(title);
-  const vertical = nodeRadius + LABEL_GAP + box.height;
-  return Math.max(box.halfWidth, vertical / 2) + COLLIDE_ALLOWANCE;
+  void nodeRadius;
+  return Math.hypot(box.halfWidth, box.height / 2) + COLLIDE_ALLOWANCE;
 }
 
 /** The slack the collision leaves, so labels do not sit edge to edge. */

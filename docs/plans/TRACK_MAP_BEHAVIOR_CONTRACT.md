@@ -410,10 +410,12 @@ Follow-ups of #8, judged the same way (source-blind, on a sandbox copy).
 ### TM-N1 — big nodes with artwork (#31)
 **Given** a track with artwork and a genre
 **when** the map is at the fit zoom
-**then** the node draws as a filled disc in its genre colour at about twice the
-earlier size. **When** the camera zooms in past the artwork zoom **then** the
-cover draws in the node's centre, in the app's cover mode, with the genre as the
-outer ring.
+**then** the node draws as a filled disc in its genre colour — its radius is
+about three times the earlier one, so at the *same zoom* the disc is visibly
+bigger (a bigger node also makes the whole map fit at a lower zoom, which partly
+offsets that on screen; the radius is the observable). **When** the camera zooms
+in past the artwork zoom **then** the cover draws in the node's centre, in the
+app's cover mode, with the genre as the outer ring.
 
 ### TM-N2 — no artwork far out (#31)
 **Given** the 5,000-track library at the fit zoom

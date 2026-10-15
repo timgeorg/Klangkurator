@@ -91,6 +91,7 @@ import { coreMemberIds } from "@/lib/trackMap/core";
 import { buildFeatures } from "@/lib/trackMap/features";
 import { visibleEdges as edgesForLayers } from "@/lib/trackMap/layerEdges";
 import { solveLayout } from "@/lib/trackMap/layout";
+import { POSITION_ANIMATION_MS } from "@/lib/trackMap/positionsAnimation";
 import { nearest } from "@/lib/trackMap/similarity";
 import { buildTransitions } from "@/lib/trackMap/transitions";
 import type { ClusterDimension, ClusterFilter, Positions, TrackMapCanvasHandle } from "@/lib/trackMap/types";
@@ -106,6 +107,8 @@ const ZOOM_SETTLE_MS = 260;
 export const FOCUS_BEHAVIOUR: "both" | "camera" | "arrange" = "both";
 /** How far a focused track's neighbours are pulled towards it (1 would stack them on it). */
 const FOCUS_PULL = 0.45;
+/** A frame's slack past the position animation, before the camera is moved. */
+const SETTLE_SLACK_MS = 80;
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -527,23 +530,27 @@ export default function TrackMap() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [editSong, selectTrack]);
 
-  // A wanted centre runs once the track has a position to centre on. It waits
-  // two frames, so the canvas's own first fit (which frames the whole map) has
-  // run first and left the camera alone; the focused track then really is at
-  // the canvas centre, which a click there hits (TM-M3).
+  // A wanted centre runs once the track has a position to centre on — and, when
+  // the canvas is animating the nodes into a new arrangement, once that
+  // animation has finished. Centring while the nodes are still moving lands the
+  // camera on where the track *was*, which is exactly what a Focus press does
+  // (focus re-arranges first, so the camera must wait for it).
   useEffect(() => {
     if (!centreRequest || !positions.has(centreRequest)) return;
     const id = centreRequest;
-    let inner = 0;
+    const timers: number[] = [];
+    const run = () => {
+      canvasRef.current?.centreOn(id);
+      setCentreRequest((current) => (current === id ? null : current));
+    };
+    // Two frames for the canvas's own first fit to have run; then the position
+    // animation's own length, so the camera lands after any re-arrangement.
     const outer = window.requestAnimationFrame(() => {
-      inner = window.requestAnimationFrame(() => {
-        canvasRef.current?.centreOn(id);
-        setCentreRequest((current) => (current === id ? null : current));
-      });
+      timers.push(window.setTimeout(run, POSITION_ANIMATION_MS + SETTLE_SLACK_MS));
     });
     return () => {
       window.cancelAnimationFrame(outer);
-      window.cancelAnimationFrame(inner);
+      for (const timer of timers) window.clearTimeout(timer);
     };
   }, [centreRequest, positions]);
 
@@ -591,6 +598,7 @@ export default function TrackMap() {
     setFocusedId(selectedId);
     setCentreRequest(selectedId);
   }, [selectedId]);
+
 
   // Issue #34: arriving from the table with a track playing focuses it, so the
   // map opens on what you are listening to. Only the Table | Map switch passes
@@ -714,9 +722,13 @@ export default function TrackMap() {
   );
 
   const runZoom = useCallback(
-    (action: (handle: TrackMapCanvasHandle) => void) => {
+    (action: (handle: TrackMapCanvasHandle) => void, leavesFocus = false) => {
       const handle = canvasRef.current;
       if (!handle) return;
+      // Fit and Reset are view changes, so they leave focus: the map returns to
+      // the solve's own shape rather than keeping the arrangement (TM-I10). A
+      // plain zoom in or out does not — it is the same view, closer.
+      if (leavesFocus) setFocusedId(null);
       action(handle);
       readZoom();
       // The camera moves in the canvas's own 220 ms; read again once it lands.
@@ -818,11 +830,11 @@ export default function TrackMap() {
                 <ZoomOut />
                 Zoom out
               </Button>
-              <Button variant="outline" onClick={() => runZoom((handle) => handle.fit())}>
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.fit(), true)}>
                 <Maximize2 />
                 Fit
               </Button>
-              <Button variant="outline" onClick={() => runZoom((handle) => handle.reset())}>
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.reset(), true)}>
                 <RotateCcw />
                 Reset
               </Button>

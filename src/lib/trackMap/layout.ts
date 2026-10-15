@@ -14,13 +14,13 @@ import type { MapLink, MapNode, Positions } from "./types";
 /** The disc a track node draws at, in graph units (issue #31 doubles the old 7). */
 export const TRACK_NODE_RADIUS = 20;
 
-/** Link distance at `s = 0` (260) down to 90 at `s = 1`; it must clear the
+/** Link distance at `s = 0` (267) down to 97 at `s = 1`; it must clear the
  * label-aware collide floor, or a link would be pushed apart by the collision
  * and similarity could not express itself at all. */
-export const LINK_DISTANCE_NEAR = 90;
+export const LINK_DISTANCE_NEAR = 97;
 export const LINK_DISTANCE_SPAN = 170;
 /** The many-body charge and the range it acts over. */
-export const CHARGE_STRENGTH = -300;
+export const CHARGE_STRENGTH = -500;
 export const CHARGE_DISTANCE_MAX = 350;
 /** The weak centre that keeps the map on the origin. */
 export const CENTRE_STRENGTH = 0.05;
