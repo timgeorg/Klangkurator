@@ -9,18 +9,21 @@
 // config, the filters, the shown set, the model, the seeds and positions, the
 // selection and its URL effect, then the visible edges.
 //
-// Phase 3 stands alone: the inputs are a local `useState` at `DEFAULT_INPUTS`
-// and the layers are a local constant, both marked for phase 4a's
-// `useMapConfig`; the filters read nothing until phase 4a's shared
-// `LibraryFilterContext`; the map rail carries the selected track and the
-// section-collapse scaffolding only; and above `T` shown tracks the stopgap of
-// phase 6 lists the first `T` by title. The entry points (the Table | Map
-// switch, Open in map, Show on map) are phase 7: this route exists for testing.
+// Phase 4a: the inputs, the layers and the collapse states come from
+// `useMapConfig` (saved under `klangkurator.map.v1`, validated on read); the
+// search and the filters come from the shared `LibraryFilterContext` above the
+// routes, so the table and the map narrow the library together (TM-R11), and
+// `filterSongs` (extracted from the table) is the one predicate both use. The
+// rail carries the Similarity and Filters sections and collapses as a whole and
+// per section. Above `T` shown tracks the stopgap of phase 6 still lists the
+// first `T` by title. The entry points (the Table | Map switch, Open in map,
+// Show on map) are phase 7: this route exists for testing.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
+import { type FilterOptions, type SongTagsById, filterSongs } from "@/components/dj/libraryTable";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MapRail } from "@/components/map/rail/MapRail";
@@ -29,7 +32,10 @@ import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMapConfig } from "@/hooks/useMapConfig";
+import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
+import { getMainGenreColor } from "@/lib/genreData";
 import {
   storage,
   type Block,
@@ -39,6 +45,7 @@ import {
   type SongTag,
   type Tag,
 } from "@/lib/storage";
+import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { buildModel } from "@/lib/trackMap/buildModel";
 import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
 import { buildConnections } from "@/lib/trackMap/connections";
@@ -46,28 +53,16 @@ import { buildFeatures } from "@/lib/trackMap/features";
 import { solveLayout } from "@/lib/trackMap/layout";
 import { nearest } from "@/lib/trackMap/similarity";
 import { buildTransitions } from "@/lib/trackMap/transitions";
-import {
-  DEFAULT_INPUTS,
-  type MapInputs,
-  type Positions,
-  type TrackMapCanvasHandle,
-} from "@/lib/trackMap/types";
+import type { Positions, TrackMapCanvasHandle } from "@/lib/trackMap/types";
 
 /** How long the camera takes to land; the canvas's own 220 ms, plus a frame. */
 const ZOOM_SETTLE_MS = 260;
-
-/**
- * The map's settings. Phase 4a replaces this with `useMapConfig`, which saves
- * the inputs, the layers and the collapse states under `klangkurator.map.v1`
- * and validates what it reads.
- */
-const LAYERS = { relationships: true, transitions: true, nearest: true } as const;
 
 type MapStatus = "loading" | "ready" | "error";
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-/** The map page: canvas, map rail and toolbar, at the default inputs. */
+/** The map page: canvas, map rail and toolbar, at the saved inputs. */
 export default function TrackMap() {
   const isMobile = useIsMobile();
   const { current, isPlaying, play, toggle } = usePlayer();
@@ -126,24 +121,68 @@ export default function TrackMap() {
     return { connections: buildConnections(relationships, facts), transitions: facts };
   }, [blocks, relationships, sets, songs]);
 
-  // (4) The inputs and weights. A local copy of the spec's default table in
-  // phase 3, so the page stands alone; phase 4a's `useMapConfig` replaces it.
-  const [inputs] = useState<MapInputs>(DEFAULT_INPUTS);
+  // (4) The saved settings: inputs and weights, the layers slice (all on; phase
+  // 5 switches them), the collapse states and the rail's own open state, under
+  // `klangkurator.map.v1`, validated on read.
+  const config = useMapConfig();
+  /** TM-R5: every input switched off leaves nothing to compare on. */
+  const noInputs = config.enabledCount === 0;
 
-  // (5) The filters. Phase 4a reads the shared `LibraryFilterContext` here
-  // (search, filters, the core and the cluster filters) and filters the shown
-  // set below with `filterSongs`; phase 3 reads nothing, so the map shows the
-  // whole library.
+  // (5) The search and filters, shared with the library table for the session
+  // (TM-R11), plus the filter options the Filters section offers. `filterSongs`
+  // is the table's own predicate, extracted so both views agree.
+  const { searchQuery, filters, isFiltering, clearAll } = useLibraryFilters();
 
-  // (6) The shown tracks: the whole library, or — until phase 6 — the first
-  // `T` by title when the library is larger than the node threshold.
+  // (6) The shown tracks: the library narrowed by the shared search and filters,
+  // or — until phase 6 — the first `T` by title when that is larger than the
+  // node threshold.
+  const songTagsById = useMemo<SongTagsById>(() => {
+    const bySong: Record<string, { id: string }[]> = {};
+    for (const link of songTags) (bySong[link.song_id] ??= []).push({ id: link.tag_id });
+    return bySong;
+  }, [songTags]);
+
+  const filtered = useMemo(
+    () => filterSongs(songs, songTagsById, filters, searchQuery),
+    [filters, searchQuery, songTagsById, songs],
+  );
+
   const shown = useMemo(() => {
-    if (songs.length <= DEFAULT_NODE_THRESHOLD) return { songs, truncated: false };
-    const byTitle = [...songs].sort(
+    if (filtered.length <= DEFAULT_NODE_THRESHOLD) return { songs: filtered, truncated: false };
+    const byTitle = [...filtered].sort(
       (a, b) => collator.compare(a.title, b.title) || (a.id < b.id ? -1 : 1),
     );
     return { songs: byTitle.slice(0, DEFAULT_NODE_THRESHOLD), truncated: true };
-  }, [songs]);
+  }, [filtered]);
+
+  const noMatches = isFiltering && filtered.length === 0;
+
+  const filterOptions = useMemo<FilterOptions>(() => {
+    const mainGenres = new Set<string>();
+    const subgenres = new Set<string>();
+    const crates = new Set<string>();
+    for (const song of songs) {
+      if (song.mainGenre) mainGenres.add(song.mainGenre);
+      song.subgenres?.forEach((subgenre) => subgenres.add(subgenre));
+      if (song.genres) song.genres.forEach((genre) => mainGenres.add(genre));
+      else if (song.genre) mainGenres.add(song.genre);
+      const crate = crateOf(song);
+      if (crate) crates.add(crate);
+    }
+    return {
+      mainGenres: [...mainGenres].sort(collator.compare).map((genre) => ({ label: genre, value: genre, color: getMainGenreColor(genre) })),
+      subgenres: [...subgenres].sort(collator.compare).map((name) => ({ label: name, value: name })),
+      keys: [...new Set(songs.map((song) => song.musical_key).filter(Boolean) as string[])]
+        .sort(collator.compare)
+        .map((key) => ({
+          label: key,
+          value: key,
+          color: isMinorKey(key) ? "hsl(var(--info))" : "hsl(var(--foreground))",
+        })),
+      tags: tags.map((tag) => ({ label: tag.name, value: tag.id, color: tag.color })),
+      rootFolders: [...crates].sort(collator.compare).map((crate) => ({ label: crate, value: crate })),
+    };
+  }, [songs, tags]);
 
   // (7) The model. Layers and collapse states are deliberately not dependencies,
   // so switching a layer never re-solves the layout.
@@ -152,12 +191,12 @@ export default function TrackMap() {
       buildModel({
         songs: shown.songs,
         features,
-        inputs,
+        inputs: config.inputs,
         connections,
         relationships,
         transitions,
       }),
-    [connections, features, inputs, relationships, shown.songs, transitions],
+    [config.inputs, connections, features, relationships, shown.songs, transitions],
   );
 
   // (8) The seeds the canvas reports back, and the positions the solve effect
@@ -274,17 +313,17 @@ export default function TrackMap() {
     };
   }, [centreRequest, positions]);
 
-  // (10) What the renderer may draw. Layers are all on in phase 3 (phase 5 adds
-  // the switches); the nearest layer follows the selection, so the map is not a
-  // hairball of every link.
+  // (10) What the renderer may draw. The layers come from `useMapConfig` and are
+  // all on by default (phase 5 adds the switches); the nearest layer follows the
+  // selection, so the map is not a hairball of every link.
   const visibleEdges = useMemo(
     () =>
       model.edges.filter((edge) => {
-        if (edge.kind === "relationship") return LAYERS.relationships;
-        if (edge.kind === "transition") return LAYERS.transitions;
-        return LAYERS.nearest && (edge.source === selectedId || edge.target === selectedId);
+        if (edge.kind === "relationship") return config.layers.relationships;
+        if (edge.kind === "transition") return config.layers.transitions;
+        return config.layers.nearest && (edge.source === selectedId || edge.target === selectedId);
       }),
-    [model.edges, selectedId],
+    [config.layers, model.edges, selectedId],
   );
 
   // The selected track's rail data (PM-8 keeps these after the model).
@@ -310,11 +349,11 @@ export default function TrackMap() {
       const entry = featureById.get(song.id);
       return entry ? [entry] : [];
     });
-    return nearest(feature, shownFeatures, { inputs, connections }).flatMap((entry) => {
+    return nearest(feature, shownFeatures, { inputs: config.inputs, connections }).flatMap((entry) => {
       const song = songById.get(entry.id);
       return song ? [{ song, s: entry.s }] : [];
     });
-  }, [connections, featureById, inputs, selectedId, shown.songs, songById]);
+  }, [config.inputs, connections, featureById, selectedId, shown.songs, songById]);
 
   const partnerRows = useMemo<PartnerRow[]>(() => {
     if (!selectedId) return [];
@@ -384,7 +423,6 @@ export default function TrackMap() {
   }, [positions, readZoom]);
 
   const canvasLabel = `Map of ${model.nodes.length} tracks`;
-
   if (status === "error") {
     return (
       <div className="mx-auto w-full max-w-5xl">
@@ -465,8 +503,8 @@ export default function TrackMap() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 p-3">
-          <div className="h-full w-full overflow-hidden rounded-lg border border-border">
+        <div className="min-h-0 min-w-0 flex-1 p-3">
+          <div className="relative h-full w-full overflow-hidden rounded-lg border border-border">
             {model.nodes.length > 0 && positions.size > 0 && (
               <TrackMapCanvas
                 ref={canvasRef}
@@ -480,14 +518,50 @@ export default function TrackMap() {
                 onDisplayedPositions={handleDisplayedPositions}
               />
             )}
+            {/* TM-R5: with every input off there is no similarity to compute, so
+                no nearest tracks show. Said on the canvas too, so it is visible
+                with the rail collapsed. */}
+            {noInputs && (
+              <div className="absolute inset-x-0 top-0 flex justify-center p-4">
+                <p role="status" className="rounded-chip border border-border bg-popover px-3 py-1.5 text-[13px] text-foreground shadow-1">
+                  Pick at least one input.
+                </p>
+              </div>
+            )}
+            {/* TM-R7: filters that match no track, over the canvas, with the way
+                out. The rail reports it too, so either place says so. */}
+            {noMatches && (
+              <div className="absolute inset-0 flex items-center justify-center p-6">
+                <EmptyState
+                  size="inline"
+                  arrangement="stack"
+                  title="No track matches."
+                  body={
+                    searchQuery.trim()
+                      ? `Nothing in your ${songs.length} tracks matches “${searchQuery.trim()}” with the current filters.`
+                      : "The active filters exclude every track."
+                  }
+                  action={
+                    // Clears the search and the filters, so the way out always
+                    // resolves whatever left nothing to show.
+                    <Button variant="outline" size="sm" onClick={clearAll}>
+                      Clear filters
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </div>
         </div>
 
         <MapRail
+          config={config}
+          filterOptions={filterOptions}
           shownCount={model.nodes.length}
           unlinkedCount={model.unlinkedCount}
           focusNotice={focusNotice}
           truncated={shown.truncated}
+          noMatches={noMatches}
           song={selectedSong}
           tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}
           nearest={nearestRows}

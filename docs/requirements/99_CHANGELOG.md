@@ -5,6 +5,49 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 4a — shared filters, map config and the rail sections (issue #8, PF-81)
+
+The map's controls land, and the library's search and filters become one shared
+state:
+
+- `src/lib/LibraryFilterContext.tsx` holds the session's one search and one set
+  of column filters, provided in `src/App.tsx` **above** the routes, so they
+  survive navigating between the table and the map and the browser's Back.
+  `SongLibrary.tsx` now reads them instead of its own `useState`, and the map
+  reads and writes the same values, so clearing in either place clears for both
+  (TM-R11). Session-only, like the table's own state: nothing is stored
+  (REQ-33-PS).
+- `src/components/dj/libraryTable.ts` gains
+  `filterSongs(songs, songTags, filters, searchQuery)`, extracted unchanged from
+  `SongLibrary.tsx`'s inline predicate, so the table and the map share one
+  implementation and the table's rows do not change. It also exports
+  `INITIAL_FILTERS` and the `SongTagsById` shape; sorting stays with the table.
+- `src/hooks/useMapConfig.ts` saves the similarity inputs and their weights, the
+  `layers` slice (relationships, transitions and nearest, all on — phase 5
+  switches them) and the collapse states of the rail and of each section, under
+  `klangkurator.map.v1`. Everything is validated on read: a stored value that
+  does not fit (an unknown input, a weight off the 0.5–3 grid, a non-boolean
+  section state) is replaced by the default (REQ-33-PS). Nothing here is a
+  dependency of the model, so switching a layer or collapsing a section never
+  re-solves the layout.
+- `rail/SimilaritySection.tsx` is the inputs: one row per input with a switch
+  and a weight 0.5–3 in steps of 0.5 (proposed), and **Reset to defaults**. A
+  switch commits at once; a weight commits on release (`onValueCommit`), so one
+  drag is one change and one re-solve (TM-R1, TM-R4).
+- `rail/FiltersSection.tsx` is the same search and the same filters as the
+  table, built on `ui/column-filter.tsx` over `FILTER_CONFIG`, so both views
+  offer the same set (TM-R6). The core-chip slot (phase 4b) and the
+  cluster-filter slot (phase 6) are marked and render nothing.
+- The `/map` rail (`rail/MapRail.tsx`) gains both sections and collapses as a
+  whole and per section; `RailSection.tsx` now takes its open state from
+  `useMapConfig`, so section collapse persists (TM-R3, TM-R10). The rail's
+  status line reports **Pick at least one input** with every input off, and no
+  nearest tracks show (TM-R5), and **No track matches** with Clear filters when
+  the shared filters exclude everything (TM-R7). Collapsed, the rail leaves a
+  narrow strip with its own expand control and the canvas takes the freed width;
+  the rail never scrolls sideways (TM-R8). Every control is Tab-reachable, named
+  and shows focus through the tokens (TM-R9).
+
 ### Track map phase 3 — the /map route, the rail and the states (issue #8, PF-81)
 
 The map becomes a view of its own, reachable at `/map` for testing (answer 2:
