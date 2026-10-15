@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, ChevronsUpDown, List, Network, Plus, Trash2 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { EmptyState } from "@/components/layout/EmptyState";
+import { TrackDetails, type PartnerRow } from "@/components/map/TrackDetails";
+import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/color-chip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -16,9 +19,10 @@ import { toast } from "@/hooks/use-toast";
 import { usePlayer } from "@/lib/PlayerContext";
 import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, RelationshipType, relationshipPhrase } from "@/lib/relationshipStyle";
 import { Song, SongPlaylistMembership, SongRelationship, storage } from "@/lib/storage";
+import { trackGenre } from "@/lib/trackFormat";
+import { solveLayout, GOLDEN_ANGLE } from "@/lib/trackMap/layout";
+import type { MapEdge, MapLink, MapNode, Positions } from "@/lib/trackMap/types";
 import { cn } from "@/lib/utils";
-
-import { GraphRelationships, SongRelationshipGraph } from "./SongRelationshipGraph";
 
 interface SongRelationshipsDialogProps {
   song: Song | null;
@@ -36,36 +40,101 @@ interface ExistingRelationship {
   notes?: string;
 }
 
-/** Both views of one song's relationships, built from a single fetch. */
-function buildFor(song: Song, rels: SongRelationship[], songs: Song[]) {
-  const byId = new Map(songs.map((s) => [s.id, s]));
-  const graph: GraphRelationships = { asSource: [], asTarget: [] };
+/** The constant pull the dialog's links use: the graph is authored, so `s`
+ * is not a similarity — it only spreads the partners around their song. */
+const DIALOG_LINK_PULL = 0.2;
+
+/** A ring of seeds so the dialog's partners settle around their song. */
+const DIALOG_SEED_RADIUS = 100;
+
+interface DialogGraph {
+  nodes: MapNode[];
+  links: MapLink[];
+  edges: MapEdge[];
+  positions: Positions;
+  /** The relationship types on screen, in the order the legends list them. */
+  legend: string[];
+}
+
+/**
+ * The dialog's graph: its song and that song's relationship partners, never the
+ * whole collection. The song sits at the origin with its partners on a seeded
+ * ring; the same canvas renderer and the same headless layout draw it.
+ */
+function buildDialogGraph(song: Song, partners: readonly ExistingRelationship[]): DialogGraph {
+  const seen = new Set<string>([song.id]);
+  const others: Song[] = [];
+  for (const partner of partners) {
+    if (seen.has(partner.otherSong.id)) continue;
+    seen.add(partner.otherSong.id);
+    others.push(partner.otherSong);
+  }
+
+  const nodes: MapNode[] = [song, ...others].map((entry) => ({
+    id: entry.id,
+    kind: "track",
+    label: entry.title,
+    coverUrl: entry.artwork_url,
+    genreLabel: trackGenre(entry),
+  }));
+
+  const edges: MapEdge[] = partners.map((partner) => ({
+    source: song.id,
+    target: partner.otherSong.id,
+    kind: partner.type === "transition" ? "transition" : "relationship",
+    relationshipType: partner.type,
+  }));
+
+  const links: MapLink[] = others.map((other) => {
+    const [source, target] = song.id < other.id ? [song.id, other.id] : [other.id, song.id];
+    return { source, target, s: DIALOG_LINK_PULL };
+  });
+
+  const seeds: Positions = new Map([[song.id, { x: 0, y: 0 }]]);
+  others.forEach((other, index) => {
+    const angle = index * GOLDEN_ANGLE - Math.PI / 2;
+    const radius = DIALOG_SEED_RADIUS * Math.sqrt(index + 1);
+    seeds.set(other.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  });
+
+  const legend: string[] = [];
+  for (const type of RELATIONSHIP_TYPES) {
+    if (partners.some((partner) => partner.type === type)) legend.push(type);
+  }
+
+  return { nodes, links, edges, positions: solveLayout(nodes, links, seeds), legend };
+}
+
+/** The relationships seen from one song, built from the fetched rows. */
+function relationshipsFor(song: Song, rels: SongRelationship[], byId: Map<string, Song>): ExistingRelationship[] {
   const existing: ExistingRelationship[] = [];
   for (const rel of rels) {
     if (rel.source_song_id === song.id) {
-      const targetSong = byId.get(rel.target_song_id);
-      if (!targetSong) continue;
-      graph.asSource.push({ ...rel, targetSong });
-      existing.push({ id: rel.id, type: rel.relationship_type, direction: "source", otherSong: targetSong, notes: rel.notes });
+      const other = byId.get(rel.target_song_id);
+      if (!other) continue;
+      existing.push({ id: rel.id, type: rel.relationship_type, direction: "source", otherSong: other, notes: rel.notes });
     } else if (rel.target_song_id === song.id) {
-      const sourceSong = byId.get(rel.source_song_id);
-      if (!sourceSong) continue;
-      graph.asTarget.push({ ...rel, sourceSong });
-      existing.push({ id: rel.id, type: rel.relationship_type, direction: "target", otherSong: sourceSong, notes: rel.notes });
+      const other = byId.get(rel.source_song_id);
+      if (!other) continue;
+      existing.push({ id: rel.id, type: rel.relationship_type, direction: "target", otherSong: other, notes: rel.notes });
     }
   }
-  return { graph, existing };
+  return existing;
 }
 
 export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange, onSave }: SongRelationshipsDialogProps) {
-  const { current } = usePlayer();
+  const { current, isPlaying, play, toggle } = usePlayer();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [history, setHistory] = useState<Song[]>([]);
 
-  const [graph, setGraph] = useState<GraphRelationships>({ asSource: [], asTarget: [] });
   const [existing, setExisting] = useState<ExistingRelationship[]>([]);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
+  const [songIndex, setSongIndex] = useState<Map<string, Song>>(new Map());
+  const [allRelationships, setAllRelationships] = useState<SongRelationship[]>([]);
+  /** The track the details show; the graph stays centred on its song. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<SongPlaylistMembership[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -93,11 +162,14 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
       storage.getSongs(),
       storage.getPlaylistsForSong(target.id),
     ]);
-    const built = buildFor(target, rels, songs);
-    setGraph(built.graph);
-    setExisting(built.existing);
+    const byId = new Map(songs.map((s) => [s.id, s]));
+    setExisting(relationshipsFor(target, rels, byId));
+    setAllRelationships(rels);
+    setSongIndex(byId);
     setAllSongs(songs.filter((s) => s.id !== target.id));
     setPlaylists(memberships);
+    // The dialog opens with its song selected, and re-centring selects the new one.
+    setSelectedId(target.id);
     setLoaded(true);
   }, []);
 
@@ -192,10 +264,53 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
 
   const selectedSong = useMemo(() => availableSongs.find((s) => s.id === newTargetId), [availableSongs, newTargetId]);
 
+  const graph = useMemo(
+    () => (song && viewMode === "graph" ? buildDialogGraph(song, existing) : null),
+    [existing, song, viewMode],
+  );
+
+  /** The partners of the song on screen, as the details list them. */
+  const shownSong = useMemo(() => {
+    if (!song) return null;
+    if (selectedId === song.id) return song;
+    return songIndex.get(selectedId ?? "") ?? existing.find((r) => r.otherSong.id === selectedId)?.otherSong ?? null;
+  }, [existing, selectedId, song, songIndex]);
+
+  const shownPartners = useMemo<PartnerRow[]>(() => {
+    if (!shownSong) return [];
+    // The dialog's own song is not in `allSongs` (it is excluded from the picker),
+    // so add it back: a partner's list must include the song the dialog is about.
+    const byId = new Map(allSongs.map((s) => [s.id, s]));
+    byId.set(shownSong.id, shownSong);
+    if (song) byId.set(song.id, song);
+    return relationshipsFor(shownSong, allRelationships, byId).map((relationship) => ({
+      id: relationship.id,
+      song: relationship.otherSong,
+      type: relationship.type,
+      direction: relationship.direction,
+      notes: relationship.notes,
+    }));
+  }, [allRelationships, allSongs, shownSong, song]);
+
+  const handlePlay = useCallback(
+    (target: Song) => {
+      if (current?.id === target.id) toggle();
+      else play(target);
+    },
+    [current?.id, play, toggle],
+  );
+
+  const openSongPage = (target: Song) => {
+    handleOpenChange(false);
+    navigate(`/song/${target.id}`);
+  };
+
   if (!song) return null;
 
   const hasRelationships = existing.length > 0;
   const previous = history[history.length - 1];
+
+  const graphLabel = `Relationships of ${song.title}: ${graph ? graph.nodes.length : 0} tracks`;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -235,8 +350,39 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
         )}
 
         <div className="-mx-6 min-h-0 flex-1 space-y-5 overflow-y-auto px-6">
-          {viewMode === "graph" && hasRelationships ? (
-            <SongRelationshipGraph key={song.id} centerSong={song} relationships={graph} onNavigateToSong={navigateTo} />
+          {viewMode === "graph" && hasRelationships && graph ? (
+            <div className="space-y-4">
+              <div className="h-[24rem] w-full overflow-hidden rounded-lg border border-border">
+                <TrackMapCanvas
+                  nodes={graph.nodes}
+                  edges={graph.edges}
+                  positions={graph.positions}
+                  selectedId={selectedId}
+                  playingId={current?.id ?? null}
+                  label={graphLabel}
+                  onSelect={setSelectedId}
+                />
+              </div>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-label="Relationship line styles">
+                {graph.legend.map((type) => (
+                  <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <RelationLine type={type} />
+                    {RELATIONSHIP_STYLES[type as RelationshipType]?.label ?? type}
+                  </li>
+                ))}
+              </ul>
+              {shownSong && (
+                <TrackDetails
+                  song={shownSong}
+                  partners={shownPartners}
+                  isPlaying={current?.id === shownSong.id && isPlaying}
+                  onPlay={handlePlay}
+                  onSongPage={openSongPage}
+                  onShowRelationships={navigateTo}
+                  onSelect={setSelectedId}
+                />
+              )}
+            </div>
           ) : (
             <>
               {playlists.length > 0 && (

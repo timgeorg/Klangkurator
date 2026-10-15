@@ -21,3 +21,5 @@ tags:
 - [[buildModel.test.ts]] — Vitest coverage of the model's nodes, links (worked examples 1 and 2), edge kinds and filtering to the shown tracks.
 - [[syntheticLibrary.ts]] — A seeded, deterministic generator of N fake tracks carrying the fields the features read, for the large-library tests.
 - [[syntheticLibrary.test.ts]] — Vitest coverage of the generator's determinism, its field shapes and its use in the 500-track perf check.
+- [[layout.ts]] — `solveLayout`: the headless d3-force layout (nodes sorted by id, link distance `30 + 120 × (1 − s)` at strength `s`, charge −120 with `distanceMax` 600, weak centre, collide by radius + 2, 300 synchronous ticks) with seeded warm starts and the golden-angle spiral for new nodes.
+- [[layout.test.ts]] — Vitest coverage of the layout contract: the same input gives the same positions, linked pairs end closer than unlinked ones, a re-solve with nothing changed barely moves, and unlinked nodes settle at the edge.
