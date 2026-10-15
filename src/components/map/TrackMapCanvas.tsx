@@ -11,11 +11,18 @@
 // canvas redraws when the theme class or the cover mode changes. Orange means
 // "this one": the playing node carries the orange cut and the selected node the
 // focus ring; hover emphasis and every edge use other colours.
+//
+// Phase 5 gives it its edge language: edges that share a pair are drawn side by
+// side (several relationship types, or A→B beside B→A), and a selected track's
+// transition edges show their deduplicated notes as labels (TM-L1, TM-L2,
+// TM-L3, TM-L6). Both come from the pure, tested
+// `lib/trackMap/layerEdges.ts`.
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-graph-2d";
 import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipStyle } from "@/lib/relationshipStyle";
+import { offsetEdges, transitionNotes } from "@/lib/trackMap/layerEdges";
 import { nodeRadius } from "@/lib/trackMap/layout";
 import { animationProgress, easeOutCubic, interpolatePositions } from "@/lib/trackMap/positionsAnimation";
 import type { MapEdge, MapNode, Positions, TrackMapCanvasHandle, TrackMapCanvasProps } from "@/lib/trackMap/types";
@@ -37,6 +44,8 @@ const RING_GAP = 4;
 const EDGE_GAP = 3;
 /** The extra room an arrowhead leaves at the target node. */
 const ARROW_GAP = 6;
+/** The widest a transition's note may draw as an edge label before it is trimmed. */
+const EDGE_LABEL_MAX_WIDTH = 160;
 /** How far the pointer may move between down and up and still count as a click. */
 const CLICK_SLOP = 5;
 /** The slop a node's hit area gains, so small discs are still easy to hit. */
@@ -57,11 +66,15 @@ type GraphNode = NodeObject & {
 /**
  * A drawn edge. A type alias, not an interface, so it is still assignable to
  * the renderer's own link shape (which carries an implicit index signature).
+ * `offset` is the perpendicular place the edge takes among the edges on its
+ * pair, so several relationship types between the same two tracks — or the two
+ * directions of a transition — are drawn side by side (TM-L1, TM-L3).
  */
 type GraphLink = {
   source: string | GraphNode;
   target: string | GraphNode;
   edge: MapEdge;
+  offset: number;
 };
 
 /** The design tokens the canvas draws with, read at draw time so themes follow. */
@@ -150,7 +163,9 @@ function samePositions(a: Positions, b: Positions, nodes: readonly MapNode[]): b
 /**
  * The track map's canvas: discs in the users' genre colours, one line style per
  * relationship type, the orange cut and the focus ring on the tracks that are
- * playing and selected.
+ * playing and selected. Edges that share a pair are spread beside each other,
+ * so they never draw on top of one another, and the selected track's transition
+ * edges carry their notes as labels.
  *
  * Everything positional is pinned, so the renderer never simulates and never
  * redraws while idle. A change of `positions` moves the nodes into place in one
@@ -384,9 +399,13 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   }, [displayed, nodes, positions, selected]);
   const graphLinks = useMemo<GraphLink[]>(() => {
     const known = new Set(nodes.map((node) => node.id));
-    return edges
-      .filter((edge) => known.has(edge.source) && known.has(edge.target))
-      .map((edge): GraphLink => ({ source: edge.source, target: edge.target, edge }));
+    // The edges are placed in their side-by-side order before they reach the
+    // renderer, so a pair carrying several types never draws one on top of the
+    // other (TM-L1, TM-L3). `offsetEdges` is pure and tested in
+    // `lib/trackMap/layerEdges.ts`.
+    return offsetEdges(edges)
+      .filter(({ edge }) => known.has(edge.source) && known.has(edge.target))
+      .map(({ edge, offset }): GraphLink => ({ source: edge.source, target: edge.target, edge, offset }));
   }, [edges, nodes]);
 
   // A repaint is requested by re-rendering: the inline render callbacks below
@@ -400,6 +419,27 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   const highlighted = useCallback(
     (from: string, to: string): boolean => hoveredId === null || from === hoveredId || to === hoveredId,
     [hoveredId],
+  );
+
+  /** A transition's note, on a chip over the edge's own middle. */
+  const drawEdgeLabel = useCallback(
+    (ctx: CanvasRenderingContext2D, text: string, x: number, y: number) => {
+      ctx.save();
+      // The font is set before the text is measured, so the trim and the drawn
+      // label agree.
+      ctx.font = `500 11px ${palette.sans}`;
+      const shown = truncate(ctx, text, EDGE_LABEL_MAX_WIDTH);
+      const width = ctx.measureText(shown).width;
+      ctx.fillStyle = palette.labelBg;
+      roundedRect(ctx, x - width / 2 - 5, y - 9, width + 10, 18, 5);
+      ctx.fill();
+      ctx.fillStyle = palette.fg;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(shown, x, y);
+      ctx.restore();
+    },
+    [palette],
   );
 
   const drawLink = useCallback(
@@ -433,8 +473,20 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const distance = Math.hypot(bx - ax, by - ay) || 1;
       const ux = (bx - ax) / distance;
       const uy = (by - ay) / distance;
-      const from = { x: ax + ux * (nodeRadius(sourceNode) + EDGE_GAP), y: ay + uy * (nodeRadius(sourceNode) + EDGE_GAP) };
+      // The edge's side-by-side place, measured in the pair's own frame (the
+      // lower id to the higher one), so the two directions of a transition land
+      // on opposite sides rather than sharing one. The endpoints stay on their
+      // nodes; only the middle of the line moves, so the edge bends.
+      const flip = edge.source <= edge.target ? 1 : -1;
+      const nx = -uy * flip;
+      const ny = ux * flip;
+      const shift = link.offset ?? 0;
+      const from = {
+        x: ax + ux * (nodeRadius(sourceNode) + EDGE_GAP),
+        y: ay + uy * (nodeRadius(sourceNode) + EDGE_GAP),
+      };
       const to = { x: bx - ux * (nodeRadius(targetNode) + ARROW_GAP), y: by - uy * (nodeRadius(targetNode) + ARROW_GAP) };
+      const mid = { x: (from.x + to.x) / 2 + nx * shift, y: (from.y + to.y) / 2 + ny * shift };
 
       ctx.save();
       ctx.globalAlpha = highlighted(edge.source, edge.target) ? 1 : 0.18;
@@ -444,13 +496,15 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       ctx.setLineDash(dash);
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+      ctx.quadraticCurveTo(mid.x, mid.y, to.x, to.y);
       ctx.stroke();
       ctx.setLineDash([]);
 
       // Authored edges are directional and carry an arrowhead; similarity does not.
       if (edge.kind !== "nearest") {
-        const angle = Math.atan2(uy, ux);
+        // The arrow points along the curve's own end, so a bent edge still
+        // aims at its target.
+        const angle = Math.atan2(to.y - mid.y, to.x - mid.x);
         const head = 7;
         ctx.fillStyle = colour;
         ctx.beginPath();
@@ -460,9 +514,18 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
         ctx.closePath();
         ctx.fill();
       }
+
+      // The selected track's transitions show their notes as edge labels
+      // (TM-L2, TM-L6); the notes are already deduplicated across the edge's
+      // sources, so the same note written on a block and its set draws once.
+      const onSelected = selected !== null && (edge.source === selected || edge.target === selected);
+      if (fontsReady && onSelected && edge.kind === "transition") {
+        const label = transitionNotes(edge).join(" · ");
+        if (label) drawEdgeLabel(ctx, label, mid.x, mid.y);
+      }
       ctx.restore();
     },
-    [highlighted, nodeIndex, palette],
+    [drawEdgeLabel, fontsReady, highlighted, nodeIndex, palette, selected],
   );
 
   const drawNode = useCallback(

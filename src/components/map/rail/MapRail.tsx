@@ -1,13 +1,14 @@
 // Track map (issue #8) — the map rail (plan phase 3: the status line and the
 // sections; phase 4a: the Similarity and Filters sections, and the rail's own
-// collapse, all reading and writing the map's saved state).
+// collapse, all reading and writing the map's saved state; phase 5: the Layers
+// section over the same saved state).
 //
 // The rail is the map's controls: what the map is showing (the status line,
-// with the all-off and no-match reports) and the shared filters and similarity
-// inputs, then the selected track's details. It collapses as a whole and per
-// section (TM-R8, TM-R10); collapsed, the canvas takes the freed width, and
-// nothing overflows sideways. Every control is Tab-reachable, named and shows
-// focus (TM-R9).
+// with the all-off and no-match reports) and the shared filters, the similarity
+// inputs and the layers, then the selected track's details. It collapses as a
+// whole and per section (TM-R8, TM-R10); collapsed, the canvas takes the freed
+// width, and nothing overflows sideways. Every control is Tab-reachable, named
+// and shows focus (TM-R9).
 import { useCallback } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
@@ -16,29 +17,32 @@ import { Button } from "@/components/ui/button";
 import type { UseMapConfigReturn } from "@/hooks/useMapConfig";
 import type { Song, Tag } from "@/lib/storage";
 import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
+import type { MapEdge } from "@/lib/trackMap/types";
 import type { TransitionEdge } from "@/lib/trackMap/transitions";
 
 import type { NearestRow, PartnerRow } from "../TrackDetails";
 import { FiltersSection } from "./FiltersSection";
+import { LayersSection } from "./LayersSection";
 import { RailSection } from "./RailSection";
 import { SelectedTrackSection } from "./SelectedTrackSection";
 import { SimilaritySection } from "./SimilaritySection";
 
 /** The saved ids of the rail's sections, which `useMapConfig` keys the
- * collapse states by. The Layers and Clusters sections join them in phases 5
- * and 6. */
-type RailSectionId = "similarity" | "filters" | "selected";
+ * collapse states by. The Clusters section joins them in phase 6. */
+type RailSectionId = "similarity" | "filters" | "layers" | "selected";
 
 /** The map-config pieces the rail reads and writes. */
 export type RailConfig = Pick<
   UseMapConfigReturn,
   | "inputs"
+  | "layers"
   | "railOpen"
   | "enabledCount"
   | "sectionOpen"
   | "setInputEnabled"
   | "setInputWeight"
   | "resetInputs"
+  | "setLayer"
   | "setSectionOpen"
   | "setRailOpen"
 >;
@@ -61,6 +65,8 @@ interface MapRailProps {
   truncated: boolean;
   /** Whether the shared filters exclude every track (TM-R7). */
   noMatches: boolean;
+  /** The edges the canvas is drawing, so the Layers legend names only those (TM-L1, TM-L5). */
+  edges: MapEdge[];
   /** The selected track, or null when nothing is selected. */
   song: Song | null;
   tags: Tag[];
@@ -91,6 +97,7 @@ export function MapRail({
   focusNotice,
   truncated,
   noMatches,
+  edges,
   song,
   tags,
   nearest,
@@ -196,6 +203,13 @@ export function MapRail({
 
       <RailSection title="Filters" {...section("filters")}>
         <FiltersSection options={filterOptions} coreSong={coreSong} onRemoveCore={onRemoveCore} />
+      </RailSection>
+
+      {/* The layers (phase 5): one switch per edge kind, and the legend of what
+          is drawn. Switching one redraws the canvas and moves nothing — the
+          layers are no part of the model the layout is solved from (TM-L4). */}
+      <RailSection title="Layers" {...section("layers")}>
+        <LayersSection layers={config.layers} onLayerChange={config.setLayer} edges={edges} />
       </RailSection>
 
       <SelectedTrackSection

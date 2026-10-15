@@ -1,10 +1,12 @@
 // Track map (issue #8) — the map's saved settings (plan phase 4a): the
-// similarity inputs and their weights, the layers slice phase 5 reads, the
-// collapse states of the map rail and of each of its sections, and the whole
-// rail's own collapse. They persist like the app's other saved UI state
-// (`klangkurator.map.v1`, the same shape of key as the column configuration and
-// the dock preference), and what is read back is validated: a stored value that
-// does not fit is replaced by the default (REQ-33-PS).
+// similarity inputs and their weights, the layers slice phase 5 reads and
+// writes, the collapse states of the map rail and of each of its sections, and
+// the whole rail's own collapse. They persist like the app's other saved UI
+// state (`klangkurator.map.v1`, the same shape of key as the column
+// configuration and the dock preference), and what is read back is validated: a
+// stored value that does not fit is replaced by the default (REQ-33-PS). The
+// Layers section's switches write `layers` back through `setLayer`, so a layer
+// switched off is still off after a reload (TM-L7).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
