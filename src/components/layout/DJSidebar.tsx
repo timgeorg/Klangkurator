@@ -14,16 +14,19 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { isMapRoute } from "@/lib/mapRoute";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { title: "Library", url: "/", icon: Library, match: (p: string) => p === "/" || p.startsWith("/song/") },
+  { title: "Library", url: "/", icon: Library, match: (p: string) => p === "/" || p.startsWith("/song/") || isMapRoute(p) },
   { title: "Sets", url: "/sets", icon: Layers, match: (p: string) => p.startsWith("/sets") },
   { title: "Import", url: "/load-files", icon: FolderInput, match: (p: string) => p.startsWith("/load-files") },
   { title: "Settings", url: "/settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
 
-/** The ink rail: wordmark, the four real destinations, theme and collapse controls. */
+/** The ink rail: wordmark, the four real destinations, theme and collapse controls.
+ * The Library item stays active on the map, which is the library's other view
+ * (TM-M1); it gains no entry point of its own until phase 7. */
 export function DJSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { pathname } = useLocation();

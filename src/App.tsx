@@ -9,6 +9,7 @@ import { DJLayout } from "@/components/layout/DJLayout";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
 import SongDetailPage from "./pages/SongDetailPage";
+import TrackMap from "./pages/TrackMap";
 import Sets from "./pages/Sets";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -35,6 +36,7 @@ function App() {
                   <Route path="/load-files" element={<LoadFiles />} />
                   <Route path="/song/:id" element={<SongDetailPage />} />
                   <Route path="/sets" element={<Sets />} />
+                  <Route path="/map" element={<TrackMap />} />
                   <Route path="/settings" element={<Settings />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />

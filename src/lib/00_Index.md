@@ -9,6 +9,7 @@ tags:
 - [[appearance.ts]] — Manages cover art display preference (editorial/original) with React hook and localStorage persistence.
 - [[genreData.ts]] — Genre hierarchy configuration with main genres, subgenres, and their assigned colors.
 - [[palette.ts]] — Color palette for user-facing entities (tags, genres, blocks, sets) with a stable deterministic color-picker.
+- [[mapRoute.ts]] — The `/map` route test (`isMapRoute`) the app shell reads: the player sits at the bottom and hides its dock buttons there without touching the saved dock preference (TM-M8), and the sidebar's Library item stays active (TM-M1).
 - [[PlayerContext.tsx]] — React context providing the player state across the app: the run Play was pressed in and the position in it (next / previous), play/pause, dock position.
 - [[relationshipStyle.ts]] — Labels and line styles (colour, weight, dash) for the eight relationship types, shared by the graph, its legend and the lists.
 - [[returnFocus.ts]] — Hook that returns focus to the element that opened a controlled dialog when it closes (or to the main content if that element is gone).

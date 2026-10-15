@@ -5,6 +5,61 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 3 — the /map route, the rail and the states (issue #8, PF-81)
+
+The map becomes a view of its own, reachable at `/map` for testing (answer 2:
+no entry point before phase 7):
+
+- `src/pages/TrackMap.tsx` is the page. Its hooks follow the plan's PM-8
+  order: the library state and its load effect with a `reload` callback (songs,
+  tags, song_tags, relationships, blocks, sets), `features`, `connections` and
+  `transitions`, the inputs, the filters, the shown set, the model, the seeds
+  and the solved positions, the selection with its URL effect, then the visible
+  edges. The inputs are a local `useState` at `DEFAULT_INPUTS` and the layers a
+  local constant, both marked for phase 4a's `useMapConfig`; the filter step is
+  a marked wiring point with nothing read yet, so the map shows the whole
+  library at the default inputs. The layout is solved with `solveLayout` from
+  the positions on screen (warm start), so a re-solve keeps the map's shape and
+  a fresh load of the same library is the same map.
+- The toolbar is named buttons — **Zoom in**, **Zoom out**, **Fit**, **Reset** —
+  each changing the zoom level shown as text beside them (TM-M9). Selecting a
+  track replaces `?focus=` in the URL; `/map?focus=<id>` selects and centres
+  that track, and an unknown id shows a short notice with nothing selected
+  (TM-M14). Clicking empty canvas or pressing Esc clears the selection (TM-M7);
+  clicking a node selects it; hovering still highlights its edges.
+- `src/components/map/rail/RailSection.tsx` is the collapsible-section
+  scaffolding: a named, Tab-reachable header that stays reachable while the
+  body is closed. `rail/SelectedTrackSection.tsx` is the selected track: the
+  full `TrackDetails` — BPM, key, genre, ratings and tags, the nearest tracks
+  with their percentages, the relationship partners, the transitions in and out
+  — and the actions Play (a run of one; the playing track pauses and resumes),
+  Properties (the Edit dialog; saving reloads and re-solves), Song page and
+  Show its relationships (which selects the track and shows its partners as the
+  nearest/partners lists — the core hand-off is phase 4b). The status line at
+  the top of the rail counts the tracks on the map and the unlinked ones
+  (TM-M11).
+- States (TM-M13): a skeleton while loading, the backend error with **Try
+  again**, the empty library with a link to **Import**, and a short notice below
+  768 px, where the map has no room. Above the plan's node threshold `T = 500`
+  the map shows the first `T` tracks by title with a notice, the stopgap until
+  phase 6 clusters large libraries.
+- The route is in `src/App.tsx` above the catch-all; `src/lib/mapRoute.ts`
+  exposes the route test both the shell and the player read.
+- `DJLayout.tsx` derives the player's mode from the route, so on `/map` it is
+  the bottom bar and `NowPlaying.tsx` hides its dock buttons there — the saved
+  dock preference is never touched and is unchanged after leaving the map
+  (TM-M8). The app sidebar's Library item stays active on `/map` (TM-M1).
+- Similarity wiring (TM-S1–S5): the page passes `features`, the connections and
+  `DEFAULT_INPUTS` into `buildModel`, so the phase 1b rules hold at the default
+  inputs — half and double time fold, the Camelot wheel orders the keys, an
+  unrated rating and a missing value are skipped per pair, and a pair that
+  shares one input only is never linked.
+- The phase 3 calibration (the spread of `S` on the real 92 tracks and a
+  screenshot of `/map`) is measured on a sandbox copy with
+  `npx vite-node src/lib/trackMap/calibrate.ts -- <a sandbox library.json>`
+  (development-only; nothing imports it); the numbers belong in
+  `docs/plans/TRACK_MAP_PLAN.md` (see its phase 3 row) and are pending that run.
+
 ### Track map phase 2 — layout, canvas and the dialog on it (issue #8, PF-81)
 
 The map's layout and renderer land, and the relationships dialog's graph moves
