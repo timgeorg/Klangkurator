@@ -17,10 +17,9 @@ import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-grap
 import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipStyle } from "@/lib/relationshipStyle";
 import { nodeRadius } from "@/lib/trackMap/layout";
+import { animationProgress, easeOutCubic, interpolatePositions } from "@/lib/trackMap/positionsAnimation";
 import type { MapEdge, MapNode, Positions, TrackMapCanvasHandle, TrackMapCanvasProps } from "@/lib/trackMap/types";
 
-/** How long a position change takes to move into place; the plan's 400 ms. */
-const POSITION_ANIMATION_MS = 400;
 /** The camera moves in the app's own 220 ms, not the position animation's 400. */
 const CAMERA_MS = 220;
 /** Padding the fit leaves around the map. */
@@ -157,8 +156,9 @@ function samePositions(a: Positions, b: Positions, nodes: readonly MapNode[]): b
  * redraws while idle. A change of `positions` moves the nodes into place in one
  * 400 ms ease-out animation (a jump under reduced motion), reporting the
  * mid-animation positions through `onDisplayedPositions` for a warm start. The
- * canvas's accessible name is `label`; the details beside it are DOM, not
- * canvas, and are the keyboard path.
+ * animation's timing and arithmetic are pure and tested, in
+ * `lib/trackMap/positionsAnimation.ts`. The canvas's accessible name is `label`;
+ * the details beside it are DOM, not canvas, and are the keyboard path.
  */
 export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasProps>(function TrackMapCanvas(
   { nodes, edges, positions, selectedId, playingId, label, onSelect, onDisplayedPositions },
@@ -214,9 +214,11 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
     return () => observer.disconnect();
   }, []);
 
-  // The first layout, and any change of the node set, appear in place and are
-  // framed; a change of positions alone moves the nodes from where they are into
+  // The first layout appears in place and is framed; every later change — the
+  // shown set, a weight, the core — moves the nodes from where they are into
   // their new places, in one 400 ms ease-out run (a jump under reduced motion).
+  // A node the canvas is not showing yet appears at its new place rather than
+  // flying in, so a change of the shown set reads as the map rearranging.
   useEffect(() => {
     const ids = nodes.map((node) => node.id).join("\u0000");
     const nodeSetChanged = ids !== idSetRef.current;
@@ -239,9 +241,9 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       animationRef.current = null;
     }
 
-    // Nothing animates on load, on a changed node set, under reduced motion, or
-    // when the positions are where they already are (a re-render, not a re-solve).
-    if (firstRun || nodeSetChanged || !previous || prefersReducedMotion() || samePositions(previous, positions, nodes)) {
+    // Nothing animates on the first layout, under reduced motion, or when the
+    // positions are where they already are (a re-render, not a re-solve).
+    if (firstRun || !previous || prefersReducedMotion() || samePositions(previous, positions, nodes)) {
       commit(positions);
       setSettleTick((tick) => tick + 1);
       return;
@@ -250,16 +252,10 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
     const from = previous;
     const startedAt = performance.now();
     const step = () => {
-      const progress = Math.min(1, (performance.now() - startedAt) / POSITION_ANIMATION_MS);
-      const eased = 1 - (1 - progress) ** 3;
-      const next: Positions = new Map();
-      for (const node of nodes) {
-        const to = positions.get(node.id);
-        if (!to) continue;
-        const start = from.get(node.id) ?? to;
-        next.set(node.id, { x: start.x + (to.x - start.x) * eased, y: start.y + (to.y - start.y) * eased });
-      }
-      commit(next);
+      // The timing is pure (positionsAnimation.ts): the frame asks how far in it
+      // is and where the nodes are at that moment.
+      const progress = animationProgress(startedAt, performance.now());
+      commit(interpolatePositions(nodes, from, positions, easeOutCubic(progress)));
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(step);
       } else {
@@ -334,11 +330,13 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
 
   // A wanted fit runs once the positions have settled and the renderer is ready.
   // The first fit is instant, so the map appears in place with nothing animating
-  // on load; a later node-set change moves the camera in the app's 220 ms.
+  // on load; a later node-set change moves the camera in the app's 220 ms — and
+  // instantly under reduced motion, so a change that re-frames the map still
+  // leaves two screenshots after it identical (the phase 4b clause, TM-R2).
   useEffect(() => {
     if (!pendingFitRef.current || !graphRef.current || !size.width) return;
     pendingFitRef.current = false;
-    const duration = firstFitRef.current ? 0 : CAMERA_MS;
+    const duration = firstFitRef.current || prefersReducedMotion() ? 0 : CAMERA_MS;
     firstFitRef.current = false;
     frameRef.current(displayedRef.current, duration);
   }, [settleTick, size.width]);
