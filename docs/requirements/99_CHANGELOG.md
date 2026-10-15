@@ -5,6 +5,47 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 5 — layers, edges and the legend (issue #8, PF-81)
+
+The map's edges become switchable, and the map says what it is drawing:
+
+- `src/lib/trackMap/layerEdges.ts` is the phase 5 pure module.
+  `visibleEdges(edges, layers, selectedId)` is the plan's PM-8 step 10: the
+  model's edges narrowed by the rail's three layer switches, with the computed
+  **nearest** layer following the selection (only the selected track's nearest
+  edges show, so the map is not a hairball of every link). `offsetEdges` gives
+  each edge the side-by-side place it draws at, so a pair carrying several
+  relationship types is drawn beside each other rather than on top of each
+  other (TM-L1) and A→B sits beside B→A (TM-L3). `onScreenEdgeKinds` reads the
+  kinds actually drawn, which the legend names, and `transitionNotes` the
+  deduplicated notes a transition edge carries (TM-L2, TM-L6).
+- `src/components/map/rail/LayersSection.tsx` is the new rail section: one
+  switch per layer — **Relationships** (with its seven non-transition types
+  listed beneath it, each in its own line style), **Transitions** and
+  **Nearest** — writing the `layers` slice of `useMapConfig`, so a layer
+  switched off is still off after a reload (TM-L7). Below them sits the legend,
+  in two groups: **Computed** (Nearest track, Transition) and **Authored** (the
+  relationship types on screen, each in its own line style, in
+  `relationshipStyle`'s order). The legend names only what is drawn, so a
+  switched-off layer or a type the library holds no edge for stays out of it
+  (TM-L1, TM-L5). Nothing in the layers is a dependency of the model, so a
+  switch redraws and never re-solves — no node moves (TM-L4).
+- `src/components/map/TrackMapCanvas.tsx` draws every edge through its
+  side-by-side place as a shallow bend whose ends stay on their nodes, so two
+  edges on one pair never overlap, and the arrowhead follows the bend's own
+  end; it draws the edge's notes as a label at the edge's middle while a track
+  is selected (TM-L2). A transition's notes are already merged across its
+  sources by phase 1b, so the same note written on a block and on the set that
+  contains it draws once.
+- `src/pages/TrackMap.tsx` step 10 now calls the tested `visibleEdges` instead
+  of its inline filter, and hands that same list to the rail, so the legend
+  names what the canvas is drawing.
+- Tests: `layerEdges.test.ts` covers the layer filtering (each switch, the
+  nearest layer's dependence on the selection, the model's order kept) and the
+  side-by-side placement (two and three types on one pair, both directions of a
+  transition, a nearest edge left on the line, and determinism), plus
+  `transitionNotes` and `onScreenEdgeKinds`.
+
 ### Track map phase 4b — the core hand-off and the re-layout motion (issue #8, PF-81)
 
 The map gains its hand-off from a track's relationships and its one animation:

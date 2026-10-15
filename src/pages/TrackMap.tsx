@@ -27,6 +27,13 @@
 // relationships on the map makes that track the core, replacing any existing one
 // (TM-H3). The re-layout motion is the canvas's, in
 // `components/map/TrackMapCanvas.tsx` over `lib/trackMap/positionsAnimation.ts`.
+//
+// Phase 5: the Layers section switches the three edge layers, and what the
+// canvas draws is `visibleEdges` (`lib/trackMap/layerEdges.ts`) — the model's
+// edges narrowed by those switches and, for the computed nearest layer, by the
+// selection. The layers are deliberately not a dependency of the model, so
+// switching one redraws and never re-solves, and no node moves (TM-L4). The
+// legend in the rail names the kinds actually on screen (TM-L1, TM-L5).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
@@ -60,6 +67,7 @@ import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
 import { buildConnections } from "@/lib/trackMap/connections";
 import { coreMemberIds } from "@/lib/trackMap/core";
 import { buildFeatures } from "@/lib/trackMap/features";
+import { visibleEdges as edgesForLayers } from "@/lib/trackMap/layerEdges";
 import { solveLayout } from "@/lib/trackMap/layout";
 import { nearest } from "@/lib/trackMap/similarity";
 import { buildTransitions } from "@/lib/trackMap/transitions";
@@ -404,16 +412,15 @@ export default function TrackMap() {
     };
   }, [centreRequest, positions]);
 
-  // (10) What the renderer may draw. The layers come from `useMapConfig` and are
-  // all on by default (phase 5 adds the switches); the nearest layer follows the
-  // selection, so the map is not a hairball of every link.
+  // (10) What the renderer may draw. The layers come from `useMapConfig`
+  // (defaults on, phase 5 switches them); the filter is pure and tested in
+  // `lib/trackMap/layerEdges.ts`. The nearest layer follows the selection, so
+  // the map is not a hairball of every link. This list is what the rail's
+  // Layers legend names, and it is no dependency of the model above, so
+  // switching a layer redraws and never re-solves (TM-L4). The authored
+  // relationships and transitions keep the model's order and its edge objects.
   const visibleEdges = useMemo(
-    () =>
-      model.edges.filter((edge) => {
-        if (edge.kind === "relationship") return config.layers.relationships;
-        if (edge.kind === "transition") return config.layers.transitions;
-        return config.layers.nearest && (edge.source === selectedId || edge.target === selectedId);
-      }),
+    () => edgesForLayers(model.edges, config.layers, selectedId),
     [config.layers, model.edges, selectedId],
   );
 
@@ -655,6 +662,7 @@ export default function TrackMap() {
           focusNotice={focusNotice}
           truncated={shown.truncated}
           noMatches={noMatches}
+          edges={visibleEdges}
           song={selectedSong}
           tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}
           nearest={nearestRows}
