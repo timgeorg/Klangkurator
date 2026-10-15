@@ -1,7 +1,7 @@
 # Planned Features (Not Yet Specced)
 
 Status: Active
-Last Updated: 2026-09-24
+Last Updated: 2026-10-15
 Source: Requirements.md section 15; new ideas from set planning session; Tim's 2026-09-24 backlog list
 
 ## Confirmed Future Work
@@ -30,6 +30,12 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-15 | Column reorder via drag and drop | Swap columns in the table by dragging headers, persisted like visibility/widths |
 | PF-16 | Media player | Actually play songs from the library — transport controls, current-track indicator |
 | PF-17 | Song detail view | Click a track → dedicated view with full metadata, notes, tags, relationships, waveform |
+
+## Player
+
+| ID | Feature | Notes |
+|---|---|---|
+| PF-80 | Step through a run | Previous / next in the player step through the run Play was pressed in: the library rows as shown, a set's running order (blocks expanded in place) or a block's tracks; the next track starts when one ends. Stops at the ends, no wraparound; the run is fixed when Play is pressed. Sets and blocks play from their card (first track) or an editor row (that track); a track that fails to load is skipped. Tracks play back to back, no crossfade (OOS-4). Playlists get the same once a playlist view exists (issue #5) |
 
 ## Set Planning Future Work
 
@@ -95,3 +101,9 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | ID | Feature | Notes |
 |---|---|---|
 | PF-79 | Per-track re-analyze with an optional BPM range | A `Re-analyze` action on a track (popup, song detail page) that re-runs BPM/key and **overrides** the library-wide "only fill missing" rule for that one track — the repair path for a wrong BPM, which is otherwise unfixable. Optional BPM min/max steers the estimate (a bounded prior, not a hard filter); if the result cannot honestly sit in the given range it is reported and the stored BPM is left unchanged (issue #6) |
+
+## Track Map
+
+| ID | Feature | Notes |
+|---|---|---|
+| PF-81 | Track map (similarity canvas) | **Built (issue #8, 2026-10-15)**: all tracks on one fullscreen map (`/map`, reached from the library's Table \| Map switch, a song page's Show on map, or a relationships dialog's Open in map): placed by a symmetric, user-weighted metadata similarity; clusters (genre, BPM range, subgenre, energy, then crate and artist initial) past a 500-track threshold; relationships and transitions as layers; the relationships dialog runs on the same canvas. Spec [33_TRACK_MAP.md](33_TRACK_MAP.md) (issue #8) |

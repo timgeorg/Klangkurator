@@ -1,7 +1,7 @@
 # Non-Functional Requirements
 
 Status: Active
-Last Updated: 2026-10-13
+Last Updated: 2026-10-15
 Source: Requirements.md section 14
 
 ## NFR Table
@@ -19,3 +19,4 @@ Source: Requirements.md section 14
 | NFR-9 | Data | `clearData()` must clear all dependent stores to avoid stale references |
 | NFR-10 | Portability | Phase 1 runs in any modern browser; Phase 2 runs as PyWebView desktop app |
 | NFR-11 | Usability | Editing must be inline and fast: notes, tags, genre, subgenres, key, BPM, artist, album and the three ratings change in the library table, no dialog required |
+| NFR-12 | Performance | The track map (PF-81) stays smooth to pan and zoom at 1,000–5,000 tracks by collapsing into clusters past a node threshold. The threshold, the cluster parameters and the re-solve time are measured on synthetic libraries of 500, 1,000 and 5,000 tracks before they are fixed, then recorded here. **Fixed (phase 6, 2026-10-15):** node threshold `T` = 500; cluster band `C_MIN` = 4, `C_MAX` = 60; limits — 95th-percentile pan frame ≤ 33 ms, re-solve ≤ 3 s. No web worker: the re-solve is O(T²) at worst (124,750 pairs at 500 tracks) and O(N) + O(c²) with c ≤ 60 above `T`, so it stays inside the budget without one. Measurements and their harness: `docs/plans/TRACK_MAP_PLAN.md` › Phase 6 — the scale measurement; `src/lib/trackMap/measure-track-map.ts` |

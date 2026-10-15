@@ -1,9 +1,424 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-14
+Last Updated: 2026-10-15
+
+## 2026-10-15
+
+### Track map phase 7 — entry points, docs to Active and lazy loading (issue #8, PF-81)
+
+The map becomes reachable, the spec becomes Active, and the renderer leaves the
+library's first paint:
+
+- **TM-E1 — the Table | Map switch** (`src/components/layout/LibraryViewSwitch.tsx`),
+  a pair of links in the header of both views (the library table and `/map`), in
+  the crate-tab pill treatment with the current view in Signal Wash. Both are real
+  destinations, so the browser's Back works and the app sidebar's Library item stays
+  active on both (TM-M1); the table's search and filters ride the shared
+  `LibraryFilterContext` across the switch both ways (TM-R11). Below 768 px the
+  switch is left out — the table is the way to browse, and `/map` shows its own
+  notice (TM-E4).
+- **TM-E2 — Show on map** on the song page (`SongDetailPage.tsx`), a link to
+  `/map?focus=<song id>`, which selects and centres that track (TM-M3).
+- **TM-E3 — Open in map** on the relationships dialog's graph details: the
+  `TrackDetails` action navigates to `/map?core=<the dialog's song id>`, so the map
+  opens on that song and its relationship partners as in TM-H1 — the core is
+  recomputed from the loaded relationships, shows as a removable chip, and removing
+  the chip clears `core` from the URL. The dialog passes the callback only in its
+  graph tab, so the action appears exactly where the spec puts it.
+- **TM-E4 — narrow screens:** at 375 px the library has no switch, `/map` shows its
+  short notice with a link back to the table, and the relationships dialog's graph
+  still works (its canvas is unchanged and needs no width-specific path).
+- **Lazy loading** (the phase 2 bundle note's phase 7 checklist item): `src/App.tsx`
+  now imports `/map` with `React.lazy` under a `Suspense` fallback shaped like the
+  map page, and the dialog's graph tab moved into its own
+  `src/components/dj/RelationshipGraphTab.tsx`, also lazy-loaded. The renderer's
+  modules (`react-force-graph-2d`, `d3-force`, `TrackMapCanvas`, the layout) no
+  longer sit in the entry chunk: the build now emits a lazy chunk beside the entry
+  chunk. The measured entry- and lazy-chunk sizes come from the gate run and are
+  carried in the phase 7 PR body; the plan's bundle note keeps the phase 2
+  baseline and the +197,390-byte figure for the comparison.
+- **Docs to Active:** `33_TRACK_MAP.md` is now **Active**, and every *(proposed)*
+  flag in it and in the plan is resolved — all of them shipped as proposed (the
+  route, the entry points, the default weights and their 0.5–3 grid, `k = 8`, the
+  minimum-overlap rule, the force constants, the 400 ms re-layout, the interaction
+  semantics), and the cluster thresholds were fixed at their starting values by
+  phase 6's measurements (`T` 500, `C_MIN` 4, `C_MAX` 60). Two items were **left
+  open by decision**: the keyboard navigation of the graph itself stays deferred
+  (its scheme is on record, arrow keys to the nearest node), and
+  `transition_notes`/alternative transitions/`phase_tags`/`vibe_tags` stay out of
+  the MVP (now stated as confirmed rather than proposed). `PRODUCT.md`, `DESIGN.md`,
+  `README.md` and `design-system/README.md` name the map and its entry points;
+  `13_LIBRARY_VIEW.md` documents the switch and the shared filters;
+  `14_RELATIONSHIPS.md` documents Open in map; `92_PLANNED_FEATURES.md` moves PF-81
+  to **Built**.
+- Tests: this phase adds none — its code is UI wiring (the switch, the two entry
+  links, the lazy boundaries) over computation phase 1b already covers. The gate
+  results (`tsc`, `eslint` on the changed files, `npm test`, `vite build` and the
+  bundle sizes) are recorded in the phase 7 PR body.
+
+### Track map phase 6 — clusters, fallbacks and scale (issue #8, PF-81)
+
+Past the node threshold the map now groups instead of showing every track, and
+the fixed numbers behind it are measured:
+
+- `src/lib/trackMap/clusters.ts` gains the phase 6 half. `clusterChoice` returns
+  the dimension **and why** (`band`, `nearest`, `fallback`, `lastResort`) for
+  the rail's Clusters section, and `buildClusters` builds the cluster nodes and
+  links: one node per `groupKey` value, labelled in its display case where there
+  is one, carrying its value and count. Cluster **features** are the plan's —
+  median BPM, most-common genre and key, the subgenres and tags at least 25 % of
+  members carry, the mean of the rated values, and the union of the members'
+  connections (so a cluster is never directly connected, and only the
+  shared-connections half of the relationships rule applies between clusters).
+  Cluster similarity reuses the same rules with `k = min(8, c − 1)`. Every phase
+  1b export (`groupKey`, `groupCount`, `chooseClusterDimension`,
+  `shouldCluster`, `C_MIN`, `C_MAX`, `DEFAULT_NODE_THRESHOLD`,
+  `FALLBACK_DIMENSIONS`) is unchanged, and its tests stay green.
+- `src/lib/trackMap/buildModel.ts` gains cluster mode: when `N > T` it returns
+  cluster nodes and links instead of tracks, `clusterDimension` and
+  `clusterReason` say which dimension and why, and `lastResort` is true when not
+  even the crate and the artist could split the tracks — then it shows the first
+  `T` by title (phase 3's stopgap becomes this real path, TM-C10). Track mode is
+  unchanged, and `linksFromNearest` (new in `similarity.ts`) is the one
+  undirected-union build both modes share.
+- Cluster filters (`ClusterFilter`): choosing a cluster — in the rail's Clusters
+  list or by clicking a cluster node — adds a filter matched by `groupKey` for
+  that dimension, keeps **exactly** the members, shows a removable chip in the
+  Filters section, and re-runs the choice if still `N > T`; removing the chip
+  runs the choice again, which brings the clusters back (TM-C3).
+- `src/components/map/rail/ClustersSection.tsx` is the new section: the
+  dimension, the reason and the list with counts. Tags are never a dimension, so
+  the section can never name them (TM-C5).
+- The fallbacks (crate, then the artist's first letter; TM-C7, TM-C9) and the
+  last-resort notice (TM-C10) are real paths now, in the cluster module.
+- `src/lib/trackMap/syntheticLibrary.ts` gains the fixture flags the contract
+  needs (genre/subgenre/crate counts, BPM range, energy spread, artist spread,
+  omitted fields); `scripts/make-synthetic-library.ts` (run with `npx vite-node`)
+  writes a sandbox `library.json` shaped for one TM-C fixture, **reusing** the
+  generator rather than duplicating it. `src/lib/trackMap/measure-track-map.ts`
+  measures the re-solve at 500, 1,000 and 5,000 tracks. *(Both scripts live in
+  `src/lib/trackMap/` in the phase 6 commit; the dispatcher moves
+  `make-synthetic-library.ts` into `scripts/`.)*
+- `src/components/map/TrackMapCanvas.tsx` draws a cluster differently: hollow, a
+  tinted arc of its genre colour with a hairline outline, sized by count and
+  labelled with its value and count, so a group never reads as one track.
+- `NFR-12` and the plan fix `T` = 500, `C_MIN` = 4, `C_MAX` = 60 and the TM-C8
+  limits (95th-percentile pan frame ≤ 33 ms, re-solve ≤ 3 s); **no web worker**,
+  because the re-solve is bounded by `T`.
+- Tests: `clusters.test.ts` covers the node level of every contract example —
+  the choice at 1,200 in 9 genres → genre; 2 genres + BPM 90–180 → BPM range
+  (labelled "120–130"); the band edges 3/4/60/61; a subgenre cluster with a
+  track lacking one sitting in its genre cluster; energy last; the crate
+  fallback; the artist fallback ("A" keeping only A's); the last resort — over
+  the seeded generator. `syntheticLibrary.test.ts` covers the fixture flags.
+
+### Track map phase 5 — layers, edges and the legend (issue #8, PF-81)
+
+The map's edges become switchable, and the map says what it is drawing:
+
+- `src/lib/trackMap/layerEdges.ts` is the phase 5 pure module.
+  `visibleEdges(edges, layers, selectedId)` is the plan's PM-8 step 10: the
+  model's edges narrowed by the rail's three layer switches, with the computed
+  **nearest** layer following the selection (only the selected track's nearest
+  edges show, so the map is not a hairball of every link). `offsetEdges` gives
+  each edge the side-by-side place it draws at, so a pair carrying several
+  relationship types is drawn beside each other rather than on top of each
+  other (TM-L1) and A→B sits beside B→A (TM-L3). `onScreenEdgeKinds` reads the
+  kinds actually drawn, which the legend names, and `transitionNotes` the
+  deduplicated notes a transition edge carries (TM-L2, TM-L6).
+- `src/components/map/rail/LayersSection.tsx` is the new rail section: one
+  switch per layer — **Relationships** (with its seven non-transition types
+  listed beneath it, each in its own line style), **Transitions** and
+  **Nearest** — writing the `layers` slice of `useMapConfig`, so a layer
+  switched off is still off after a reload (TM-L7). Below them sits the legend,
+  in two groups: **Computed** (Nearest track, Transition) and **Authored** (the
+  relationship types on screen, each in its own line style, in
+  `relationshipStyle`'s order). The legend names only what is drawn, so a
+  switched-off layer or a type the library holds no edge for stays out of it
+  (TM-L1, TM-L5). Nothing in the layers is a dependency of the model, so a
+  switch redraws and never re-solves — no node moves (TM-L4).
+- `src/components/map/TrackMapCanvas.tsx` draws every edge through its
+  side-by-side place as a shallow bend whose ends stay on their nodes, so two
+  edges on one pair never overlap, and the arrowhead follows the bend's own
+  end; it draws the edge's notes as a label at the edge's middle while a track
+  is selected (TM-L2). A transition's notes are already merged across its
+  sources by phase 1b, so the same note written on a block and on the set that
+  contains it draws once.
+- `src/pages/TrackMap.tsx` step 10 now calls the tested `visibleEdges` instead
+  of its inline filter, and hands that same list to the rail, so the legend
+  names what the canvas is drawing.
+- Tests: `layerEdges.test.ts` covers the layer filtering (each switch, the
+  nearest layer's dependence on the selection, the model's order kept) and the
+  side-by-side placement (two and three types on one pair, both directions of a
+  transition, a nearest edge left on the line, and determinism), plus
+  `transitionNotes` and `onScreenEdgeKinds`.
+
+### Track map phase 4b — the core hand-off and the re-layout motion (issue #8, PF-81)
+
+The map gains its hand-off from a track's relationships and its one animation:
+
+- `src/lib/trackMap/core.ts` resolves a core: `coreMemberIds(coreId,
+  relationships)` is the core song and every track it has a relationship with,
+  of any of the eight types, in either direction — the dialog's own partner
+  list (`14_RELATIONSHIPS.md`), not the wider `R(t)` of `connections.ts`, which
+  also counts transitions found in a block's or a set's running order. Pure, so
+  the members are recomputed from the loaded relationships on every arrival.
+- `/map?core=<id>` (`src/pages/TrackMap.tsx`) anchors the map on that song and
+  its partners. The URL carries only the id, so a reload keeps the core; the
+  core narrows the shown set **alongside** the shared filters, and the rail's
+  Filters section shows it as a removable chip naming the track
+  (`rail/FiltersSection.tsx`). Removing the chip drops the core, and with it
+  `core` from the URL, and the canvas counts the whole library again
+  (TM-H1, TM-H2). An unknown `?core=` id is dropped from the URL rather than
+  left to shadow the whole library on every reload.
+- **Show its relationships** on the map (`TrackDetails` → the rail) makes that
+  track the core, replacing any existing one, and selects and centres it, in
+  place of phase 3's stand-in (TM-H3). The dialog's own Show its relationships
+  still re-centres with back history, and its **Open in map** button is still
+  phase 7.
+- The 400 ms re-layout: `src/lib/trackMap/positionsAnimation.ts` holds the
+  timing as pure, tested functions — `POSITION_ANIMATION_MS` (400),
+  `easeOutCubic`, `animationProgress` and `interpolatePositions` — and
+  `TrackMapCanvas.tsx` samples them once per frame, in place of the inline
+  arithmetic it carried since phase 2. A change of a similarity weight has
+  animated since phase 2; phase 4b also animates a change of the **shown set**
+  (a filter, the core) rather than jumping it, so the map visibly rearranges.
+  The first layout still appears in place, nothing animates on load, and a
+  re-solve that lands where the nodes already are does not animate at all.
+  Under `prefers-reduced-motion: reduce` the nodes jump, so screenshots 100 ms
+  and 1.5 s after a change are identical (TM-R2). The warm start is unchanged:
+  the canvas reports the positions on screen into the page's `seedsRef`, so a
+  re-solve barely moves; a node new to the shown set appears at its new place
+  rather than flying in from the origin.
+- The motion exception is written down where the rule lives: `DESIGN.md` gains
+  a **Motion** section naming the 400 ms canvas re-layout as the one exception
+  to the 150–220 ms rule, with its duration, where it applies (the track map's
+  canvas, camera moves staying at 220 ms) and its reduced-motion behaviour, and
+  `design-system/README.md` records the same rule beside the canvas guidance.
+- Tests: `core.test.ts` covers the core's membership (both directions, all
+  eight types, a repeated pair counted once, an empty id never a member) and
+  `positionsAnimation.test.ts` the animation timing (the ease-out's ends and
+  clamping, progress over the 400 ms and the instantly-finished zero duration,
+  interpolation and a new node starting at its new place).
+
+### Track map phase 4a — shared filters, map config and the rail sections (issue #8, PF-81)
+
+The map's controls land, and the library's search and filters become one shared
+state:
+
+- `src/lib/LibraryFilterContext.tsx` holds the session's one search and one set
+  of column filters, provided in `src/App.tsx` **above** the routes, so they
+  survive navigating between the table and the map and the browser's Back.
+  `SongLibrary.tsx` now reads them instead of its own `useState`, and the map
+  reads and writes the same values, so clearing in either place clears for both
+  (TM-R11). Session-only, like the table's own state: nothing is stored
+  (REQ-33-PS).
+- `src/components/dj/libraryTable.ts` gains
+  `filterSongs(songs, songTags, filters, searchQuery)`, extracted unchanged from
+  `SongLibrary.tsx`'s inline predicate, so the table and the map share one
+  implementation and the table's rows do not change. It also exports
+  `INITIAL_FILTERS` and the `SongTagsById` shape; sorting stays with the table.
+- `src/hooks/useMapConfig.ts` saves the similarity inputs and their weights, the
+  `layers` slice (relationships, transitions and nearest, all on — phase 5
+  switches them) and the collapse states of the rail and of each section, under
+  `klangkurator.map.v1`. Everything is validated on read: a stored value that
+  does not fit (an unknown input, a weight off the 0.5–3 grid, a non-boolean
+  section state) is replaced by the default (REQ-33-PS). Nothing here is a
+  dependency of the model, so switching a layer or collapsing a section never
+  re-solves the layout.
+- `rail/SimilaritySection.tsx` is the inputs: one row per input with a switch
+  and a weight 0.5–3 in steps of 0.5 (proposed), and **Reset to defaults**. A
+  switch commits at once; a weight commits on release (`onValueCommit`), so one
+  drag is one change and one re-solve (TM-R1, TM-R4).
+- `rail/FiltersSection.tsx` is the same search and the same filters as the
+  table, built on `ui/column-filter.tsx` over `FILTER_CONFIG`, so both views
+  offer the same set (TM-R6). The core-chip slot (phase 4b) and the
+  cluster-filter slot (phase 6) are marked and render nothing.
+- The `/map` rail (`rail/MapRail.tsx`) gains both sections and collapses as a
+  whole and per section; `RailSection.tsx` now takes its open state from
+  `useMapConfig`, so section collapse persists (TM-R3, TM-R10). The rail's
+  status line reports **Pick at least one input** with every input off, and no
+  nearest tracks show (TM-R5), and **No track matches** with Clear filters when
+  the shared filters exclude everything (TM-R7). Collapsed, the rail leaves a
+  narrow strip with its own expand control and the canvas takes the freed width;
+  the rail never scrolls sideways (TM-R8). Every control is Tab-reachable, named
+  and shows focus through the tokens (TM-R9).
+
+### Track map phase 3 — the /map route, the rail and the states (issue #8, PF-81)
+
+The map becomes a view of its own, reachable at `/map` for testing (answer 2:
+no entry point before phase 7):
+
+- `src/pages/TrackMap.tsx` is the page. Its hooks follow the plan's PM-8
+  order: the library state and its load effect with a `reload` callback (songs,
+  tags, song_tags, relationships, blocks, sets), `features`, `connections` and
+  `transitions`, the inputs, the filters, the shown set, the model, the seeds
+  and the solved positions, the selection with its URL effect, then the visible
+  edges. The inputs are a local `useState` at `DEFAULT_INPUTS` and the layers a
+  local constant, both marked for phase 4a's `useMapConfig`; the filter step is
+  a marked wiring point with nothing read yet, so the map shows the whole
+  library at the default inputs. The layout is solved with `solveLayout` from
+  the positions on screen (warm start), so a re-solve keeps the map's shape and
+  a fresh load of the same library is the same map.
+- The toolbar is named buttons — **Zoom in**, **Zoom out**, **Fit**, **Reset** —
+  each changing the zoom level shown as text beside them (TM-M9). Selecting a
+  track replaces `?focus=` in the URL; `/map?focus=<id>` selects and centres
+  that track, and an unknown id shows a short notice with nothing selected
+  (TM-M14). Clicking empty canvas or pressing Esc clears the selection (TM-M7);
+  clicking a node selects it; hovering still highlights its edges.
+- `src/components/map/rail/RailSection.tsx` is the collapsible-section
+  scaffolding: a named, Tab-reachable header that stays reachable while the
+  body is closed. `rail/SelectedTrackSection.tsx` is the selected track: the
+  full `TrackDetails` — BPM, key, genre, ratings and tags, the nearest tracks
+  with their percentages, the relationship partners, the transitions in and out
+  — and the actions Play (a run of one; the playing track pauses and resumes),
+  Properties (the Edit dialog; saving reloads and re-solves), Song page and
+  Show its relationships (which selects the track and shows its partners as the
+  nearest/partners lists — the core hand-off is phase 4b). The status line at
+  the top of the rail counts the tracks on the map and the unlinked ones
+  (TM-M11).
+- States (TM-M13): a skeleton while loading, the backend error with **Try
+  again**, the empty library with a link to **Import**, and a short notice below
+  768 px, where the map has no room. Above the plan's node threshold `T = 500`
+  the map shows the first `T` tracks by title with a notice, the stopgap until
+  phase 6 clusters large libraries.
+- The route is in `src/App.tsx` above the catch-all; `src/lib/mapRoute.ts`
+  exposes the route test both the shell and the player read.
+- `DJLayout.tsx` derives the player's mode from the route, so on `/map` it is
+  the bottom bar and `NowPlaying.tsx` hides its dock buttons there — the saved
+  dock preference is never touched and is unchanged after leaving the map
+  (TM-M8). The app sidebar's Library item stays active on `/map` (TM-M1).
+- Similarity wiring (TM-S1–S5): the page passes `features`, the connections and
+  `DEFAULT_INPUTS` into `buildModel`, so the phase 1b rules hold at the default
+  inputs — half and double time fold, the Camelot wheel orders the keys, an
+  unrated rating and a missing value are skipped per pair, and a pair that
+  shares one input only is never linked.
+- The phase 3 calibration (the spread of `S` on the real 92 tracks and a
+  screenshot of `/map`) is measured on a sandbox copy with
+  `npx vite-node src/lib/trackMap/calibrate.ts -- <a sandbox library.json>`
+  (development-only; nothing imports it); the numbers belong in
+  `docs/plans/TRACK_MAP_PLAN.md` (see its phase 3 row) and are pending that run.
+
+### Track map phase 2 — layout, canvas and the dialog on it (issue #8, PF-81)
+
+The map's layout and renderer land, and the relationships dialog's graph moves
+onto them:
+
+- `src/lib/trackMap/layout.ts` solves the layout headless with d3-force:
+  nodes sorted by id before solving (so the same input gives the same output),
+  link distance `30 + 120 × (1 − s)` at strength `s`, a many-body charge of
+  −120 with `distanceMax` 600, a weak centre (0.05) and collide by node radius
+  + 2, then `simulation.stop()` and 300 synchronous ticks. A new node starts at
+  the mean of its linked neighbours' seeds, else on a golden-angle spiral over
+  the new nodes in id order; a re-solve starts from the positions on screen, so
+  the map keeps its shape. Unlinked nodes settle at the edge.
+- `src/components/map/TrackMapCanvas.tsx` is the cold renderer the dialog and
+  the map share: positions are pinned with `fx`/`fy`, so it never simulates, and
+  `autoPauseRedraw` keeps it at zero paints while idle (the phase 2 spike
+  measured 0 in 2 s idle in Chromium and 3 s in the PyWebView window). It draws
+  genre-coloured discs, one line style per relationship type, the orange cut and
+  the focus ring on the playing and selected tracks, and dims the rest on hover.
+  It reads the design tokens at runtime, scales the backing store by
+  `devicePixelRatio`, draws text after `document.fonts.ready` and redraws on a
+  theme or cover-mode change; a changed node set appears in place and a change
+  of positions moves in one 400 ms ease-out animation (a jump under reduced
+  motion). `TrackMapCanvasHandle` exposes zoom in / out, fit, reset, centre-on
+  and the zoom level; graph-node arrow-key travel stays deferred.
+- `src/components/map/TrackDetails.tsx` is the selected track's details,
+  compact in the dialog and full in the map rail: cover, title, artist, BPM,
+  key, genre, ratings and tags; the nearest tracks with each similarity as a
+  whole percentage; the transitions in and out; and the actions Play (a run of
+  one), Properties, Song page and Show its relationships.
+- The relationships dialog's graph is now the same canvas: its song at the
+  origin with its partners around it, the song selected on open, a partner list
+  that selects, **Show its relationships** re-centring with back history, and a
+  legend of the relationship types on screen. **Open in map** comes in phase 7.
+- `src/components/dj/SongRelationshipGraph.tsx` is deleted; the dialog was its
+  only importer.
+- `14_RELATIONSHIPS.md` › Graph View describes the canvas-backed dialog. The
+  built bundle grows by the renderer's modules; the delta is recorded in
+  `docs/plans/TRACK_MAP_PLAN.md` › Risks and spikes (baseline 607,016 bytes,
+  `dist/assets/index-Dw8AkhD1.js`).
+
+### Track map phase 1b — similarity model and tests (issue #8, PF-81)
+
+The map's computation lands as pure modules under `src/lib/trackMap/`:
+
+- `features.ts` reads a song and its tag ids into `TrackFeatures`. Key parsing
+  accepts the short ("Am", "F#m", "Bb"), long ("A minor", "C# major") and
+  Camelot ("8A") notations, case-insensitively, with `♯`/`♭` and `#`/`b`
+  alike; enharmonics share a Camelot code. Numbers ≤ 0 or not finite are
+  missing, ratings of 0 are unrated, empty sets are missing, and the genre
+  comes from `trackGenre()` (lowercased for comparing, its display case kept
+  as `genreLabel`).
+- `similarity.ts` holds the per-input table — BPM by tempo ratio with half and
+  double time folded, key by Camelot steps, genre 1/0, subgenre and tags by
+  Jaccard, the three ratings by their difference, year, duration, and
+  relationships through `R(t)` — the weighted composite (missing values
+  skipped, the minimum-overlap rule, symmetric, rounded to 9 decimals) and
+  `nearest` (top-k, `S` descending then id ascending, `S > 0` only).
+- `connections.ts` builds `R(t)`: any of the eight relationship types either
+  direction, plus every transition fact either direction.
+- `transitions.ts` gathers the transition facts — `transition` relationships,
+  consecutive tracks in a block, and consecutive tracks in a set's flat
+  `items` with blocks expanded in place (`phases` never read) — with a gap
+  breaking a run, dedup per `from → to` direction, merged notes and sources
+  ordered relationship, block, set, then by name and id.
+- `clusters.ts` gives `groupKey` for all six dimensions and the dimension
+  choice (try genre, BPM range, subgenre, energy; `C_MIN` 4, `C_MAX` 60; a
+  dimension with one group is never taken; the nearest band when none fits;
+  crate then artist initial as fallbacks). Node building is phase 6.
+- `buildModel.ts` assembles the track-mode `MapModel`: nodes, the undirected
+  union of the nearest sets as links, the relationship and transition edges,
+  and `unlinkedCount`.
+- `syntheticLibrary.ts` is the seeded generator the 500-track perf test uses.
+
+Every worked example and boundary in the plan's algorithm contract has a
+vitest test, including the 500-track nearest run in under 1 s.
+
+### Track map phase 1a — shared types and test setup (issue #8, PF-81)
+
+`src/lib/trackMap/types.ts` fixes the module's shared types and
+`DEFAULT_INPUTS` (the spec's default weights) so the build phases can run
+side by side. The graph dependencies (`react-force-graph-2d`, `d3-force`,
+`@types/d3-force`) and vitest are installed; `npm test` runs the
+`src/lib/trackMap/` suite, and test files stay out of `tsconfig.app.json`.
+
+### Track map spec, draft (new 33; 13, 14, 31, 32, 90, 92; issue #8, PF-81)
+
+A new spec for the track map: every track on one fullscreen map, placed by a
+symmetric, user-weighted metadata similarity. BPM, tags and relationships
+weigh most and key least; keys compare on the Camelot wheel, BPMs by ratio
+with half and double time folded; unrated ratings and missing values are
+skipped per pair. Past a node threshold the map collapses into clusters by
+genre, BPM range (10 BPM), subgenre or energy; tags only filter.
+Relationships and transitions are layers, and transitions from
+relationships, sets and blocks merge into one edge per direction with their
+sources. The relationships dialog becomes a small instance of the same
+canvas, where a click selects. Search and filters carry across the
+Table | Map switch, both ways. A library without that metadata falls back to
+clusters by crate, then by the artist's first letter. PF-42 no longer
+blocks the map. Starting
+values are marked proposed for Tim's review. The plan and the behavior
+contract are in `docs/plans/TRACK_MAP_*`.
 
 ## 2026-10-14
+
+### The player steps through a run (01, 13, 15, 16, 92, 93; issue #5, PF-80)
+
+The preview player gets previous and next. They step through the run Play
+was pressed in: the library table's rows as shown, a set's running order
+(blocks expanded in place) or a block's tracks, and the next track starts
+when one ends. The ends stop, never wrap. The run is fixed when Play is
+pressed, so a new sort or an edit applies from the next Play. Sets and
+blocks get Play on their cards (from the first track) and on each editor
+row that has something to play (from that track). A track that fails to load
+is skipped with a message, onward in the direction the run was going. From
+768 to 1279 px the player bar's volume is the mute button alone, so the
+waveform keeps its width. P7, OOS-4 and `PRODUCT.md` stop saying
+"never a player": playing tracks to hear how they fit together is
+curation; decks, mixing and crossfading stay out.
 
 ### Per-track re-analyze with an optional BPM range (10, 11, 90, 91; issue #6, PF-79)
 

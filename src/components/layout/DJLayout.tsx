@@ -1,9 +1,10 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { Wordmark } from "@/components/brand";
 import { NowPlaying } from "@/components/dj/NowPlaying";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { isMapRoute } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
 
 import { DJSidebar } from "./DJSidebar";
@@ -15,10 +16,14 @@ interface DJLayoutProps {
 /**
  * App shell: the ink rail on the left, the routed page in the middle, the
  * preview player either as a right-hand panel (wide screens) or a bottom bar.
- * Pages own their scrolling inside <main>.
+ * Pages own their scrolling inside <main>. On the map the player is always the
+ * bottom bar — the map needs the width (TM-M8) — derived from the route, so the
+ * saved dock preference is untouched.
  */
 export function DJLayout({ children }: DJLayoutProps) {
   const { current, dock } = usePlayer();
+  const { pathname } = useLocation();
+  const player = isMapRoute(pathname) ? "bar" : dock;
 
   return (
     <SidebarProvider defaultOpen={typeof window === "undefined" || window.innerWidth >= 1024}>
@@ -29,7 +34,7 @@ export function DJLayout({ children }: DJLayoutProps) {
         Skip to content
       </a>
       <DJSidebar />
-      <div className="k-shell" data-player={current ? dock : "off"}>
+      <div className="k-shell" data-player={current ? player : "off"}>
         <header className="k-shell-top flex h-14 items-center gap-2 border-b border-sidebar-border bg-sidebar px-2 text-sidebar-foreground md:hidden">
           <SidebarTrigger className="h-10 w-10 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" />
           <Link to="/" className="rounded-md px-1 text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">

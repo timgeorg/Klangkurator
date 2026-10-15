@@ -26,13 +26,13 @@ The layer above Rekordbox, never a replacement: Rekordbox stays the playback and
 
 - Runs on the DJ's own machine: `./run.sh` (dev: Vite :8080 + API :8000), `./run.sh server` (one port), `./run.sh desktop` (PyWebView window).
 - Data lives in `~/.klangkurator/` (`library.json`, `blocks.json`, `sets.json`, `artwork/`).
-- Workflow: pick the root folder, scan it, optionally run BPM/key analysis, browse and filter the library table, preview-play one track at a time, edit metadata, notes, tags and relationships on the song, then build blocks and sets.
+- Workflow: pick the root folder, scan it, optionally run BPM/key analysis, browse and filter the library table, switch to the track map to see the whole collection placed by how similar the tracks are, preview tracks or step through a set, a block or the table one track after another, edit metadata, notes, tags and relationships on the song, then build blocks and sets.
 - Offline is a hard requirement: fonts, textures and every asset ship with the app.
 
 ## Capabilities and Constraints
 
-- Built views: Library table (18 configurable columns, per-column filters, resize, drag reorder, persisted layout, inline notes and tags), Song detail, Edit Song / Lyrics / Relationships dialogs (list and canvas graph), Sets and Blocks (cards and editors), Load Files (root folder, scan, background analysis progress, crates), Settings (tags, genres and subgenres), a single-track preview player, 404.
-- Not a player (principle P7): preview only, no queue, decks or mixing.
+- Built views: Library table (18 configurable columns, per-column filters, resize, drag reorder, persisted layout, inline notes and tags) with its **Table | Map** switch to the track map, Song detail (with **Show on map**), Edit Song / Lyrics / Relationships dialogs (list and canvas graph, with **Open in map**), Track map at `/map` (the whole library on one canvas, placed by a user-weighted similarity, with clusters past a node threshold and relationship/transition layers), Sets and Blocks (cards and editors), Load Files (root folder, scan, background analysis progress, crates), Settings (tags, genres and subgenres), a preview player that steps through a set, a block or the library rows, 404.
+- A player for curation, not for performance (principle P7): it previews tracks and steps through a set, a block or the library rows; no decks, mixing or crossfader.
 - Scale: the table must stay comfortable at 1,000–5,000 tracks (NFR-3); notes editing stays inline and fast (NFR-11).
 - Terminology: root folder, crate, track/song, main genre, subgenre, tag, energy / danceability / social acceptance (0–5), block, set, set phase, transition, relationship (remix, cover, mashup, edit, bootleg, same sample, in playlist, transition).
 - Data limits: cover thumbnails are at most 300 px; there is no record-label field; keys arrive in short notation (Am, C#); genre and tag colors are user data stored as hex.
@@ -57,7 +57,7 @@ The layer above Rekordbox, never a replacement: Rekordbox stays the playback and
 1. Everything local, everything readable.
 2. Notes are the core asset; capturing them must be fast and frictionless.
 3. Structure follows the DJ's mental model: folders, crates, blocks, sets.
-4. Curation before playback; Klangkurator never tries to be a player.
+4. Playback serves curation: Klangkurator plays tracks to hear how they fit together, never to perform them.
 5. The DJ decides; analysis and AI only propose.
 
 ## Accessibility & Inclusion

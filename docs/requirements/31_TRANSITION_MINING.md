@@ -1,7 +1,7 @@
 # Transition Mining
 
 Status: Planned (Post-MVP, core differentiator)
-Last Updated: 2026-08-09
+Last Updated: 2026-10-15
 Source: User refinement 2026-08-09; existing transition relationship concept
 
 ## Principle
@@ -92,5 +92,10 @@ Score how well two tracks transition based on:
 | Energy delta | 20% | +0 to +1 is ideal; -2 or +3 is risky |
 | Genre adjacency | 15% | Same genre or known-compatible genres |
 | Transition history | 10% | If A → B has been played before, bonus |
+
+These weights score how well A flows into B (directional). They are not the
+track map's similarity, which is symmetric and user-weighted
+([33_TRACK_MAP.md](33_TRACK_MAP.md)). The map draws transitions as facts
+(relationships, set and block neighbours) and does not need PF-42.
 
 Score is 0–100, shown as a green/yellow/red indicator in the set editor.

@@ -12,7 +12,19 @@ Local-first DJ library organizer: React + Vite + TypeScript + Tailwind (shadcn/u
 ## Branches and PRs
 
 - One branch per issue: `<type>_<issue#>_<slug>` (e.g. `feature_1_editorial-design-system`, `fix_12_set-save`). Bare `<type>/<slug>` only when no issue exists; say why in the PR.
-- PRs go straight into `main`. There is no `int` branch. `Closes #N` in the PR closes the issue on merge.
+- **Two-stage flow: feature branch → `int` → `main`.** A feature PR targets `int`;
+  `main` only ever advances by merging `int`. `int` is the integration line where
+  changes land first, `main` is what ships.
+- **`Closes #N` does not fire from a PR into `int`** — GitHub only auto-closes on
+  the repository's default branch, which is `main`. So a feature PR into `int`
+  leaves its issue open by design, and the open-issue delta
+  (`closed in int, not yet in main`) *is* the release manifest.
+- **Shipping closes the issues.** At the `int` → `main` merge, close every issue
+  the release carries — the `int`→`main` PR body should name them and use no
+  auto-close keyword, precisely so the closure is an explicit act:
+  `gh issue close <N> --comment "Shipped — released in main."` This step has been
+  forgotten once (issue #6 shipped in `main` and stayed open); it belongs in the
+  release checklist, not in memory.
 
 ## Gates before a PR
 

@@ -1,0 +1,16 @@
+---
+source: auto
+tags:
+  - index
+---
+# Index — src/components/map/rail
+
+- [[MapRail.tsx]] — The rail beside the map: the status line at the top (how many tracks the map shows, the unlinked count, the unknown-`?focus` notice, the last-resort notice, and phase 4a's "Pick at least one input" and "No track matches" reports), then the Similarity, Filters, Clusters, Layers and selected-track sections. It collapses as a whole into a narrow strip, and every section collapses on its own. Since phase 4b the Filters section also carries the core chip (TM-H1, TM-H2); since phase 5 it carries the Layers section and hands it the same drawn edges the canvas gets; since phase 6 it carries the Clusters section and the cluster-filter chips.
+- [[RailSection.tsx]] — One collapsible map-rail section: a named, Tab-reachable header that stays reachable while the body is closed, so a collapsed section is still navigable. Its open state comes from `useMapConfig`, so it persists (TM-R3, TM-R10).
+- [[SimilaritySection.tsx]] — The similarity inputs (phase 4a): one row per input with a switch and a weight 0.5–3 in steps of 0.5, and Reset to defaults. A switch commits at once; a weight commits on release (TM-R1, TM-R4).
+- [[LayersSection.tsx]] — The three edge layers (phase 5): one switch per layer — Relationships (its seven non-transition types listed beneath it, each in its own line style), Transitions and Nearest — writing the saved `layers` slice, so a switch round-trips (TM-L7). Below them the legend names the kinds actually on screen in two groups, Computed (Nearest track, Transition) and Authored (the relationship types, each in its own line style), drawn as the canvas draws them (TM-L1, TM-L5). Switching a layer draws differently and moves nothing: the layers are no part of the model (TM-L4).
+- [[FiltersSection.tsx]] — The same search and column filters as the library table, over the shared `LibraryFilterContext` and `ui/column-filter.tsx` (TM-R6, TM-R11), with the core as a removable chip above them (phase 4b, TM-H1/TM-H2) and one removable chip per chosen cluster filter (phase 6, TM-C3); removing a cluster chip runs the choice again, bringing the clusters back.
+- [[ClustersSection.tsx]] — The Clusters section (phase 6): the dimension the map clustered by and why it was chosen (the band, the nearest one, a fallback, or the last resort), and the clusters with their counts, each a named, Tab-reachable button that narrows the map to exactly its members (TM-C1, TM-C3). Tags are never a dimension, so the section can never name them (TM-C5).
+- [[SelectedTrackSection.tsx]] — The map rail's selected-track section: the full [[../TrackDetails.tsx]] (BPM, key, genre, ratings and tags; the nearest tracks with their percentages; the relationship partners; the transitions in and out; Play, Properties, Song page and Show its relationships) when a track is selected, and a one-line hint when none is.
+
+Phase 6 fills the Clusters section beside these, so a clustered map names its dimension, its reason and its clusters. See `docs/plans/TRACK_MAP_PLAN.md` › Hook ordering (PM-8) and the phases table.

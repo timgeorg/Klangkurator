@@ -242,7 +242,7 @@ Klangkurator presents a DJ's library the way a record label prints its catalog. 
 
 The density is a working tool's density. Tables run 44px rows at 13px with hairlines between them. Page titles are bold Inter rather than display serif. Editorial weight goes to the places where nothing is being operated: empty states, the 404, the import start screen, a track's title on its own page, set names, notes. Those grounds carry fine paper grain, which gives texture without roughness. The geometric vocabulary (circle, half disc, quarter disc, block) illustrates edge states and marks the active rail item. It never encodes data.
 
-Depth stays flat until something floats. Panels and cards sit on hairlines. Only overlays (menus, popovers, dialogs, sheets, toasts) lift, with an offset soft shadow. Motion signals state only, at 150–220ms ease-out, and is cut to near zero under reduced motion.
+Depth stays flat until something floats. Panels and cards sit on hairlines. Only overlays (menus, popovers, dialogs, sheets, toasts) lift, with an offset soft shadow. Motion signals state only, at 150–220ms ease-out, and is cut to near zero under reduced motion — with one named exception, the track map's canvas re-layout (see Motion).
 
 **Key Characteristics:**
 - Ink and paper themes from one set of roles; the rail is ink in both.
@@ -334,6 +334,16 @@ The system is flat with hairlines, and only floating things lift. Cards, panels,
 ### Named Rules
 **The Flat-Until-It-Floats Rule.** A surface that belongs to the page gets a hairline. Only a surface that sits above the page gets a shadow, and that shadow is Lift 1 or Lift 2.
 
+## Motion
+
+Motion signals state only, at 150ms (`duration-fast`) or 220ms (`duration-base`), ease-out, and nothing animates on page load. Under `prefers-reduced-motion: reduce` it is cut to near zero: state changes land instead of moving, and the orange cut appears without its sweep.
+
+**The One Named Exception.** The track map's canvas is the single place where a change moves over 400ms ease-out rather than 150–220ms. Every track is one node, and a change of the shown set or of a similarity weight re-solves the whole map; the nodes then travel from the positions on screen to their new ones in one 400ms ease-out run (`src/components/map/TrackMapCanvas.tsx`, the timing in `src/lib/trackMap/positionsAnimation.ts`). It is the one motion that is longer than `duration-base`, and it is still state, not decoration: nothing moves on load, and a change that solves to the positions already on screen does not animate at all.
+
+- **Duration:** 400ms, ease-out cubic.
+- **Where it applies:** the track map's canvas — the one canvas in the app that re-lays out, in `/map` and in the relationships dialog's graph. Camera moves (zoom, fit, centre) stay at the app's 220ms.
+- **Reduced motion:** no animation. The nodes jump to their new positions, so a screenshot 100ms after a change and one 1.5s after it are identical.
+
 ## Shapes
 
 Corners come in three steps: 10px for cards, panels, dialogs, popovers and the large now-playing cover; 8px for buttons and inputs; 6px for small icon buttons, tooltips and inline edits. Table cover thumbnails get 3px, just enough to soften a 32px square. Pills (full radius) are reserved for selection and identity: tabs, segmented controls, the search field, color chips and badges.
@@ -355,7 +365,7 @@ Quiet and exact. The one primary action in view is the only orange object.
 
 ### Chips and Tabs
 - **Color chip:** a hairline pill 20px tall (24px at the medium size) with a 6px dot in the user's color and the label at 11px. An optional remove button shares the same pill.
-- **Tabs and segmented controls:** 32px pills of muted text. The active one turns Signal Wash with orange text. Crate tabs, relationship view modes and segmented controls all share this treatment.
+- **Tabs and segmented controls:** 32px pills of muted text. The active one turns Signal Wash with orange text. Crate tabs, the library's Table | Map switch, relationship view modes and segmented controls all share this treatment.
 - **Badge:** an 11px pill; the signal variant is Signal Wash with orange text.
 
 ### Cards / Containers
@@ -363,7 +373,7 @@ Quiet and exact. The one primary action in view is the only orange object.
 - **Background:** the card surface (Ink Panel or Paper Card).
 - **Shadow Strategy:** none (see Elevation & Depth).
 - **Border:** a 1px hairline.
-- **Internal Padding:** 20px, with the card title in the Heading role. Cards are used only for independent objects such as sets and blocks. Set cards are laid out editorially: a cover mosaic beside a Headline-serif name, mono counts, and a running-order preview.
+- **Internal Padding:** 20px, with the card title in the Heading role. Cards are used only for independent objects such as sets and blocks. Set cards are laid out editorially: a cover mosaic beside a Headline-serif name, mono counts, and a running-order preview. Set and block cards end in Play, Edit and Delete; Play is an outline button like Edit, since orange stays with the page's one primary action. In the set and block editors the running order's row number turns into a filled Play on row hover or keyboard focus, as in the library's # column. On touch screens that 24px button sits unseen under the number, a gap the library's # column shares.
 
 ### Inputs / Fields
 - **Style:** a transparent fill, a control-border stroke, 8px corners, 36px tall, 13px text, and a muted placeholder. The caret is orange.
@@ -378,10 +388,13 @@ Quiet and exact. The one primary action in view is the only orange object.
 The table has 44px rows with hairline separators and mono 12px index numbers. Covers are 32px grayscale thumbnails, and each row has a compact waveform. The current row gets the Signal Wash fill, an orange index, an orange title, a cut cover and an all-orange waveform. Hover or keyboard focus swaps the index for play and edit buttons, so nothing is hover-only. Every value the user owns edits where it stands: hover lays the Ink Hover fill behind the whole cell (6px corners, reaching just past it so the text stays aligned with its header), and focus shows the ring. Text opens as a field in place with the focus color as its border; an invalid entry turns that border to the destructive red, with the reason in a tooltip. Genre, key and subgenres open a picker. The rating bars set a rating directly: hovering previews the value at full foreground, and the preview dims when a click would clear it. On touch screens a tap opens a row of 44px buttons instead. The table never ends on a cut sliver: while columns lie beyond the right edge, the grained ground covers the sliver and a small round "more columns" button scrolls right (it only appears where it has room of its own, never on a column's header) (on touch screens the edge fades instead and the button is left out, since it would be a target under 44px). Tag cells show whole chips and a mono "+N" pill for the rest. Track titles in lists keep their version or catalogue part in the muted color.
 
 ### Now Playing (signature)
-This is the preview player. As a 320px panel it shows a grained card surface, a full-width square cover carrying the orange cut, the title in Literata at about 23px, the artist and genre in Inter, a waveform scrubber with the played part in orange, mono times, and a BPM / KEY data list using the Label role. As a 64px bar it carries the same information condensed. Switching between the two never interrupts playback.
+This is the preview player. As a 320px panel it shows a grained card surface, a full-width square cover carrying the orange cut, the title in Literata at about 23px, the artist and genre in Inter, a waveform scrubber with the played part in orange, mono times, a centered transport with the volume below it, and a BPM / KEY data list using the Label role. The transport is the round play toggle, flanked by ghost previous and next buttons while a run of several tracks plays (a set, a block or the library rows). At either end of the run the button dims but keeps keyboard focus. As a 64px bar it carries the same information condensed, with previous, play and next as one tight group. From 768px to 1279px the bar's volume is the mute button alone, so the scrubber keeps its width; below 768px the bar has no volume control, as before. Switching between the two never interrupts playback.
 
 ### Empty States
 A page-level empty state is a grained band holding a Display SM serif line, one 15px sentence in muted text, the resolving action, and one of three shape compositions (orbit, stack, split). The inline variant is a dashed hairline box with an 18px serif line.
+
+### Track Map (signature)
+The library's other view, at `/map`: the whole collection on one fullscreen canvas with a side rail of controls. The map is reachable from a **Table | Map** switch in the library header — the same segmented pill treatment as crate tabs, the active view in Signal Wash with orange text, in the header of both views — from **Show on map** on a song page, and from **Open in map** on the relationships dialog's graph. A node is a disc in its main genre's user colour, neutral when it has none, with its title at close zoom and always on the hovered and selected tracks. Orange keeps its one meaning: the playing node carries the orange cut and the selected node the focus ring; hover emphasis and every edge use other colours. Relationship edges keep their one-line-style-per-type language, and the selected track's nearest tracks draw as thin neutral lines, so computed and authored edges never read alike; a legend names the kinds on screen. Past 500 tracks the map clusters, and a cluster draws hollow — a tinted arc of its genre colour with a hairline outline, sized by its count — so a group never reads as one track. The map rail (the map's own, distinct from the ink app sidebar) collapses as a whole and per section and holds Similarity, Filters, Layers, Clusters and the selected track's full details. On the map route the player is always the bottom bar with its dock buttons hidden, whatever the saved dock preference. Below 768px the switch and the map are left out: the library table is the way to browse, and `/map` shows a short notice with a link back to the table.
 
 ### Overlays
 Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Closing a dialog returns focus to whatever opened it. A search field inside a picker has no box; its focus shows as a 2px orange rule under it. The highlighted option in a list (keyboard or pointer) speaks the same "this one" grammar as the active tab and the current row: Signal Wash fill, orange text, and the rail's small orange half-disc at its left edge (in the focus color, at least 5.7:1 against the popover in both themes). Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.
@@ -395,7 +408,7 @@ Dialogs, popovers, menus and selects use the popover surface, 10px corners, a ha
 - **Do** separate content with 1px hairlines and space, and keep shadows to Lift 1 and Lift 2 on floating surfaces.
 - **Do** keep covers black and white by default and use the cut, not a border or a glow, to mark the current cover.
 - **Do** use one orange shape per composition in empty and edge states.
-- **Do** keep every motion to 150–220ms ease-out and only for state changes, and make every hover action reachable by keyboard focus.
+- **Do** keep every motion to 150–220ms ease-out and only for state changes, and make every hover action reachable by keyboard focus. The one exception is the track map's canvas re-layout, at 400ms ease-out (see Motion).
 
 ### Don't:
 - **Don't** use orange as a tag, genre or category color, as decoration, or as a region fill.
