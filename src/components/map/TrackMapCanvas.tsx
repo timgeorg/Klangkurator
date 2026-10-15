@@ -40,6 +40,7 @@ import {
   LABEL_MIN_SCREEN_PX,
   LABEL_WRAP_WIDTH,
 } from "@/lib/trackMap/labels";
+import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
 import { nodeRadius } from "@/lib/trackMap/layout";
 import { animationProgress, easeOutCubic, interpolatePositions } from "@/lib/trackMap/positionsAnimation";
 import type { MapEdge, MapNode, Positions, TrackMapCanvasHandle, TrackMapCanvasProps } from "@/lib/trackMap/types";
@@ -55,18 +56,33 @@ const MAX_SCALE = 8;
 /** A hovered or selected node's halo, past the disc. */
 const RING_GAP = 5;
 /**
- * The zoom at which a track's artwork replaces its plain genre disc (issue #31).
- * Far out the map would otherwise try to draw one cover per track — at 5,000
- * tracks that is impossible — so a node is the full genre colour until the
- * camera is close enough for the covers to be worth it. Measured on the 5,000
- * track synthetic library, where the fit zoom lands near 0.4.
+ * The zoom at which a track's artwork starts to draw (issue #31). Covers are
+ * expensive — at 5,000 tracks the map would try to decode thousands of them — so
+ * they appear once the camera is this close. Below it a node is the full genre
+ * colour.
+ *
+ * It is deliberately low: Tim, 2026-10-15 — *"album covers can be displayed a lot
+ * longer, only very late at zoomout they shall be collapsed."* It pairs with
+ * `ARTWORK_ZOOM_HYSTERESIS`, which keeps the covers from flickering on and off
+ * while the user zooms around the threshold.
  */
-const ARTWORK_SCALE = 1.1;
+const ARTWORK_SCALE = 0.35;
+/** How far past the threshold the camera must travel back out before covers are
+ *  dropped again — one zoom step — so the boundary does not flicker. */
+const ARTWORK_SCALE_EXIT = ARTWORK_SCALE / ZOOM_STEP;
+/** Report the zoom level to the page at most this often while it is changing. */
+const ZOOM_REPORT_MS = 120;
 /** The cover's inset inside the genre ring: the ring stays visible as a contour. */
 const ARTWORK_INSET = 0.24;
 /** How long a cover is cached before it is dropped again, so a big map keeps a
  *  bounded number of decoded images. */
-const ARTWORK_CACHE_MAX = 400;
+/**
+ * The cache holds every cover a track-mode map can draw — `DEFAULT_NODE_THRESHOLD`
+ * tracks, above which the map clusters and stops drawing covers at all — plus
+ * slack for the zoom transitions around it. Sizing it below that would evict and
+ * re-decode covers on every frame, which is the cost this cache exists to avoid.
+ */
+const ARTWORK_CACHE_MAX = DEFAULT_NODE_THRESHOLD + 100;
 /** The gap a line leaves at a node's edge. */
 const EDGE_GAP = 3;
 /** The extra room an arrowhead leaves at the target node. */
@@ -245,7 +261,7 @@ function samePositions(a: Positions, b: Positions, nodes: readonly MapNode[]): b
  * the details beside it are DOM, not canvas, and are the keyboard path.
  */
 export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasProps>(function TrackMapCanvas(
-  { nodes, edges, positions, selectedId, playingId, label, onSelect, onDoubleClick, onHover, onDisplayedPositions },
+  { nodes, edges, positions, selectedId, playingId, label, onSelect, onDoubleClick, onHover, onZoom, onDisplayedPositions },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -268,7 +284,38 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   /** Bumped to ask the pinned renderer for exactly one more frame (a cover
    *  finished decoding, or the artwork zoom was crossed). */
   const [repaint, setRepaint] = useState(0);
+  /** Whether covers draw at the current zoom; a latch, see `artworkOnRef`. */
+  const [artworkVisible, setArtworkVisible] = useState(false);
+  /** The last zoom level reported to the page, for the throttle below. */
+  const zoomReportRef = useRef(0);
   const requestRepaint = useCallback(() => setRepaint((tick) => tick + 1), []);
+
+  /**
+   * Latch the artwork to the zoom: on at `ARTWORK_SCALE`, staying on until the
+   * camera is a step further out (`ARTWORK_SCALE_EXIT`), so covers neither
+   * flicker at the boundary nor disappear the moment the user nudges the wheel.
+   * Runs per drawn frame and only sets state when the answer changes, so it
+   * cannot loop.
+   */
+  const syncArtwork = useCallback(() => {
+    const scale = graphRef.current?.zoom() ?? 1;
+    const next = artworkOnRef.current ? scale >= ARTWORK_SCALE_EXIT : scale >= ARTWORK_SCALE;
+    if (next === artworkOnRef.current) return;
+    artworkOnRef.current = next;
+    setArtworkVisible(next);
+  }, []);
+
+  /**
+   * Report the camera's zoom to the page. Throttled, because a wheel or a pinch
+   * fires continuously; `flush` (used on `onZoomEnd`) always reports, so the
+   * readout settles on the value actually on screen.
+   */
+  const reportZoom = useCallback((scale: number, flush = false) => {
+    const now = performance.now();
+    if (!flush && now - zoomReportRef.current < ZOOM_REPORT_MS) return;
+    zoomReportRef.current = now;
+    onZoomRef.current?.(scale);
+  }, []);
   /** The first layout appears in place; nothing animates on mount. */
   const firstRunRef = useRef(true);
   /** Set when a fit is wanted; performed once the positions have settled. */
@@ -284,13 +331,23 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
    *  pointer effect without re-binding it. */
   const onDoubleClickRef = useRef(onDoubleClick);
   const onHoverRef = useRef(onHover);
+  /** The latest zoom reporter, so the renderer's own prop stays stable. */
+  const onZoomRef = useRef(onZoom);
+  /**
+   * Whether covers are currently drawn. Latched, with the two thresholds above,
+   * so the artwork does not flicker on and off while the user zooms around the
+   * boundary (Tim asked for covers to stay "a lot longer"; this keeps the far
+   * side stable too rather than letting it chatter).
+   */
+  const artworkOnRef = useRef(false);
 
   const selected = selectedId ?? null;
   const playing = playingId ?? null;
 
   useEffect(() => {
     onDisplayedPositionsRef.current = onDisplayedPositions;
-  }, [onDisplayedPositions]);
+    onZoomRef.current = onZoom;
+  }, [onDisplayedPositions, onZoom]);
 
   // The canvas fills its container; the parent decides how much room it gets.
   useEffect(() => {
@@ -636,8 +693,10 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
 
       // Issue #31: from `ARTWORK_SCALE` on, a track's cover sits in the centre
       // and the genre reads as the outer ring. Far out the node stays the full
-      // genre colour, so a large map never draws thousands of covers.
-      if (!isCluster && mapNode.coverUrl && globalScale >= ARTWORK_SCALE) {
+      // genre colour, so a large map never draws thousands of covers. The latch
+      // (set in the draw pass below) holds them on past the threshold as the
+      // camera pulls back, so the boundary does not flicker.
+      if (!isCluster && mapNode.coverUrl && artworkVisible) {
         const cover = artworkFor(mapNode.coverUrl, requestRepaint);
         if (cover) {
           const inner = radius * (1 - ARTWORK_INSET);
@@ -758,7 +817,7 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       });
       ctx.restore();
     },
-    [fontsReady, hoveredId, palette, playing, requestRepaint, selected],
+    [artworkVisible, fontsReady, hoveredId, palette, playing, requestRepaint, selected],
   );
 
   /**
@@ -886,6 +945,12 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
           nodeRelSize={1}
           nodeCanvasObject={(node, ctx, globalScale) => drawNode(node.map, ctx, globalScale)}
           nodeCanvasObjectMode={() => "replace"}
+          // The latch is read per frame (and only changes state when the answer
+          // changes), and the zoom is reported on every camera change, so the
+          // page's readout follows the wheel and a pinch too.
+          onRenderFramePost={() => syncArtwork()}
+          onZoom={(transform) => reportZoom(transform.k)}
+          onZoomEnd={(transform) => reportZoom(transform.k, true)}
           // These two are deliberately not memoised: a prop whose identity changed
           // tells the renderer to draw exactly one frame, which is how the pinned
           // (auto-pausing) canvas repaints on an animation step, a hover, a

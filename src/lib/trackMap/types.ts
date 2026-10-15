@@ -166,6 +166,12 @@ export interface TrackMapCanvasProps {
   onDoubleClick?(id: string): void;
   /** Issue #35: the node under the pointer, with its screen point for a popover. */
   onHover?(id: string | null, clientX: number | null, clientY: number | null): void;
+  /**
+   * Every camera change, whatever moved it — the wheel, a drag, a pinch or the
+   * toolbar — so the page's zoom readout follows the map instead of only
+   * catching up when a toolbar button was pressed.
+   */
+  onZoom?(scale: number): void;
   /** Mid-animation positions, for warm starts */
   onDisplayedPositions?(p: Positions): void;
 }
