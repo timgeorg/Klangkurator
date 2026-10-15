@@ -1,0 +1,540 @@
+// Track map (issue #8) — the `/map` page (plan phase 3): the whole library on
+// one canvas, placed so similar tracks sit near each other, with the map rail
+// beside it and the toolbar above it. It fetches the library, builds the
+// similarity model, solves the layout headless and hands the positions to the
+// cold renderer; nothing is computed on the canvas.
+//
+// The hook order is the plan's PM-8 order, consumers after their dependencies:
+// data state and its load effect, features, connections and transitions, the
+// config, the filters, the shown set, the model, the seeds and positions, the
+// selection and its URL effect, then the visible edges.
+//
+// Phase 3 stands alone: the inputs are a local `useState` at `DEFAULT_INPUTS`
+// and the layers are a local constant, both marked for phase 4a's
+// `useMapConfig`; the filters read nothing until phase 4a's shared
+// `LibraryFilterContext`; the map rail carries the selected track and the
+// section-collapse scaffolding only; and above `T` shown tracks the stopgap of
+// phase 6 lists the first `T` by title. The entry points (the Table | Map
+// switch, Open in map, Show on map) are phase 7: this route exists for testing.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+
+import { EditSongDialog } from "@/components/dj/EditSongDialog";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { MapRail } from "@/components/map/rail/MapRail";
+import type { NearestRow, PartnerRow } from "@/components/map/TrackDetails";
+import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { usePlayer } from "@/lib/PlayerContext";
+import {
+  storage,
+  type Block,
+  type DJSet,
+  type Song,
+  type SongRelationship,
+  type SongTag,
+  type Tag,
+} from "@/lib/storage";
+import { buildModel } from "@/lib/trackMap/buildModel";
+import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
+import { buildConnections } from "@/lib/trackMap/connections";
+import { buildFeatures } from "@/lib/trackMap/features";
+import { solveLayout } from "@/lib/trackMap/layout";
+import { nearest } from "@/lib/trackMap/similarity";
+import { buildTransitions } from "@/lib/trackMap/transitions";
+import {
+  DEFAULT_INPUTS,
+  type MapInputs,
+  type Positions,
+  type TrackMapCanvasHandle,
+} from "@/lib/trackMap/types";
+
+/** How long the camera takes to land; the canvas's own 220 ms, plus a frame. */
+const ZOOM_SETTLE_MS = 260;
+
+/**
+ * The map's settings. Phase 4a replaces this with `useMapConfig`, which saves
+ * the inputs, the layers and the collapse states under `klangkurator.map.v1`
+ * and validates what it reads.
+ */
+const LAYERS = { relationships: true, transitions: true, nearest: true } as const;
+
+type MapStatus = "loading" | "ready" | "error";
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** The map page: canvas, map rail and toolbar, at the default inputs. */
+export default function TrackMap() {
+  const isMobile = useIsMobile();
+  const { current, isPlaying, play, toggle } = usePlayer();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // (1) The library, loaded once and reloaded after an edit saves.
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [songTags, setSongTags] = useState<SongTag[]>([]);
+  const [relationships, setRelationships] = useState<SongRelationship[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [sets, setSets] = useState<DJSet[]>([]);
+  const [status, setStatus] = useState<MapStatus>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const requestRef = useRef(0);
+
+  const reload = useCallback(async () => {
+    const request = ++requestRef.current;
+    try {
+      const [loadedSongs, loadedTags, loadedSongTags, loadedRelationships, loadedBlocks, loadedSets] = await Promise.all([
+        storage.getSongs(),
+        storage.getTags(),
+        storage.getSongTags(),
+        storage.getSongRelationships(),
+        storage.getBlocks(),
+        storage.getSets(),
+      ]);
+      if (request !== requestRef.current) return;
+      setSongs(loadedSongs);
+      setTags(loadedTags);
+      setSongTags(loadedSongTags);
+      setRelationships(loadedRelationships);
+      setBlocks(loadedBlocks);
+      setSets(loadedSets);
+      setErrorMessage("");
+      setStatus("ready");
+    } catch (error) {
+      if (request !== requestRef.current) return;
+      setErrorMessage(error instanceof Error ? error.message : "The library could not be loaded.");
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  // (2) Every song's values for the composite, with the tag join applied.
+  const features = useMemo(() => buildFeatures(songs, songTags), [songs, songTags]);
+  const featureById = useMemo(() => new Map(features.map((feature) => [feature.id, feature])), [features]);
+  const songById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
+
+  // (3) Who is connected to whom, and every transition fact the library holds.
+  const { connections, transitions } = useMemo(() => {
+    const facts = buildTransitions({ relationships, blocks, sets, songs });
+    return { connections: buildConnections(relationships, facts), transitions: facts };
+  }, [blocks, relationships, sets, songs]);
+
+  // (4) The inputs and weights. A local copy of the spec's default table in
+  // phase 3, so the page stands alone; phase 4a's `useMapConfig` replaces it.
+  const [inputs] = useState<MapInputs>(DEFAULT_INPUTS);
+
+  // (5) The filters. Phase 4a reads the shared `LibraryFilterContext` here
+  // (search, filters, the core and the cluster filters) and filters the shown
+  // set below with `filterSongs`; phase 3 reads nothing, so the map shows the
+  // whole library.
+
+  // (6) The shown tracks: the whole library, or — until phase 6 — the first
+  // `T` by title when the library is larger than the node threshold.
+  const shown = useMemo(() => {
+    if (songs.length <= DEFAULT_NODE_THRESHOLD) return { songs, truncated: false };
+    const byTitle = [...songs].sort(
+      (a, b) => collator.compare(a.title, b.title) || (a.id < b.id ? -1 : 1),
+    );
+    return { songs: byTitle.slice(0, DEFAULT_NODE_THRESHOLD), truncated: true };
+  }, [songs]);
+
+  // (7) The model. Layers and collapse states are deliberately not dependencies,
+  // so switching a layer never re-solves the layout.
+  const model = useMemo(
+    () =>
+      buildModel({
+        songs: shown.songs,
+        features,
+        inputs,
+        connections,
+        relationships,
+        transitions,
+      }),
+    [connections, features, inputs, relationships, shown.songs, transitions],
+  );
+
+  // (8) The seeds the canvas reports back, and the positions the solve effect
+  // writes. A re-solve starts from the positions on screen, so the map keeps
+  // its shape.
+  const seedsRef = useRef<Positions>(new Map());
+  const [positions, setPositions] = useState<Positions>(new Map());
+
+  useEffect(() => {
+    setPositions(solveLayout(model.nodes, model.links, seedsRef.current));
+  }, [model]);
+
+  const handleDisplayedPositions = useCallback((displayed: Positions) => {
+    seedsRef.current = displayed;
+  }, []);
+
+  // (9) The selection, its `?focus=` effect and the callbacks that read it.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusNotice, setFocusNotice] = useState<string | null>(null);
+  /** The focus value already applied or written, so neither effect fights the other. */
+  const handledFocusRef = useRef<string | null>(null);
+  const firstWriteRef = useRef(true);
+  const [centreRequest, setCentreRequest] = useState<string | null>(null);
+  const canvasRef = useRef<TrackMapCanvasHandle | null>(null);
+
+  const focusParam = searchParams.get("focus");
+
+  // `?focus=<id>` selects and centres that track; an unknown id shows a short
+  // notice and selects nothing.
+  useEffect(() => {
+    if (status !== "ready" || !focusParam) return;
+    if (focusParam === handledFocusRef.current) return;
+    handledFocusRef.current = focusParam;
+    const target = songById.get(focusParam);
+    if (target) {
+      setSelectedId(target.id);
+      setFocusNotice(null);
+      setCentreRequest(target.id);
+      return;
+    }
+    setSelectedId(null);
+    setFocusNotice(`No track in the library has the id “${focusParam}”.`);
+  }, [focusParam, songById, status]);
+
+  // Selecting a track replaces `?focus=` in the URL, so a reload keeps the
+  // selection. The first run is skipped: the URL on arrival is the source. An
+  // unknown `?focus=` id with nothing selected is left alone, so the notice
+  // stays and the URL is not rewritten under it.
+  useEffect(() => {
+    if (firstWriteRef.current) {
+      firstWriteRef.current = false;
+      return;
+    }
+    const currentFocus = searchParams.get("focus");
+    if (currentFocus && !selectedId && !songById.has(currentFocus)) return;
+    if ((selectedId ?? null) === currentFocus) return;
+    const next = new URLSearchParams(searchParams);
+    if (selectedId) next.set("focus", selectedId);
+    else next.delete("focus");
+    handledFocusRef.current = selectedId ?? null;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, selectedId, setSearchParams, songById]);
+
+  const selectTrack = useCallback((id: string | null, centre = false) => {
+    setSelectedId(id);
+    setFocusNotice(null);
+    if (id && centre) setCentreRequest(id);
+  }, []);
+
+  const handleCanvasSelect = useCallback((id: string | null) => selectTrack(id), [selectTrack]);
+  const handleListSelect = useCallback((id: string) => selectTrack(id, true), [selectTrack]);
+  const handleShowRelationships = useCallback((song: Song) => selectTrack(song.id, true), [selectTrack]);
+
+  const handlePlay = useCallback(
+    (song: Song) => {
+      // A run of one: no previous or next. The playing track pauses and resumes.
+      if (current?.id === song.id) toggle();
+      else play(song);
+    },
+    [current?.id, play, toggle],
+  );
+
+  const [editSong, setEditSong] = useState<Song | null>(null);
+  const handleProperties = useCallback((song: Song) => setEditSong(song), []);
+
+  // Esc clears the selection, except while the Edit dialog is open (that Esc
+  // belongs to the dialog).
+  useEffect(() => {
+    if (editSong) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") selectTrack(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editSong, selectTrack]);
+
+  // A wanted centre runs once the track has a position to centre on. It waits
+  // two frames, so the canvas's own first fit (which frames the whole map) has
+  // run first and left the camera alone; the focused track then really is at
+  // the canvas centre, which a click there hits (TM-M3).
+  useEffect(() => {
+    if (!centreRequest || !positions.has(centreRequest)) return;
+    const id = centreRequest;
+    let inner = 0;
+    const outer = window.requestAnimationFrame(() => {
+      inner = window.requestAnimationFrame(() => {
+        canvasRef.current?.centreOn(id);
+        setCentreRequest((current) => (current === id ? null : current));
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(outer);
+      window.cancelAnimationFrame(inner);
+    };
+  }, [centreRequest, positions]);
+
+  // (10) What the renderer may draw. Layers are all on in phase 3 (phase 5 adds
+  // the switches); the nearest layer follows the selection, so the map is not a
+  // hairball of every link.
+  const visibleEdges = useMemo(
+    () =>
+      model.edges.filter((edge) => {
+        if (edge.kind === "relationship") return LAYERS.relationships;
+        if (edge.kind === "transition") return LAYERS.transitions;
+        return LAYERS.nearest && (edge.source === selectedId || edge.target === selectedId);
+      }),
+    [model.edges, selectedId],
+  );
+
+  // The selected track's rail data (PM-8 keeps these after the model).
+  const tagsBySong = useMemo(() => {
+    const tagById = new Map(tags.map((tag) => [tag.id, tag]));
+    const bySong = new Map<string, Tag[]>();
+    for (const link of songTags) {
+      const tag = tagById.get(link.tag_id);
+      if (!tag) continue;
+      const list = bySong.get(link.song_id);
+      if (list) list.push(tag);
+      else bySong.set(link.song_id, [tag]);
+    }
+    return bySong;
+  }, [songTags, tags]);
+
+  const selectedSong = selectedId ? songById.get(selectedId) ?? null : null;
+
+  const nearestRows = useMemo<NearestRow[]>(() => {
+    const feature = selectedId ? featureById.get(selectedId) : undefined;
+    if (!feature) return [];
+    const shownFeatures = shown.songs.flatMap((song) => {
+      const entry = featureById.get(song.id);
+      return entry ? [entry] : [];
+    });
+    return nearest(feature, shownFeatures, { inputs, connections }).flatMap((entry) => {
+      const song = songById.get(entry.id);
+      return song ? [{ song, s: entry.s }] : [];
+    });
+  }, [connections, featureById, inputs, selectedId, shown.songs, songById]);
+
+  const partnerRows = useMemo<PartnerRow[]>(() => {
+    if (!selectedId) return [];
+    const rows: PartnerRow[] = [];
+    for (const relationship of relationships) {
+      if (relationship.source_song_id === selectedId) {
+        const song = songById.get(relationship.target_song_id);
+        if (song) {
+          rows.push({
+            id: relationship.id,
+            song,
+            type: relationship.relationship_type,
+            direction: "source",
+            notes: relationship.notes,
+          });
+        }
+      } else if (relationship.target_song_id === selectedId) {
+        const song = songById.get(relationship.source_song_id);
+        if (song) {
+          rows.push({
+            id: relationship.id,
+            song,
+            type: relationship.relationship_type,
+            direction: "target",
+            notes: relationship.notes,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [relationships, selectedId, songById]);
+
+  // The toolbar reports the canvas's own zoom level as text (TM-M9).
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const zoomTimerRef = useRef<number | null>(null);
+
+  const readZoom = useCallback(() => {
+    const level = canvasRef.current?.zoomLevel();
+    if (level !== undefined) setZoomLevel(level);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (zoomTimerRef.current !== null) window.clearTimeout(zoomTimerRef.current);
+    },
+    [],
+  );
+
+  const runZoom = useCallback(
+    (action: (handle: TrackMapCanvasHandle) => void) => {
+      const handle = canvasRef.current;
+      if (!handle) return;
+      action(handle);
+      readZoom();
+      // The camera moves in the canvas's own 220 ms; read again once it lands.
+      if (zoomTimerRef.current !== null) window.clearTimeout(zoomTimerRef.current);
+      zoomTimerRef.current = window.setTimeout(readZoom, ZOOM_SETTLE_MS);
+    },
+    [readZoom],
+  );
+
+  // The canvas frames the map itself on a new solve, so the level shown stays
+  // the level on screen; it is read once the fit has landed.
+  useEffect(() => {
+    const timer = window.setTimeout(readZoom, ZOOM_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [positions, readZoom]);
+
+  const canvasLabel = `Map of ${model.nodes.length} tracks`;
+
+  if (status === "error") {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <EmptyState
+          arrangement="split"
+          title="The map didn't load."
+          body={`Klangkurator couldn't reach its backend: ${errorMessage}. Check that the app is running (./run.sh status), then try again.`}
+          action={<Button onClick={reload}>Try again</Button>}
+        />
+      </div>
+    );
+  }
+
+  if (status === "loading") return <MapSkeleton />;
+
+  if (isMobile) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <EmptyState
+          arrangement="split"
+          title="The map needs a wider window."
+          body="Below 768 px there is no room for a map; the table remains the way to browse the library."
+          action={
+            <Button asChild>
+              <Link to="/">Back to the table</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (songs.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <EmptyState
+          arrangement="orbit"
+          title="No tracks to map yet."
+          body="The map is your library placed by how similar the tracks are. Import a music folder to start."
+          action={
+            <Button asChild>
+              <Link to="/load-files">Import</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader
+        title="Map"
+        meta={`${model.nodes.length} ${model.nodes.length === 1 ? "track" : "tracks"}`}
+        actions={
+          <div role="group" aria-label="Map zoom" className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomIn())}>
+              <ZoomIn />
+              Zoom in
+            </Button>
+            <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomOut())}>
+              <ZoomOut />
+              Zoom out
+            </Button>
+            <Button variant="outline" onClick={() => runZoom((handle) => handle.fit())}>
+              <Maximize2 />
+              Fit
+            </Button>
+            <Button variant="outline" onClick={() => runZoom((handle) => handle.reset())}>
+              <RotateCcw />
+              Reset
+            </Button>
+            <output aria-label="Zoom level" className="k-num inline-block w-12 text-right text-[13px] text-muted-foreground">
+              {Math.round(zoomLevel * 100)}%
+            </output>
+          </div>
+        }
+      />
+
+      <div className="flex min-h-0 flex-1">
+        <div className="min-h-0 flex-1 p-3">
+          <div className="h-full w-full overflow-hidden rounded-lg border border-border">
+            {model.nodes.length > 0 && positions.size > 0 && (
+              <TrackMapCanvas
+                ref={canvasRef}
+                nodes={model.nodes}
+                edges={visibleEdges}
+                positions={positions}
+                selectedId={selectedId}
+                playingId={current?.id ?? null}
+                label={canvasLabel}
+                onSelect={handleCanvasSelect}
+                onDisplayedPositions={handleDisplayedPositions}
+              />
+            )}
+          </div>
+        </div>
+
+        <MapRail
+          shownCount={model.nodes.length}
+          unlinkedCount={model.unlinkedCount}
+          focusNotice={focusNotice}
+          truncated={shown.truncated}
+          song={selectedSong}
+          tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}
+          nearest={nearestRows}
+          partners={partnerRows}
+          transitions={transitions}
+          songById={songById}
+          isPlaying={!!current && current.id === selectedId && isPlaying}
+          onPlay={handlePlay}
+          onProperties={handleProperties}
+          onShowRelationships={handleShowRelationships}
+          onSelect={handleListSelect}
+        />
+      </div>
+
+      <EditSongDialog
+        song={editSong}
+        open={editSong !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditSong(null);
+        }}
+        onSave={() => {
+          // The saved track comes back through the reload; the model re-solves.
+          reload();
+        }}
+      />
+    </div>
+  );
+}
+
+/** The loading state: skeletons shaped like the header, the canvas and the rail. */
+function MapSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading the map" className="flex h-full min-h-0 flex-col">
+      <div className="flex h-[4.5rem] items-center gap-4 border-b border-border px-5 md:px-8">
+        <Skeleton className="h-7 w-24" />
+        <Skeleton className="ml-auto h-8 w-52" />
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="min-h-0 flex-1 p-3">
+          <Skeleton className="h-full w-full rounded-lg" />
+        </div>
+        <div className="w-80 shrink-0 space-y-3 border-l border-border p-5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    </div>
+  );
+}

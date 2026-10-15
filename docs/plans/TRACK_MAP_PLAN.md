@@ -562,6 +562,58 @@ changelog.
 | 6 | `clusters.ts`: the choice rule, `ClusterFilter`, cluster features, cluster nodes, the Clusters section, the fallbacks (crate, artist initial) and the last-resort notice (answer 3); `scripts/make-synthetic-library.ts` (run with `npx vite-node`) writing a sandbox `library.json`; measurements at 500, 1,000 and 5,000 tracks in Chromium and in the PyWebView window; `T`, `C_MIN`, `C_MAX` and the TM-C8 limits fixed here and in NFR-12; a web worker only if the numbers need one | Contract TM-C | 4b, 5 |
 | 7 | Entry points on (Table \| Map switch, Open in map, Show on map); no partial map reaches `main` before this (answer 2); `33_TRACK_MAP.md` to Active, remaining flags resolved; `PRODUCT.md`, `DESIGN.md`, `README.md`; impeccable audit; 1440, 1280, 768 and 375 px in both themes (375: the notice and the dialog); the whole contract; `int` → `main`; close #8 by hand | Contract TM-E and all clauses | all |
 
+### Phase 3 calibration — the spread of `S` on the real 92 tracks
+
+The plan asks for this measurement in phase 3, on a **sandbox copy** of the
+library (never the real one, AGENTS.md):
+
+```sh
+mkdir -p /tmp/kk-sandbox && cp -r ~/.klangkurator /tmp/kk-sandbox/.klangkurator
+npx vite-node src/lib/trackMap/calibrate.ts -- /tmp/kk-sandbox/.klangkurator/library.json
+# and a screenshot of /map:
+HOME=/tmp/kk-sandbox python -m uvicorn backend.main:app --port 8001
+KLANGKURATOR_API=http://127.0.0.1:8001 npx vite --port 8081   # then open /map
+```
+
+**Measured 2026-10-15** on a fresh sandbox copy of the real library
+(`/tmp/kk-sandbox-clean`, 92 tracks, 4186 pairs — no fixtures present):
+
+| Figure | min | median | max |
+|---|---|---|---|
+| Pairwise `S` (all 4186 compared pairs) | 0 | **0.4808** | 1 |
+| Each track's nearest-neighbour `S` | **0.4413** | **0.9773** | 1 |
+| Pairs compared / not compared | 4186 / **0** | | |
+| Tracks with no nearest track (unlinked) | **0** | | |
+
+Coverage at the default inputs: BPM 92, key 92, **genre 75**, subgenre 4,
+**tags 66**, ratings 1. Two readings matter. First, fact 12 was narrower than
+the library: `trackGenre()`'s fallback over the deprecated `genres`/`genre`
+fields finds a genre on 75 of 92, and 66 carry phase/vibe tags — so the map has
+more to work with than the plan assumed, and it does not collapse to a
+BPM/key-only map. Second, **every pair compares and nothing is unlinked** —
+which also means the min overlap rule (`min(2,|E|)`) rarely bites here.
+Nearest-neighbour `S` sits high (median 0.977): on a library of one crate of
+similar techno, most tracks have a near-twin, which is the honest result, not a
+defect. The layout will read as tight neighbourhoods of near-identical tracks
+with the outliers spread — checked visually below.
+
+`/map` screenshot (1440 px, sandbox): the page renders "Map of 92 tracks", the
+toolbar shows its zoom level ("143%"), the status line reads "92 tracks on the
+map, 0 unlinked", and `/map?focus=<id>` selects and centres the track with its
+full details in the rail (TM-M2, TM-M3, TM-M9). No console errors.
+
+Read it against fact 12: the real tracks carry BPM, key, year, duration and
+covers, and no ratings, tags, relationships, blocks or sets. So at the default
+inputs a pair compares on the inputs both tracks carry — **BPM and key plus
+genre where a file tag gave one**, and nothing else, because relationships and
+tags skip for every pair and the ratings are unrated. The pairwise spread will
+therefore sit high and narrow, and the layout reads as a BPM/key
+neighbourhood map rather than a genre map until Tim adds ratings, tags and
+relationships — which is the phase 6 question, and the phase 7 check of the
+whole contract. The measurement itself reads only the library JSON, so it
+needs no backend; the screenshot is the dispatcher's, at 1440 px in both
+themes.
+
 ## Tests and gates
 
 - The repo's gates (`AGENTS.md`): `tsc`, `eslint` on changed files, `pytest`,

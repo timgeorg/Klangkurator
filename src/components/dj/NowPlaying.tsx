@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Pause, PanelBottom, PanelRight, Play, SkipBack, SkipForward, Square, Volume1, Volume2, VolumeX } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Waveform } from "@/components/ui/waveform";
 import { toast } from "@/hooks/use-toast";
 import { WIDE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
+import { isMapRoute } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
 import type { Song } from "@/lib/storage";
 import { splitTitle } from "@/lib/trackFormat";
@@ -43,13 +44,17 @@ const formatBpm = (bpm?: number | null) => (bpm ? String(Math.round(bpm * 10) / 
  * pressed in; previous / next step through that run and show only when it has
  * more than one track, and the next track starts when one ends (PF-80). A
  * panel on the right on wide screens (the moodboard's now-playing column), a
- * bar at the bottom otherwise or when docked. The <audio> element stays first
- * in the DOM so switching layouts never interrupts playback.
+ * bar at the bottom otherwise or when docked. On the map it is always the
+ * bottom bar, with its dock buttons hidden, derived from the route and never
+ * from the saved dock preference (TM-M8). The <audio> element stays first in
+ * the DOM so switching layouts never interrupts playback.
  */
 export function NowPlaying() {
   const { current, queue, isPlaying, dock, next, previous, stop, toggle, setPlaying, setDock } = usePlayer();
   const isWide = useMediaQuery(WIDE_QUERY);
-  const mode = dock === "panel" && isWide ? "panel" : "bar";
+  const { pathname } = useLocation();
+  const onMap = isMapRoute(pathname);
+  const mode = !onMap && dock === "panel" && isWide ? "panel" : "bar";
   const hasPrevious = !!queue && queue.index > 0;
   const hasNext = !!queue && queue.index < queue.tracks.length - 1;
   const run: RunControls | undefined =
@@ -189,7 +194,7 @@ export function NowPlaying() {
       {mode === "panel" ? (
         <PanelView {...shared} onDock={() => setDock("bar")} />
       ) : (
-        <BarView {...shared} onUndock={isWide ? () => setDock("panel") : undefined} />
+        <BarView {...shared} onUndock={isWide && !onMap ? () => setDock("panel") : undefined} />
       )}
     </aside>
   );
