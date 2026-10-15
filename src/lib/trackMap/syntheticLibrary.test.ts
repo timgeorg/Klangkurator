@@ -77,3 +77,75 @@ describe("syntheticLibrary", () => {
     expect(performance.now() - started).toBeLessThan(1000);
   });
 });
+
+describe("syntheticLibrary — the fixture shapes (phase 6)", () => {
+  it("clamps the genre, subgenre and crate pools, so a fixture gets the count it asks for", () => {
+    const nine = syntheticLibrary({ count: 600, seed: 11, genreCount: 9 });
+    expect(new Set(nine.map((song) => song.mainGenre)).size).toBe(9);
+
+    const eight = syntheticLibrary({ count: 600, seed: 12, subgenreCount: 8 });
+    expect(new Set(eight.flatMap((song) => song.subgenres ?? [])).size).toBe(8);
+
+    const twelve = syntheticLibrary({ count: 600, seed: 13, crateCount: 12 });
+    expect(new Set(twelve.map((song) => song.root_folder)).size).toBe(12);
+
+    // More than the pool is clamped to the pool, never past it.
+    const clamped = syntheticLibrary({ count: 600, seed: 14, genreCount: 999 });
+    expect(new Set(clamped.map((song) => song.mainGenre)).size).toBe(12);
+  });
+
+  it("leaves some tracks without a subgenre, so a fixture has one to place in its genre cluster", () => {
+    const songs = syntheticLibrary({ count: 600, seed: 15, subgenreCount: 8 });
+    const bare = songs.filter((song) => (song.subgenres ?? []).length === 0);
+    expect(bare.length).toBeGreaterThan(0);
+    expect(bare.every((song) => song.mainGenre !== undefined)).toBe(true);
+  });
+
+  it("spans the BPM range it is given, with a bin for every round ten", () => {
+    const songs = syntheticLibrary({ count: 2000, seed: 15, bpmMin: 90, bpmMax: 180 });
+    const bpms = songs.map((song) => song.bpm ?? 0);
+    expect(Math.min(...bpms)).toBeGreaterThanOrEqual(90);
+    expect(Math.max(...bpms)).toBeLessThanOrEqual(180);
+    const bins = new Set(bpms.map((bpm) => Math.floor(bpm / 10)));
+    expect(bins.size).toBe(10); // 90s through 170s
+  });
+
+  it("spreads the energy meter across unrated to 5 when asked", () => {
+    const spread = syntheticLibrary({ count: 1200, seed: 16, energySpread: true });
+    const values = new Set(spread.map((song) => song.energy));
+    expect(values.has(0)).toBe(true);
+    expect(values.has(5)).toBe(true);
+    expect(Math.max(...[...values] as number[])).toBe(5);
+  });
+
+  it("leaves the asked-for fields out, so a fallback fixture has nothing to cluster by", () => {
+    const bare = syntheticLibrary({
+      count: 300,
+      seed: 17,
+      omit: { genre: true, bpm: true, subgenre: true, energy: true, ratings: true, crate: true },
+    });
+    expect(bare.every((song) => !song.mainGenre)).toBe(true);
+    expect(bare.every((song) => song.bpm === undefined)).toBe(true);
+    expect(bare.every((song) => (song.subgenres ?? []).length === 0)).toBe(true);
+    expect(bare.every((song) => song.energy === 0)).toBe(true);
+    expect(bare.every((song) => song.danceability === 0 && song.social_acceptance === 0)).toBe(true);
+    expect(bare.every((song) => song.root_folder === undefined)).toBe(true);
+  });
+
+  it("spreads the artists by crate, across the alphabet, or not at all", () => {
+    const byCrate = syntheticLibrary({ count: 300, seed: 18 });
+    expect(new Set(byCrate.map((song) => song.artist)).size).toBe(6);
+
+    const alphabet = syntheticLibrary({ count: 300, seed: 19, artistSpread: "alphabet" });
+    expect(new Set(alphabet.map((song) => (song.artist ?? "")[0])).size).toBe(26);
+
+    const single = syntheticLibrary({ count: 300, seed: 20, artistSpread: "single" });
+    expect(new Set(single.map((song) => song.artist)).size).toBe(1);
+  });
+
+  it("stays deterministic with the fixture flags", () => {
+    const a = syntheticLibrary({ count: 60, seed: 7, genreCount: 9, bpmMin: 90, bpmMax: 180, energySpread: true });
+    const b = syntheticLibrary({ count: 60, seed: 7, genreCount: 9, bpmMin: 90, bpmMax: 180, energySpread: true });
+    expect(a).toEqual(b);
+  });
+});

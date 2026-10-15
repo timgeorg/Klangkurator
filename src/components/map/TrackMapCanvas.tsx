@@ -17,6 +17,12 @@
 // transition edges show their deduplicated notes as labels (TM-L1, TM-L2,
 // TM-L3, TM-L6). Both come from the pure, tested
 // `lib/trackMap/layerEdges.ts`.
+//
+// Phase 6: a cluster node draws differently from a track — hollow, a tinted arc
+// of its genre colour with a hairline outline, sized by its track count through
+// `nodeRadius`, and labelled with its value and count — so a group never reads
+// as one track. Clicking one chooses that cluster (the page turns the click into
+// a `ClusterFilter`; TM-C3).
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-graph-2d";
@@ -538,15 +544,28 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const isSelected = mapNode.id === selected;
       const isPlaying = mapNode.id === playing;
       const isHovered = mapNode.id === hoveredId;
+      const isCluster = mapNode.kind === "cluster";
       const genre = mapNode.genreLabel;
 
-      // The disc: the user's genre colour when the track has one, neutral when not.
+      // The disc: the user's genre colour when the track has one, neutral when
+      // not. A cluster draws hollow — a hairline outline over a tinted fill —
+      // so a group never reads as one track (REQ-33-CL).
       ctx.save();
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fillStyle = genre ? getMainGenreColor(genre) : palette.muted;
+      ctx.globalAlpha = isCluster ? 0.25 : 1;
       ctx.fill();
       ctx.restore();
+      if (isCluster) {
+        ctx.save();
+        ctx.strokeStyle = palette.border;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // The orange cut: the playing track's disc carries the signal half-disc,
       // multiplied then laid flat, exactly like CoverArt's treatment.

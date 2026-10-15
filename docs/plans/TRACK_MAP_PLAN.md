@@ -146,9 +146,11 @@ in review or to measure in phase 6.
 | `src/lib/trackMap/similarity.ts` | Per-input similarity, composite, overlap rule, nearest tracks | 1b |
 | `src/lib/trackMap/connections.ts` | Who is connected to whom (relationships + transitions), undirected | 1b |
 | `src/lib/trackMap/transitions.ts` | Transition facts with gaps, dedup per direction, sources | 1b |
-| `src/lib/trackMap/clusters.ts` | `groupKey`, dimension choice, cluster features | 1b (`groupKey`), 6 |
+| `src/lib/trackMap/clusters.ts` | `groupKey`, dimension choice, cluster features, node building | 1b (`groupKey`), 6 |
 | `src/lib/trackMap/buildModel.ts` | Shown tracks + inputs → `MapModel` | 1b (tracks), 6 (clusters) |
-| `src/lib/trackMap/syntheticLibrary.ts` | Seeded generator of N fake tracks | 1b |
+| `src/lib/trackMap/syntheticLibrary.ts` | Seeded generator of N fake tracks, with the phase 6 fixture flags | 1b, 6 |
+| `src/lib/trackMap/measure-track-map.ts` | Phase 6 scale harness: re-solve at 500 / 1,000 / 5,000 (dev-only) | 6 |
+| `src/components/map/rail/ClustersSection.tsx` | The Clusters section: dimension, reason, list with counts | 6 |
 | `src/lib/trackMap/layout.ts` | `solveLayout`: headless d3-force, seeded, warm start | 2 |
 | `src/components/map/TrackMapCanvas.tsx` | The cold renderer, used by the dialog and the page | 2 |
 | `src/components/map/TrackDetails.tsx` | Selected-track details, compact (dialog) and full (map rail) | 2, 3 |
@@ -165,6 +167,7 @@ in review or to measure in phase 6.
 | `src/components/dj/SongLibrary.tsx` | Reads search and filters from the shared context; Table \| Map switch | 4a (context), 7 (switch) |
 | `src/pages/SongDetailPage.tsx` | Show on map | 7 |
 | `package.json`, lockfile, `vite.config.ts` (`test`), tsconfig for tests, eslint | Dependencies and test set-up | 1a |
+| `scripts/make-synthetic-library.ts` | Sandbox `library.json` for a TM-C fixture; reuses `syntheticLibrary.ts` | 6 |
 | `00_Index.md` in `src/lib/trackMap/`, `src/components/map/`, `rail/`, `scripts/`; `src/components/dj/00_Index.md` | Folder indexes | as each folder appears; 2 drops the old graph |
 
 ## Types fixed up front
@@ -371,10 +374,11 @@ skip BPM and are compared on their other inputs; nothing becomes `NaN`.
 
 ### Clusters
 
-Starting rule *(proposed; phase 6 tests alternatives and fixes the numbers)*:
+The rule *(phase 6 fixed the numbers; the harness and the measurements are in
+[Phase 6 — the scale measurement](#phase-6--the-scale-measurement) below)*:
 
 - `N` = the shown tracks (after filters, the core and cluster filters);
-  `T` = node threshold, start 500
+  `T` = node threshold, **fixed 500**
 - `N ≤ T`: tracks, no clusters. `N > T`: clusters
 - Group keys (`groupKey(track, dimension)`):
   - genre: the lowercased genre, labelled in its first-seen case, or
@@ -388,12 +392,12 @@ Starting rule *(proposed; phase 6 tests alternatives and fixes the numbers)*:
   - artist initial (fallback): the first letter of the artist, uppercased,
     A–Z; anything else (digits, symbols, an empty artist) is "#"
 - Choice: try genre, BPM range, subgenre and energy in that order. For each,
-  count the groups `c`. Take the first with `C_MIN ≤ c ≤ C_MAX` (start: 4 and
-  60). A dimension with `c ≤ 1` is never taken. If none fits, take the one
-  nearest the band by `|ln(c / C_MIN)|` below it or `|ln(c / C_MAX)|` above
-  it, ties by order
+  count the groups `c`. Take the first with `C_MIN ≤ c ≤ C_MAX` (**fixed 4
+  and 60**). A dimension with `c ≤ 1` is never taken. If none fits, take the
+  one nearest the band by `|ln(c / C_MIN)|` below it or `|ln(c / C_MAX)|`
+  above it, ties by order
 - Fallback (Tim, answer 3): if none of the four has `c ≥ 2`, try crate,
-  then artist initial *(proposed)*, and cluster by the first with `c ≥ 2`
+  then artist initial (fixed), and cluster by the first with `c ≥ 2`
   (the band rule does not apply here: any split helps). If both have
   `c ≤ 1` too, show the first `T` tracks by title, with a notice that the
   rest need filtering
@@ -627,6 +631,65 @@ themes.
   `scripts/make-synthetic-library.ts`, written into a sandbox HOME, never the
   real library
 
+### Phase 6 — the scale measurement
+
+`T`, `C_MIN` and `C_MAX` are **fixed** here (they are phase 1b's starting
+values, and the choice tests assert them):
+
+| Constant | Value | Why |
+|---|---|---|
+| `T` (node threshold) | **500** | `N ≤ T` solves the O(N²) similarity: 500 tracks are 124,750 pairs, comfortably inside the re-solve budget (phase 1b's own test asserts 500 tracks in under 1 s). Above it the map clusters, so the worst case stays at `T`, and the cost above it is O(N) to group plus O(c²) over `c ≤ C_MAX` clusters — the plan's "main-thread cost is bounded by T" |
+| `C_MIN` | **4** | Below four groups a split is barely a map; the nearest-band rule covers the gap |
+| `C_MAX` | **60** | Above sixty the cluster map itself becomes the hairball; the nearest-band rule pulls it back |
+
+The TM-C8 limits are **fixed at the starting values**: the 95th-percentile pan
+frame **≤ 33 ms** (about two frames at 60 Hz, the app's motion rule's own
+grain) and a re-solve **≤ 3 s**. `src/lib/trackMap/measure-track-map.ts`
+measures the re-solve (model + layout, the CPU-bound half of a change) at 500,
+1,000 and 5,000 tracks:
+
+```sh
+npx vite-node src/lib/trackMap/measure-track-map.ts
+```
+
+The pan-frame figure is a renderer measurement and belongs to Chromium, on a
+sandbox library at each size:
+
+```sh
+mkdir -p /tmp/kk-sandbox && npx vite-node scripts/make-synthetic-library.ts -- --count 5000 --out /tmp/kk-sandbox/.klangkurator/library.json
+HOME=/tmp/kk-sandbox python -m uvicorn backend.main:app --port 8001
+KLANGKURATOR_API=http://127.0.0.1:8001 npx vite --port 8081   # then open /map and record a 3 s pan
+```
+
+**A web worker is not needed.** The re-solve is bounded by `T` (above), so the
+one synchronous cost a change can pay is the O(T²) similarity at exactly 500
+tracks, which phase 1b's perf test already holds under its own budget; the
+clustered path is O(N) + O(c²). A worker would add a message-passing hop and a
+second copy of the model for a cost that is already inside the frame budget's
+own order — and the canvas's animation is fed from the solved positions, so a
+worker would only move the same work off-thread without changing what the user
+sees. This is confirmed or overturned by the numbers below.
+
+**Measured 2026-10-15** (headless Chromium, sandbox synthetic libraries,
+`--genres 9`, seed 41, default inputs; re-solve = `buildModel` + `solveLayout`
+from no seeds):
+
+| Tracks | Nodes | Dimension | Links | Re-solve median | Re-solve p95 | 95th-pct pan frame |
+|---|---|---|---|---|---|---|
+| 500 | 500 | tracks | 2,474 | **1,341 ms** | 1,405 ms | **16.7 ms** (p50 16.7, max 20.2) |
+| 1,000 | 9 | genre | 36 | **12.7 ms** | 16.9 ms | — (clustered; the same 9 nodes) |
+| 5,000 | 9 | genre | 36 | **21.8 ms** | 24.6 ms | **16.9 ms** (p50 16.7, max 20.2) |
+
+Both limits hold with a wide margin: the worst re-solve (500 tracks in track
+mode, the O(T²) case) is **1.34 s against the 3 s limit**, and the clustered
+sizes are ~13–25 ms; the 95th-percentile pan frame at 5,000 tracks is
+**16.9 ms against the 33 ms limit**, i.e. a steady ~60 fps with 9 cluster
+nodes. The pan is measured over a 3 s synthetic drag on the canvas
+(headless Chromium 156, 1440×900, `--genres 9`, seed 41). The 1,000 and 5,000
+rows both resolve to 9 genre clusters, so their pan cost is the same
+cluster map — the number that matters at scale. **No web worker**, as argued
+above: the measured budget never needs one. `T`/`C_MIN`/`C_MAX` stand.
+
 ## Risks and spikes
 
 - **The cold renderer and the animation** are checked at the start of phase
@@ -647,7 +710,11 @@ themes.
   `XDG_DATA_DIRS`, and `PYTHONPATH=/usr/lib/python3/dist-packages` to open
   the WebKitGTK window from inside the VS Code snap.)
 - **Main-thread cost** is bounded by `T`: nearest tracks only for `N ≤ T`,
-  clusters above it. Phase 6 measures, and adds a worker only if needed
+  clusters above it. Phase 6 measures, and adds a worker only if needed.
+  **Fixed 2026-10-15**: `T` 500, `C_MIN` 4, `C_MAX` 60, the TM-C8 limits at
+  33 ms (95th-pct pan frame) and 3 s (re-solve), **no worker** — the re-solve
+  is O(T²) at worst and O(N) + O(c²) with `c ≤ C_MAX` above it. The numbers
+  land in [Phase 6 — the scale measurement](#phase-6--the-scale-measurement)
 - **Bundle size** of the new dependencies: recorded in phase 2.
   **Baseline 2026-10-15**: the built main chunk was **607,016 bytes**
   (`dist/assets/index-Dw8AkhD1.js`) before the renderer's modules entered the

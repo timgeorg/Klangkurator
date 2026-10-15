@@ -1,14 +1,15 @@
 // Track map (issue #8) — the map rail (plan phase 3: the status line and the
 // sections; phase 4a: the Similarity and Filters sections, and the rail's own
 // collapse, all reading and writing the map's saved state; phase 5: the Layers
-// section over the same saved state).
+// section over the same saved state; phase 6: the Clusters section and the
+// cluster-filter chips).
 //
 // The rail is the map's controls: what the map is showing (the status line,
-// with the all-off and no-match reports) and the shared filters, the similarity
-// inputs and the layers, then the selected track's details. It collapses as a
-// whole and per section (TM-R8, TM-R10); collapsed, the canvas takes the freed
-// width, and nothing overflows sideways. Every control is Tab-reachable, named
-// and shows focus (TM-R9).
+// with the all-off, no-match and last-resort reports) and the shared filters,
+// the clusters, the similarity inputs and the layers, then the selected track's
+// details. It collapses as a whole and per section (TM-R8, TM-R10); collapsed,
+// the canvas takes the freed width, and nothing overflows sideways. Every
+// control is Tab-reachable, named and shows focus (TM-R9).
 import { useCallback } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
@@ -16,11 +17,12 @@ import type { FilterOptions } from "@/components/dj/libraryTable";
 import { Button } from "@/components/ui/button";
 import type { UseMapConfigReturn } from "@/hooks/useMapConfig";
 import type { Song, Tag } from "@/lib/storage";
-import { DEFAULT_NODE_THRESHOLD } from "@/lib/trackMap/clusters";
-import type { MapEdge } from "@/lib/trackMap/types";
+import { DEFAULT_NODE_THRESHOLD, type ClusterGroup } from "@/lib/trackMap/clusters";
+import type { ClusterChoiceReason, ClusterDimension, ClusterFilter, MapEdge } from "@/lib/trackMap/types";
 import type { TransitionEdge } from "@/lib/trackMap/transitions";
 
 import type { NearestRow, PartnerRow } from "../TrackDetails";
+import { ClustersSection } from "./ClustersSection";
 import { FiltersSection } from "./FiltersSection";
 import { LayersSection } from "./LayersSection";
 import { RailSection } from "./RailSection";
@@ -29,7 +31,7 @@ import { SimilaritySection } from "./SimilaritySection";
 
 /** The saved ids of the rail's sections, which `useMapConfig` keys the
  * collapse states by. The Clusters section joins them in phase 6. */
-type RailSectionId = "similarity" | "filters" | "layers" | "selected";
+type RailSectionId = "similarity" | "filters" | "clusters" | "layers" | "selected";
 
 /** The map-config pieces the rail reads and writes. */
 export type RailConfig = Pick<
@@ -61,10 +63,22 @@ interface MapRailProps {
   unlinkedCount: number;
   /** Why an unknown `?focus=` id selected nothing, when that happened (TM-M14). */
   focusNotice: string | null;
-  /** Whether the library is larger than the node threshold, so only the first `T` show. */
+  /** Whether the map fell back to the first `T` tracks by title (TM-C10). */
   truncated: boolean;
   /** Whether the shared filters exclude every track (TM-R7). */
   noMatches: boolean;
+  /** The dimension the map clustered by, or null (TM-C1). */
+  clusterDimension: ClusterDimension | null;
+  /** Why it was chosen (TM-C1). */
+  clusterReason: ClusterChoiceReason | null;
+  /** The clusters with their counts (TM-C1). */
+  clusterGroups: ClusterGroup[];
+  /** The chosen cluster filters, one chip each (TM-C3). */
+  clusterFilters: ClusterFilter[];
+  /** Choosing a cluster adds a filter and re-solves (TM-C3). */
+  onChooseCluster(dimension: ClusterDimension, value: string): void;
+  /** Removing a cluster chip brings the clusters back (TM-C3). */
+  onRemoveClusterFilter(filter: ClusterFilter): void;
   /** The edges the canvas is drawing, so the Layers legend names only those (TM-L1, TM-L5). */
   edges: MapEdge[];
   /** The selected track, or null when nothing is selected. */
@@ -97,6 +111,12 @@ export function MapRail({
   focusNotice,
   truncated,
   noMatches,
+  clusterDimension,
+  clusterReason,
+  clusterGroups,
+  clusterFilters,
+  onChooseCluster,
+  onRemoveClusterFilter,
   edges,
   song,
   tags,
@@ -171,8 +191,7 @@ export function MapRail({
         )}
         {truncated && (
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Showing the first {DEFAULT_NODE_THRESHOLD} tracks by title; the rest need filtering. Clustering larger
-            libraries comes in a later phase.
+            Showing the first {DEFAULT_NODE_THRESHOLD} tracks by title; the rest need filtering.
           </p>
         )}
         {/* TM-R5: with every input off there is no similarity to compute. */}
@@ -202,7 +221,29 @@ export function MapRail({
       </RailSection>
 
       <RailSection title="Filters" {...section("filters")}>
-        <FiltersSection options={filterOptions} coreSong={coreSong} onRemoveCore={onRemoveCore} />
+        <FiltersSection
+          options={filterOptions}
+          coreSong={coreSong}
+          onRemoveCore={onRemoveCore}
+          clusterFilters={clusterFilters}
+          onRemoveClusterFilter={onRemoveClusterFilter}
+        />
+      </RailSection>
+
+      {/* The clusters (phase 6): the dimension, the reason it was chosen, and
+          the clusters with their counts. Choosing one narrows the map to its
+          members and re-solves (TM-C1, TM-C3). Tags are never a dimension
+          (TM-C5): the section knows only the six cluster dimensions. */}
+      <RailSection title="Clusters" {...section("clusters")}>
+        <ClustersSection
+          dimension={clusterDimension}
+          reason={clusterReason}
+          groups={clusterGroups}
+          onChoose={onChooseCluster}
+          active={clusterFilters}
+          threshold={DEFAULT_NODE_THRESHOLD}
+          shownCount={shownCount}
+        />
       </RailSection>
 
       {/* The layers (phase 5): one switch per edge kind, and the legend of what

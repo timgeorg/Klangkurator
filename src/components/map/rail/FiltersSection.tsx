@@ -9,8 +9,9 @@
 // is anchored on (`?core=<id>`, or Show its relationships on the map), and it
 // narrows the shown set to that track and its relationship partners, alongside
 // these filters. Removing the chip drops the core and `core` from the URL
-// (TM-H1, TM-H2). The cluster-filter chips arrive in phase 6 (TM-C3); that slot
-// is marked below and deliberately renders nothing yet.
+// (TM-H1, TM-H2). Phase 6 fills the cluster-chip slot: one removable chip per
+// chosen `ClusterFilter`, matched by the cluster's own dimension and value, and
+// removing one runs the choice again, which brings the clusters back (TM-C3).
 import { Search, X } from "lucide-react";
 
 import { FILTER_CONFIG, type FilterOptions, isFilterActive } from "@/components/dj/libraryTable";
@@ -21,6 +22,8 @@ import { Input } from "@/components/ui/input";
 import { COLUMN_DEFINITIONS } from "@/hooks/useColumnConfig";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import type { Song } from "@/lib/storage";
+import { CLUSTER_DIMENSION_LABELS } from "@/lib/trackMap/clusters";
+import type { ClusterFilter } from "@/lib/trackMap/types";
 import { cn } from "@/lib/utils";
 
 interface FiltersSectionProps {
@@ -30,6 +33,10 @@ interface FiltersSectionProps {
   coreSong: Song | null;
   /** Removing the core chip drops the core (TM-H2). */
   onRemoveCore(): void;
+  /** The chosen cluster filters, one chip each (TM-C3). */
+  clusterFilters: ClusterFilter[];
+  /** Removing a cluster chip runs the choice again, bringing the clusters back (TM-C3). */
+  onRemoveClusterFilter(filter: ClusterFilter): void;
 }
 
 /** The filter keys in `FILTER_CONFIG`'s own order, which is the table's. */
@@ -43,7 +50,13 @@ const FILTER_KEYS = Object.keys(FILTER_CONFIG) as (keyof typeof FILTER_CONFIG)[]
  * core chip, when the map carries a core, which narrows the map to that track
  * and its relationship partners and can be removed to show the whole library.
  */
-export function FiltersSection({ options, coreSong, onRemoveCore }: FiltersSectionProps) {
+export function FiltersSection({
+  options,
+  coreSong,
+  onRemoveCore,
+  clusterFilters,
+  onRemoveClusterFilter,
+}: FiltersSectionProps) {
   const { searchQuery, setSearchQuery, filters, updateFilter, activeFilterKeys, clearFilters } = useLibraryFilters();
   const activeCount = activeFilterKeys.length;
 
@@ -86,8 +99,25 @@ export function FiltersSection({ options, coreSong, onRemoveCore }: FiltersSecti
         </div>
       )}
 
-      {/* Phase 6: the chosen cluster filters go here, one removable chip per
-          `ClusterFilter`, removing it bringing the clusters back (TM-C3). */}
+      {/* Phase 6: the chosen cluster filters, one removable chip per
+          `ClusterFilter`, matched by the cluster's own dimension and value.
+          Removing one runs the choice again, which brings the clusters back
+          (TM-C3). */}
+      {clusterFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Clusters</span>
+          {clusterFilters.map((filter) => (
+            <ColorChip
+              key={`${filter.dimension}:${filter.value}`}
+              size="md"
+              label={`${CLUSTER_DIMENSION_LABELS[filter.dimension]}: ${filter.value}`}
+              title={`Clustered by ${CLUSTER_DIMENSION_LABELS[filter.dimension]}: ${filter.value}. Remove it to bring the clusters back.`}
+              onRemove={() => onRemoveClusterFilter(filter)}
+              className="min-w-0 shrink"
+            />
+          ))}
+        </div>
+      )}
 
       <ul className="space-y-1">
         {FILTER_KEYS.map((key) => {

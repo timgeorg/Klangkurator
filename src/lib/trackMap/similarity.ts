@@ -3,7 +3,7 @@
 // plan's algorithm contract: missing values are skipped per pair, the
 // composite is symmetric and rounded to 9 decimals, and a pair needs the
 // minimum overlap before it counts at all.
-import type { MapInput, MapInputs, TrackFeatures } from "./types";
+import type { MapInput, MapInputs, MapLink, TrackFeatures } from "./types";
 
 import { MAP_INPUTS } from "./types";
 import { connectionSet, type Connections } from "./connections";
@@ -169,6 +169,28 @@ export function allNearest(
   );
 }
 
+/**
+ * The undirected union of the nearest sets: `{A, B}` is a link when
+ * `B ∈ nearest(A)` or `A ∈ nearest(B)`, with `s = S(A, B)`. One link per pair,
+ * `source < target`, sorted. This is what the layout runs on, for tracks and
+ * for clusters alike.
+ *
+ * @param nearestLists - The per-node nearest lists, `allNearest`'s output.
+ */
+export function linksFromNearest(nearestLists: Map<string, NearestEntry[]>): MapLink[] {
+  const links = new Map<string, MapLink>();
+  for (const [id, entries] of nearestLists) {
+    for (const entry of entries) {
+      const [source, target] = id < entry.id ? [id, entry.id] : [entry.id, id];
+      links.set(`${source}\u0000${target}`, { source, target, s: entry.s });
+    }
+  }
+  return [...links.values()].sort(
+    (a, b) =>
+      compare(a.source, b.source) || compare(a.target, b.target),
+  );
+}
+
 // ── The per-input rules ───────────────────────────────────
 
 /**
@@ -243,4 +265,10 @@ function takeNearest(candidates: readonly NearestEntry[], k?: number): NearestEn
 /** Rounds the 9 decimals the plan compares at. */
 export function round9(value: number): number {
   return Math.round(value * 1e9) / 1e9;
+}
+
+/** A plain code-unit comparison, so a link's order never depends on a locale. */
+function compare(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }

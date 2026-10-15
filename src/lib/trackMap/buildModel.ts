@@ -1,14 +1,32 @@
 // Track map (issue #8) — shown tracks and their inputs, assembled into the
-// `MapModel` the layout and the renderer read (plan phase 1b, track mode).
-// Clusters are phase 6: this runs on a set of tracks and always reports
-// `clusterDimension: null`.
+// `MapModel` the layout and the renderer read (plan phase 1b, track mode;
+// plan phase 6, cluster mode). Above the node threshold the shown tracks
+// become cluster nodes and cluster links instead of track nodes; the fallbacks
+// (crate, then the artist's first letter) and the last resort (the first `T`
+// tracks by title, with a notice) are the cluster module's, and a model that
+// took one of them says so on `clusterDimension` and `clusterReason`.
 import type { SongRelationship } from "@/lib/storage";
 
-import { allNearest, type NearestEntry, type SimilarityOptions } from "./similarity";
+import { allNearest, linksFromNearest, type SimilarityOptions } from "./similarity";
 import type { Connections } from "./connections";
+import {
+  buildClusters,
+  clusterChoice,
+  DEFAULT_NODE_THRESHOLD,
+  shouldCluster,
+  withClusterFields,
+  type ClusterTrack,
+} from "./clusters";
 import { toFeatures } from "./features";
 import type { TransitionEdge } from "./transitions";
-import type { MapEdge, MapInputs, MapLink, MapModel, MapNode, TrackFeatures, TrackMapSong } from "./types";
+import type {
+  MapEdge,
+  MapInputs,
+  MapModel,
+  MapNode,
+  TrackFeatures,
+  TrackMapSong,
+} from "./types";
 
 /** Everything `buildModel` reads. */
 export interface BuildModelInput {
@@ -25,31 +43,69 @@ export interface BuildModelInput {
   transitions?: readonly TransitionEdge[];
   /** How many nearest tracks per node; defaults to the plan's `k = 8`. */
   k?: number;
+  /** The node threshold above which the map clusters; defaults to `DEFAULT_NODE_THRESHOLD`. */
+  threshold?: number;
 }
 
 /**
  * The map's nodes, links and edges for a set of tracks.
  *
- * Nodes are the shown tracks. Links are the undirected union of the nearest
- * sets: `{A, B}` is linked when `B ∈ nearest(A)` or `A ∈ nearest(B)`, with
- * `s = S(A, B)`. Edges carry what the renderer may draw — the nearest links,
- * the seven non-transition relationship types and the deduplicated
- * transitions — each filtered to pairs of shown tracks.
+ * Below the node threshold the nodes are the shown tracks and the links are the
+ * undirected union of their nearest sets. Above it the tracks collapse into one
+ * cluster node per value of the chosen dimension (phase 6), and the layout runs
+ * over the clusters; `lastResort` is true when not even the fallbacks could
+ * split the tracks, so the caller shows the first `T` by title with a notice.
+ * Edges carry what the renderer may draw — the nearest (or cluster) links, the
+ * seven non-transition relationship types and the deduplicated transitions.
  *
  * @param input - The shown tracks, their features, the inputs and the edges' sources.
  */
 export function buildModel(input: BuildModelInput): MapModel {
-  const featureIndex = new Map(input.features.map((feature) => [feature.id, feature]));
-  const trackFeatures = input.songs.map((song) => featureIndex.get(song.id) ?? toFeatures(song));
-  const shownIds = new Set(trackFeatures.map((feature) => feature.id));
+  const threshold = input.threshold ?? DEFAULT_NODE_THRESHOLD;
+  if (!shouldCluster(input.songs.length, threshold)) return trackModel(input, input.songs);
 
-  const options: SimilarityOptions = {
+  const tracks = toClusterTracks(input.songs, input.features);
+  const choice = clusterChoice(tracks);
+
+  // The last resort: nothing can split the tracks, so the first `T` by title are
+  // shown as tracks and the caller adds the notice (TM-C10). The slice happens
+  // here, so the expensive pairwise similarity never runs over all N.
+  if (choice.dimension === null) {
+    const ordered = [...input.songs].sort((a, b) => collator.compare(a.title, b.title) || compare(a.id, b.id));
+    return { ...trackModel(input, ordered.slice(0, threshold)), clusterReason: "lastResort", lastResort: true };
+  }
+
+  const build = buildClusters({
+    tracks,
+    dimension: choice.dimension,
     inputs: input.inputs,
     connections: input.connections,
-    k: input.k,
+  });
+  return {
+    nodes: build.nodes,
+    links: build.links,
+    // The cluster links are the map's "nearest" edges. A cluster node is not a
+    // song, so no authored edge can name one: the two authored filters drop
+    // every edge, because the shown ids are the cluster ids.
+    edges: [
+      ...build.links.map((link): MapEdge => ({ source: link.source, target: link.target, kind: "nearest" })),
+      ...relationshipEdges(input.relationships ?? [], shownIdsOf(build.nodes)),
+      ...transitionEdges(input.transitions ?? [], shownIdsOf(build.nodes)),
+    ],
+    clusterDimension: choice.dimension,
+    clusterReason: choice.reason,
+    lastResort: false,
+    unlinkedCount: build.unlinkedCount,
   };
+}
 
-  const nodes: MapNode[] = input.songs.map((song, index) => ({
+/** Track mode: one node per shown song, links from the undirected nearest sets. */
+function trackModel(input: BuildModelInput, songs: readonly TrackMapSong[]): MapModel {
+  const featureIndex = new Map(input.features.map((feature) => [feature.id, feature]));
+  const trackFeatures = songs.map((song) => featureIndex.get(song.id) ?? toFeatures(song));
+  const shownIds = new Set(trackFeatures.map((feature) => feature.id));
+
+  const nodes: MapNode[] = songs.map((song, index) => ({
     id: song.id,
     kind: "track",
     label: song.title,
@@ -57,9 +113,9 @@ export function buildModel(input: BuildModelInput): MapModel {
     genreLabel: trackFeatures[index].genreLabel,
   }));
 
+  const options: SimilarityOptions = { inputs: input.inputs, connections: input.connections, k: input.k };
   const nearestLists = allNearest(trackFeatures, options);
-  const links = buildLinks(nearestLists);
-  const unlinkedCount = [...nearestLists.values()].filter((entries) => entries.length === 0).length;
+  const links = linksFromNearest(nearestLists);
 
   return {
     nodes,
@@ -70,25 +126,34 @@ export function buildModel(input: BuildModelInput): MapModel {
       ...transitionEdges(input.transitions ?? [], shownIds),
     ],
     clusterDimension: null,
-    unlinkedCount,
+    clusterReason: null,
+    lastResort: false,
+    unlinkedCount: [...nearestLists.values()].filter((entries) => entries.length === 0).length,
   };
 }
 
-/** The undirected union of the nearest sets, `source < target`, one link per pair. */
-function buildLinks(nearestLists: Map<string, NearestEntry[]>): MapLink[] {
-  const links = new Map<string, MapLink>();
-  for (const [id, entries] of nearestLists) {
-    for (const entry of entries) {
-      const [source, target] = id < entry.id ? [id, entry.id] : [entry.id, id];
-      links.set(`${source}\u0000${target}`, { source, target, s: entry.s });
-    }
-  }
-  return [...links.values()].sort(
-    (a, b) =>
-      (a.source < b.source ? -1 : a.source > b.source ? 1 : 0) ||
-      (a.target < b.target ? -1 : a.target > b.target ? 1 : 0),
-  );
+/** The shown songs in their cluster view, features paired up by song id. */
+function toClusterTracks(
+  songs: readonly TrackMapSong[],
+  features: readonly TrackFeatures[],
+): ClusterTrack[] {
+  const featureIndex = new Map(features.map((feature) => [feature.id, feature]));
+  return songs.map((song) => withClusterFields(song, featureIndex.get(song.id) ?? toFeatures(song)));
 }
+
+/** The ids of a set of nodes, for filtering the authored edges to what is shown. */
+function shownIdsOf(nodes: readonly MapNode[]): Set<string> {
+  return new Set(nodes.map((node) => node.id));
+}
+
+/** A plain code-unit comparison, so a map never depends on a locale. */
+function compare(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+/** The title order the last resort uses, the same one the page's stopgap used. */
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /** The seven non-transition relationship types, as stored. */
 function relationshipEdges(relationships: readonly SongRelationship[], shownIds: Set<string>): MapEdge[] {
