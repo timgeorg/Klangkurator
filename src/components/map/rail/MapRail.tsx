@@ -1,17 +1,17 @@
-// Track map (issue #8) — the map rail (plan phase 3: the status line and the
-// sections; phase 4a: the Similarity and Filters sections, and the rail's own
-// collapse, all reading and writing the map's saved state; phase 5: the Layers
-// section over the same saved state; phase 6: the Clusters section and the
-// cluster-filter chips).
+// Track map — the map's **left** rail (issue #36; built from plan phases 3–6).
+// It carries what the map is *showing* (the status line, with the all-off,
+// no-match and last-resort reports), the similarity inputs, the shared filters,
+// the clusters and the layers. Tim moved these off the right precisely because
+// the right rail had grown too long to reach the selected track's details
+// without scrolling; the selected track keeps its own rail
+// (`SelectedTrackRail`, below).
 //
-// The rail is the map's controls: what the map is showing (the status line,
-// with the all-off, no-match and last-resort reports) and the shared filters,
-// the clusters, the similarity inputs and the layers, then the selected track's
-// details. It collapses as a whole and per section (TM-R8, TM-R10); collapsed,
-// the canvas takes the freed width, and nothing overflows sideways. Every
-// control is Tab-reachable, named and shows focus (TM-R9).
+// Both rails collapse as a whole and per section, and both collapse states
+// persist (issue #36); collapsed, the canvas takes the freed width and nothing
+// overflows sideways. Every control is Tab-reachable, named and shows focus
+// (TM-R9).
 import { useCallback } from "react";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import type { FilterOptions } from "@/components/dj/libraryTable";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ export type RailConfig = Pick<
   | "inputs"
   | "layers"
   | "railOpen"
+  | "leftRailOpen"
   | "enabledCount"
   | "sectionOpen"
   | "setInputEnabled"
@@ -47,6 +48,7 @@ export type RailConfig = Pick<
   | "setLayer"
   | "setSectionOpen"
   | "setRailOpen"
+  | "setLeftRailOpen"
 >;
 
 interface MapRailProps {
@@ -101,7 +103,7 @@ interface MapRailProps {
  * collapses on its own and keeps its header reachable while closed, so the
  * whole rail is keyboard-navigable (TM-R8, TM-R9, TM-R10).
  */
-export function MapRail({
+export function MapControlsRail({
   config,
   filterOptions,
   coreSong,
@@ -130,7 +132,7 @@ export function MapRail({
   onShowRelationships,
   onSelect,
 }: MapRailProps) {
-  const { railOpen, setRailOpen, enabledCount } = config;
+  const { leftRailOpen, setLeftRailOpen, enabledCount } = config;
   const noInputs = enabledCount === 0;
 
   const section = useCallback(
@@ -143,18 +145,18 @@ export function MapRail({
 
   // Collapsed, the rail is a narrow strip carrying only its own expand control,
   // so the canvas takes the freed width and nothing is cut off (TM-R8).
-  if (!railOpen) {
+  if (!leftRailOpen) {
     return (
-      <div className="flex w-11 shrink-0 flex-col items-center border-l border-border py-3">
+      <div className="flex w-11 shrink-0 flex-col items-center border-r border-border py-3">
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => setRailOpen(true)}
-          aria-label="Show the map rail"
+          onClick={() => setLeftRailOpen(true)}
+          aria-label="Show the map controls"
           aria-expanded={false}
-          title="Show the map rail"
+          title="Show the map controls"
         >
-          <PanelRightOpen />
+          <PanelLeftOpen />
         </Button>
       </div>
     );
@@ -165,7 +167,7 @@ export function MapRail({
     // sideways at 1280 px with the sidebar open (TM-R8, TM-R10).
     <aside
       aria-label="Map controls"
-      className="flex w-80 max-w-[80vw] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-border"
+      className="flex w-80 max-w-[80vw] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border"
     >
       <div className="shrink-0 border-b border-border px-5 py-3">
         <div className="flex items-center justify-between gap-2">
@@ -176,12 +178,12 @@ export function MapRail({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setRailOpen(false)}
-            aria-label="Hide the map rail"
+            onClick={() => setLeftRailOpen(false)}
+            aria-label="Hide the map controls"
             aria-expanded
-            title="Hide the map rail"
+            title="Hide the map controls"
           >
-            <PanelRightClose />
+            <PanelLeftClose />
           </Button>
         </div>
         {focusNotice && (
@@ -252,7 +254,92 @@ export function MapRail({
       <RailSection title="Layers" {...section("layers")}>
         <LayersSection layers={config.layers} onLayerChange={config.setLayer} edges={edges} />
       </RailSection>
+    </aside>
+  );
+}
 
+/** What the right rail needs: the rail's own collapse, and the selected track. */
+export type SelectedTrackRailProps = Pick<
+  MapRailProps,
+  | "song"
+  | "tags"
+  | "nearest"
+  | "partners"
+  | "transitions"
+  | "songById"
+  | "isPlaying"
+  | "onPlay"
+  | "onProperties"
+  | "onShowRelationships"
+  | "onSelect"
+> & {
+  config: Pick<RailConfig, "railOpen" | "sectionOpen" | "setSectionOpen" | "setRailOpen">;
+};
+
+/**
+ * The right-hand rail (issue #36): the selected track, and nothing else. Tim
+ * asked for the similarity, filters, layers and clusters to move left precisely
+ * because this rail was too long to reach the details without scrolling; with
+ * nothing selected it shows today's empty state.
+ */
+export function SelectedTrackRail({
+  config,
+  song,
+  tags,
+  nearest,
+  partners,
+  transitions,
+  songById,
+  isPlaying,
+  onPlay,
+  onProperties,
+  onShowRelationships,
+  onSelect,
+}: SelectedTrackRailProps) {
+  const { railOpen, setRailOpen } = config;
+  const section = useCallback(
+    (id: RailSectionId) => ({
+      open: config.sectionOpen(id),
+      onOpenChange: (next: boolean) => config.setSectionOpen(id, next),
+    }),
+    [config],
+  );
+
+  if (!railOpen) {
+    return (
+      <div className="flex w-11 shrink-0 flex-col items-center border-l border-border py-3">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setRailOpen(true)}
+          aria-label="Show the selected track"
+          aria-expanded={false}
+          title="Show the selected track"
+        >
+          <PanelRightOpen />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <aside
+      aria-label="Selected track"
+      className="flex w-80 max-w-[80vw] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-l border-border"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-5 py-3">
+        <p className="text-[13px] text-muted-foreground">Selected track</p>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setRailOpen(false)}
+          aria-label="Hide the selected track"
+          aria-expanded
+          title="Hide the selected track"
+        >
+          <PanelRightClose />
+        </Button>
+      </div>
       <SelectedTrackSection
         {...section("selected")}
         song={song}
@@ -270,3 +357,4 @@ export function MapRail({
     </aside>
   );
 }
+

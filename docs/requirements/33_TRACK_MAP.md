@@ -142,6 +142,13 @@ Not in the MVP:
 - A fresh load of the same library with the same settings
   gives the same map. A re-solve starts from the current positions, so the map keeps its
   shape
+- **(a) A track's label is part of the layout** (issue #37): the collision
+  radius covers the node and its label box, so the solve leaves room for every
+  title and no two labels overlap
+- **(b) Focus is the one exception to the kept shape** (issue #33): while a
+  track is focused, the positions are the solve rearranged around it, and the
+  next change that re-solves the map replaces that arrangement. Leaving focus
+  (Fit, Reset) restores the solve's own shape
 - The first layout appears in place; nothing animates on page load. After a
   change, the nodes move to their new places in one animation, the one named
   exception to the 150–220 ms motion rule (400 ms ease-out, in the 300–500 ms
@@ -150,17 +157,27 @@ Not in the MVP:
 
 ## Nodes, edges and colour (REQ-33-NE)
 
-- A node is a track. A disc in its main genre's user colour,
-  neutral when it has none; its cover appears at close zoom, black and white
-  or in colour as the app's cover mode says; its title shows at close zoom,
-  on hover and when selected
-- **Titles never stack.** Where the map is dense — the fit zoom of a
-  one-crate library puts most tracks within a few pixels of each other —
-  labels are placed collision-aware: a title is drawn only when the space
-  around it is free in that frame, and the hovered, selected and cluster
-  labels always draw. A suppressed title appears on hover or on zooming in,
-  so nothing is lost; it only stops the dense centre from becoming an
-  unreadable pile of overlapping text
+- A node is a track, and it is **big** (issue #31): a disc about twice the
+  earlier size, in its main genre's user colour as the **outer ring**. From a
+  zoom level on (measured on a 5,000-track library, where the fit zoom lands
+  near 0.4), the track's **cover** sits in the centre of the ring, drawn in the
+  app's cover mode — black and white in editorial, the user's choice in
+  Settings for colour — exactly as `CoverArt` draws it in the DOM. Zoomed
+  further out the node is the **full genre colour** with no cover, so a large
+  map never draws thousands of artworks. A track with no artwork keeps the
+  genre fill. Cluster nodes keep their own look
+- **Every title draws, in full (issue #37).** No title is trimmed to an
+  ellipsis and none is hidden: a long title **wraps** onto as many lines as it
+  needs — a word wider than the line is broken rather than dropped — at a
+  smaller size than before, and a long title drops a notch smaller again. The
+  drawn size is constant on screen (the canvas divides by the zoom) and stays
+  inside a readable band, so zooming out never shrinks a label into
+  illegibility
+- **The layout makes room for the labels, not the renderer.** A track's
+  collision radius covers its disc *and* its label box, so however the force
+  settles, two labels cannot overlap — that is what lets every label draw at
+  once. The link distance is set above that floor, so similarity still
+  expresses itself (a linked pair sits closer than an unlinked one)
 - Orange means "this one": the playing track carries the orange cut, and the
   selected track carries the focus ring. Hover emphasis uses the foreground
   colour. Orange is never a genre, cluster or hover colour
@@ -238,6 +255,30 @@ Not in the MVP:
 - **Play** starts a run of one: no previous or next, like the song page.
   On the track that is already playing it pauses and resumes,
   like the library's row control
+- **Double-clicking a track plays it** (issue #32), the same run of one as the
+  details' Play, so the two can never disagree. The first click still selects
+  immediately — a single click is never held back waiting for a second one —
+  so a double-click reads as "select, then play". A double-click on a cluster
+  node chooses the cluster, like a single click there
+- **Focus** (issue #33) centres the camera on the selected track *and*, by
+  default, re-arranges the map around it: every other node is pulled towards it
+  by its similarity, so the tracks closest to it sit closest to it. One
+  constant in the code (`FOCUS_BEHAVIOUR` in `src/pages/TrackMap.tsx`) picks
+  both, the camera alone, or the re-arrangement alone. The button sits in the
+  toolbar and is disabled with nothing selected; Fit or Reset leaves focus, and
+  the next real solve replaces the arrangement (see REQ-33-LO)
+- **Hovering a track shows an instant popover** (issue #35) with the full
+  title and artist, BPM, key, duration and its tags as chips — everything the
+  canvas label cannot show. It is a DOM element, so it stays on-brand and
+  readable by assistive tech, and it is placed beside the node, flipped near an
+  edge so it never runs off the canvas. It is not wired on touch devices,
+  where there is no hover
+- **Arriving from the table with a track playing focuses it** (issue #34):
+  switching Table → Map selects and centres what you are listening to. Only
+  that switch carries the intent (`?from=table`); arriving by the sidebar, or
+  going Back, is left alone. When the playing track is not **on the map** —
+  a search, a filter or the core excludes it — a short toast says so and
+  playback carries on
 - Selecting a track replaces `?focus=` in the URL, so a reload
   keeps the selection
 - **Show its relationships** on the map: the core becomes that track and its
@@ -269,12 +310,16 @@ Not in the MVP:
 
 ## Map rail (REQ-33-RL)
 
-- Beside the map, collapsible as a whole and per section, in Klangkurator's
-  design language (the pattern is Smartimize's sidebar)
-- Sections: **Similarity** (inputs on or off and their weights,
-  plus Reset to defaults), **Filters** (the same search and filters as the
-  table, plus the core and any cluster filters), **Layers**, **Clusters**,
-  and the **selected track**
+- **Two rails** (issue #36). The map's **left** rail holds what the map is
+  showing and how it is computed: the status line, **Similarity** (inputs on or
+  off and their weights, plus Reset to defaults), **Filters** (the same search
+  and filters as the table, plus the core and any cluster filters), **Layers**
+  and **Clusters**. The **right** rail holds only the **selected track**, so
+  its details are reachable without scrolling; with nothing selected it shows
+  the empty state
+- Both rails are collapsible as a whole and per section, in Klangkurator's
+  design language (the pattern is Smartimize's sidebar), and both collapse
+  states persist
 
 ## Persistence (REQ-33-PS)
 

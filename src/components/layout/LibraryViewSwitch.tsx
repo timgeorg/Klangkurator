@@ -22,8 +22,13 @@ const VIEWS = [
  * The library's two views as one segmented control — **Table** and **Map** —
  * with the current one in the active-tab treatment. Both are links, so the
  * shared search and filters survive the switch and the browser's Back.
+ *
+ * `fromTable` (issue #34) adds the flag to the Map link when the switch sits in
+ * the table's header, so the map knows it was reached *from the table* and can
+ * focus the playing track. The map's own header does not pass it, so arriving
+ * there by the sidebar — or going Back — is left alone.
  */
-export function LibraryViewSwitch() {
+export function LibraryViewSwitch({ fromTable = false }: { fromTable?: boolean }) {
   const { pathname } = useLocation();
   const onMap = isMapRoute(pathname);
 
@@ -31,10 +36,11 @@ export function LibraryViewSwitch() {
     <nav aria-label="Library view" className="flex items-center gap-1">
       {VIEWS.map((view) => {
         const active = view.onMap === onMap;
+        const to = view.onMap && fromTable ? `${view.to}?from=table` : view.to;
         return (
           <Link
             key={view.label}
-            to={view.to}
+            to={to}
             aria-current={active ? "page" : undefined}
             className={cn(
               "inline-flex h-8 items-center gap-1.5 rounded-chip px-3.5 text-[13px] font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

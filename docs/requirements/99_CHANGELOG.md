@@ -5,6 +5,31 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map — nodes, labels, focus, hover, and the split rail (issues #31–#37)
+
+Seven follow-ups to the track map, all from Tim's 2026-10-15 review of the
+shipped canvas:
+
+- **Nodes bigger, with artwork** (#31): a track draws at about twice the size,
+  its cover in the centre from a zoom level on and the genre as the outer ring;
+  zoomed further out it is the full genre colour, so a large map never draws
+  thousands of artworks
+- **Every label, in full, at once** (#37): titles wrap instead of being trimmed
+  or hidden, draw smaller, and the layout reserves their room through a
+  label-aware collision radius — with the link distance above that floor, so
+  similarity still reads as distance
+- **Double-click plays a track** (#32), a run of one; the first click still
+  selects at once
+- **A Focus button** (#33) that centres on the selected track and rearranges the
+  others around it by similarity, with one code constant choosing both, camera
+  only, or re-arrange only
+- **Switching from the table focuses the playing track** (#34), with a toast
+  when a filter or the core keeps it off the map
+- **An instant hover popover** (#35) with the full artist, title, BPM, key,
+  duration and tag chips; not on touch
+- **Two rails** (#36): similarity, filters, layers and clusters move to the
+  left, the selected track stays on the right, and both collapse and persist
+
 ### Track map phase 7 — entry points, docs to Active and lazy loading (issue #8, PF-81)
 
 The map becomes reachable, the spec becomes Active, and the renderer leaves the

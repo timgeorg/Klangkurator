@@ -50,19 +50,21 @@
 // the switch is left out and the notice below stands.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { Crosshair, Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
 import { type FilterOptions, type SongTagsById, filterSongs } from "@/components/dj/libraryTable";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { LibraryViewSwitch } from "@/components/layout/LibraryViewSwitch";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { MapRail } from "@/components/map/rail/MapRail";
+import { MapControlsRail, SelectedTrackRail } from "@/components/map/rail/MapRail";
+import { TrackHoverPopover } from "@/components/map/TrackHoverPopover";
 import type { NearestRow, PartnerRow } from "@/components/map/TrackDetails";
 import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "@/hooks/use-toast";
 import { useMapConfig } from "@/hooks/useMapConfig";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
@@ -95,6 +97,15 @@ import type { ClusterDimension, ClusterFilter, Positions, TrackMapCanvasHandle }
 
 /** How long the camera takes to land; the canvas's own 220 ms, plus a frame. */
 const ZOOM_SETTLE_MS = 260;
+
+/**
+ * Issue #33: what the Focus button does. Tim asked for both the camera move and
+ * the re-arrangement, with a switch so the better-feeling one can be found.
+ * `"both"` is the default; change this constant to try the others.
+ */
+export const FOCUS_BEHAVIOUR: "both" | "camera" | "arrange" = "both";
+/** How far a focused track's neighbours are pulled towards it (1 would stack them on it). */
+const FOCUS_PULL = 0.45;
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -469,6 +480,39 @@ export default function TrackMap() {
     [current?.id, play, toggle],
   );
 
+  // Issue #32: a double-click on a track plays it, a run of one — the same
+  // action as the details' Play, so the two can never disagree.
+  const handleCanvasDoubleClick = useCallback(
+    (id: string) => {
+      const song = songById.get(id);
+      if (!song) return;
+      setSelectedId(song.id);
+      setFocusNotice(null);
+      handlePlay(song);
+    },
+    [handlePlay, songById],
+  );
+
+  // Issue #35: the node under the pointer, for the instant popover. Held with
+  // its screen point; cleared the moment the pointer leaves the node.
+  const [hovered, setHovered] = useState<{ id: string; x: number; y: number } | null>(null);
+  const canvasBoxRef = useRef<HTMLDivElement | null>(null);
+  const handleCanvasHover = useCallback(
+    (id: string | null, clientX: number | null, clientY: number | null) => {
+      if (!id || clientX === null || clientY === null) {
+        setHovered(null);
+        return;
+      }
+      const box = canvasBoxRef.current?.getBoundingClientRect();
+      if (!box) {
+        setHovered(null);
+        return;
+      }
+      setHovered({ id, x: clientX - box.left, y: clientY - box.top });
+    },
+    [],
+  );
+
   const [editSong, setEditSong] = useState<Song | null>(null);
   const handleProperties = useCallback((song: Song) => setEditSong(song), []);
 
@@ -502,6 +546,79 @@ export default function TrackMap() {
       window.cancelAnimationFrame(inner);
     };
   }, [centreRequest, positions]);
+
+  // Issue #33: Focus. It centres the camera on the selected track and, by
+  // default, re-arranges the map around it: every other node is pulled towards
+  // the selected one by its similarity, so the tracks closest to it sit closest
+  // to it. `FOCUS_BEHAVIOUR` picks both, the camera alone, or the re-arrangement
+  // alone. The re-arrange is a one-off transform of the solved positions (not a
+  // change to the model), so it cannot fight the layout: the next real solve
+  // replaces it, which is the REQ-33-LO exception this issue names.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const focusArrangement = useMemo(() => {
+    if (!focusedId || FOCUS_BEHAVIOUR === "camera") return null;
+    const centre = positions.get(focusedId);
+    const feature = featureById.get(focusedId);
+    if (!centre || !feature) return null;
+    // Similarity to the focused track, over the tracks the map is showing.
+    const shownFeatures = model.nodes.flatMap((node) => {
+      const entry = node.kind === "track" ? featureById.get(node.id) : undefined;
+      return entry ? [entry] : [];
+    });
+    const strengths = new Map(
+      nearest(feature, shownFeatures, { inputs: config.inputs, connections, k: shownFeatures.length }).map((entry) => [
+        entry.id,
+        entry.s,
+      ]),
+    );
+    const arranged: Positions = new Map();
+    for (const [id, spot] of positions) {
+      if (id === focusedId) {
+        arranged.set(id, { x: 0, y: 0 });
+        continue;
+      }
+      const pull = (strengths.get(id) ?? 0) * FOCUS_PULL;
+      arranged.set(id, { x: (spot.x - centre.x) * (1 - pull), y: (spot.y - centre.y) * (1 - pull) });
+    }
+    return arranged;
+  }, [config.inputs, connections, featureById, focusedId, model.nodes, positions]);
+
+  /** The positions the canvas draws: the solve, or the focus arrangement over it. */
+  const displayedPositions = focusArrangement ?? positions;
+
+  const handleFocus = useCallback(() => {
+    if (!selectedId) return;
+    setFocusedId(selectedId);
+    setCentreRequest(selectedId);
+  }, [selectedId]);
+
+  // Issue #34: arriving from the table with a track playing focuses it, so the
+  // map opens on what you are listening to. Only the Table | Map switch passes
+  // the flag (`?from=table`); a plain arrival by the sidebar, or Back, does not.
+  const arrivedFromTableRef = useRef(false);
+  useEffect(() => {
+    if (status !== "ready") return;
+    if (searchParams.get("from") !== "table") {
+      arrivedFromTableRef.current = false;
+      return;
+    }
+    if (arrivedFromTableRef.current) return;
+    arrivedFromTableRef.current = true;
+    const playing = current;
+    if (!playing) return;
+    // "On the map" means in the shown set, not merely in the library: a filter,
+    // the search or the core can exclude the playing track, and selecting an
+    // invisible track would be a silent no-op. Tim, 2026-10-15: a quick toast
+    // says so, and playback carries on.
+    const shown = model.nodes.some((node) => node.kind === "track" && node.id === playing.id);
+    if (!shown) {
+      toast({ title: "The playing track is not on the map", description: playing.title });
+      return;
+    }
+    setSelectedId(playing.id);
+    setFocusNotice(null);
+    setCentreRequest(playing.id);
+  }, [current, model.nodes, searchParams, songById, status]);
 
   // (10) What the renderer may draw. The layers come from `useMapConfig`
   // (defaults on, phase 5 switches them); the filter is pure and tested in
@@ -682,8 +799,17 @@ export default function TrackMap() {
             {/* TM-E1: the same Table | Map switch the table's header carries.
                 (The 375 px notice above returns before this header, so the
                 switch is never reachable there; TM-E4.) */}
-            <LibraryViewSwitch />
+            <LibraryViewSwitch fromTable />
             <div role="group" aria-label="Map zoom" className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleFocus}
+                disabled={!selectedId}
+                title="Centre the map on the selected track"
+              >
+                <Crosshair />
+                Focus
+              </Button>
               <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomIn())}>
                 <ZoomIn />
                 Zoom in
@@ -708,20 +834,71 @@ export default function TrackMap() {
         }
       />
 
+      {/* Issue #36: two rails. The map's controls — similarity, filters,
+          layers, clusters and the status line — sit on the LEFT, so the right
+          rail holds only the selected track and its details are reachable
+          without scrolling. Both collapse as a whole and per section, and both
+          collapse states persist (useMapConfig). */}
       <div className="flex min-h-0 flex-1">
+        <MapControlsRail
+          config={config}
+          filterOptions={filterOptions}
+          coreSong={activeCoreId ? songById.get(activeCoreId) ?? null : null}
+          onRemoveCore={handleRemoveCore}
+          shownCount={shownTrackCount}
+          unlinkedCount={model.unlinkedCount}
+          focusNotice={focusNotice}
+          truncated={model.lastResort === true}
+          noMatches={noMatches}
+          clusterDimension={clusters.dimension}
+          clusterReason={clusters.reason}
+          clusterGroups={clusters.groups}
+          clusterFilters={clusterFilters}
+          onChooseCluster={handleChooseCluster}
+          onRemoveClusterFilter={handleRemoveClusterFilter}
+          edges={visibleEdges}
+          song={selectedSong}
+          tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}
+          nearest={nearestRows}
+          partners={partnerRows}
+          transitions={transitions}
+          songById={songById}
+          isPlaying={!!current && current.id === selectedId && isPlaying}
+          onPlay={handlePlay}
+          onProperties={handleProperties}
+          onShowRelationships={handleShowRelationships}
+          onSelect={handleListSelect}
+        />
         <div className="min-h-0 min-w-0 flex-1 p-3">
-          <div className="relative h-full w-full overflow-hidden rounded-lg border border-border">
+          <div ref={canvasBoxRef} className="relative h-full w-full overflow-hidden rounded-lg border border-border">
             {model.nodes.length > 0 && positions.size > 0 && (
               <TrackMapCanvas
                 ref={canvasRef}
                 nodes={model.nodes}
                 edges={visibleEdges}
-                positions={positions}
+                positions={displayedPositions}
                 selectedId={selectedId}
                 playingId={current?.id ?? null}
                 label={canvasLabel}
                 onSelect={handleCanvasNodeSelect}
+                onDoubleClick={handleCanvasDoubleClick}
+                onHover={isMobile ? undefined : handleCanvasHover}
                 onDisplayedPositions={handleDisplayedPositions}
+              />
+            )}
+            {/* Issue #35: the instant hover popover, beside the canvas rather
+                than inside its conditional. Not on touch, where there is no
+                hover to speak of (gated on `isMobile`). */}
+            {hovered && !isMobile && songById.get(hovered.id) && (
+              <TrackHoverPopover
+                song={songById.get(hovered.id)!}
+                tags={tagsBySong.get(hovered.id) ?? []}
+                x={hovered.x}
+                y={hovered.y}
+                bounds={{
+                  width: canvasBoxRef.current?.clientWidth ?? 0,
+                  height: canvasBoxRef.current?.clientHeight ?? 0,
+                }}
               />
             )}
             {/* TM-R5: with every input off there is no similarity to compute, so
@@ -760,23 +937,8 @@ export default function TrackMap() {
           </div>
         </div>
 
-        <MapRail
+        <SelectedTrackRail
           config={config}
-          filterOptions={filterOptions}
-          coreSong={activeCoreId ? songById.get(activeCoreId) ?? null : null}
-          onRemoveCore={handleRemoveCore}
-          shownCount={shownTrackCount}
-          unlinkedCount={model.unlinkedCount}
-          focusNotice={focusNotice}
-          truncated={model.lastResort === true}
-          noMatches={noMatches}
-          clusterDimension={clusters.dimension}
-          clusterReason={clusters.reason}
-          clusterGroups={clusters.groups}
-          clusterFilters={clusterFilters}
-          onChooseCluster={handleChooseCluster}
-          onRemoveClusterFilter={handleRemoveClusterFilter}
-          edges={visibleEdges}
           song={selectedSong}
           tags={selectedSong ? tagsBySong.get(selectedSong.id) ?? [] : []}
           nearest={nearestRows}
