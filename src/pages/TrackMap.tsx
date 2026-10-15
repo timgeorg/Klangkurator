@@ -714,6 +714,11 @@ export default function TrackMap() {
     if (level !== undefined) setZoomLevel(level);
   }, []);
 
+  // The canvas reports every camera change — the wheel, a drag, a pinch and the
+  // toolbar — so the percentage tracks the map instead of only updating when a
+  // toolbar button was pressed.
+  const handleZoom = useCallback((scale: number) => setZoomLevel(scale), []);
+
   useEffect(
     () => () => {
       if (zoomTimerRef.current !== null) window.clearTimeout(zoomTimerRef.current);
@@ -895,6 +900,7 @@ export default function TrackMap() {
                 onSelect={handleCanvasNodeSelect}
                 onDoubleClick={handleCanvasDoubleClick}
                 onHover={isMobile ? undefined : handleCanvasHover}
+                onZoom={handleZoom}
                 onDisplayedPositions={handleDisplayedPositions}
               />
             )}

@@ -417,9 +417,19 @@ offsets that on screen; the radius is the observable). **When** the camera zooms
 in past the artwork zoom **then** the cover draws in the node's centre, in the
 app's cover mode, with the genre as the outer ring.
 
-### TM-N2 — no artwork far out (#31)
+### TM-N2 — artwork only when it cannot be drawn usefully (#31)
 **Given** the 5,000-track library at the fit zoom
 **then** no artwork is requested and every node is a full genre-colour disc.
+**Given** the 92-track library at its fit zoom **then** the covers **do** draw
+(Tim, 2026-10-15: covers stay "a lot longer", collapsing only late on zoom-out) —
+and the same set of covers is requested once, not re-requested frame after frame
+while the map sits still.
+
+### TM-M15 — the zoom readout follows the map (#33)
+**Given** the map
+**when** the user zooms with the wheel, a pinch, a drag or the toolbar
+**then** the percentage in the toolbar tracks the camera; and after any such
+change has settled the number equals the zoom actually on screen.
 
 ### TM-L8 — every label, in full (#37)
 **Given** a track whose title is longer than a node's width
