@@ -5,6 +5,14 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 1a — shared types and test setup (issue #8, PF-81)
+
+`src/lib/trackMap/types.ts` fixes the module's shared types and
+`DEFAULT_INPUTS` (the spec's default weights) so the build phases can run
+side by side. The graph dependencies (`react-force-graph-2d`, `d3-force`,
+`@types/d3-force`) and vitest are installed; `npm test` runs the
+`src/lib/trackMap/` suite, and test files stay out of `tsconfig.app.json`.
+
 ### Track map spec, draft (new 33; 13, 14, 31, 32, 90, 92; issue #8, PF-81)
 
 A new spec for the track map: every track on one fullscreen map, placed by a
