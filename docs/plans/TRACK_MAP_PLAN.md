@@ -63,10 +63,16 @@ These are not in the issue yet; the phase 0 PR body carries them too.
 |---|---|---|---|
 | 1 | Do search and filters carry across the Table \| Map switch? Default: no, each view keeps its own | "yes!" | Both ways: one shared search and filter state for the session |
 | 2 | May a partial map reach `main`? Default: no; the route exists from phase 3 for testing, the entry points turn on in phase 7 | "true." | Read as agreeing with the default: no partial map on `main`, entry points in phase 7. Correct this if "true" meant the opposite |
-| 3 | A large library with no genre, BPM, subgenre or energy cannot cluster. Default: the first tracks with a notice; alternative: the crate as a fifth dimension | "fine. Create also a viable fallback." | The notice stays as the last resort, after two fallback dimensions: crate, then the artist's first letter *(proposed)* |
+| 3 | A large library with no genre, BPM, subgenre or energy cannot cluster. Default: the first tracks with a notice; alternative: the crate as a fifth dimension | "fine. Create also a viable fallback." | The notice stays as the last resort, after two fallback dimensions: crate, then the artist's first letter (shipped in phase 6) |
 
-Everything marked *(proposed)* below is Sterling's starting value, to confirm
-in review or to measure in phase 6.
+Everything marked *(proposed)* below was Sterling's starting value, to confirm
+in review or to measure in phase 6. **Settled 2026-10-15 (phase 7):** every one
+of them shipped as proposed — the weights, the 0.5–3 grid, `k = 8`, the
+minimum-overlap rule, the force constants (phase 2 tuned nothing away from
+them), the 400 ms re-layout and the interaction semantics — except the cluster
+thresholds, which phase 6's measurements fixed at their starting values
+(`T` 500, `C_MIN` 4, `C_MAX` 60). The markers below are resolved accordingly;
+none stays open.
 
 ## Verified facts (2026-10-15, on `int` 288b8d4, rechecked in the plan review)
 
@@ -154,16 +160,18 @@ in review or to measure in phase 6.
 | `src/lib/trackMap/layout.ts` | `solveLayout`: headless d3-force, seeded, warm start | 2 |
 | `src/components/map/TrackMapCanvas.tsx` | The cold renderer, used by the dialog and the page | 2 |
 | `src/components/map/TrackDetails.tsx` | Selected-track details, compact (dialog) and full (map rail) | 2, 3 |
-| `src/components/dj/SongRelationshipsDialog.tsx` | Graph tab on `TrackMapCanvas`; Open in map | 2, 4b |
+| `src/components/dj/SongRelationshipsDialog.tsx` | Graph tab (lazy-loaded); Open in map | 2, 4b, 7 |
 | `src/components/dj/SongRelationshipGraph.tsx` | Deleted | 2 |
-| `src/pages/TrackMap.tsx` | The `/map` page | 3 |
+| `src/pages/TrackMap.tsx` | The `/map` page, lazy-loaded from `src/App.tsx` | 3, 7 |
+| `src/components/layout/LibraryViewSwitch.tsx` | The Table \| Map switch, in the header of both views | 7 |
+| `src/components/dj/RelationshipGraphTab.tsx` | The dialog's graph tab, lazy-loaded so the renderer stays off the library's first paint | 7 |
 | `src/components/map/rail/*.tsx` | One file per map rail section | 3–6 |
 | `src/hooks/useMapConfig.ts` | Saved inputs, layers, collapse states (`klangkurator.map.v1`), validated on read | 4a |
 | `src/components/dj/libraryTable.ts` | Gains `filterSongs(songs, songTags, filters, searchQuery)`, extracted from `SongLibrary.tsx` and shared | 4a |
-| `src/App.tsx` | The route | 3 |
+| `src/App.tsx` | The route; phase 7 lazy-loads `/map` (React.lazy + Suspense) | 3, 7 |
 | `src/components/layout/DJLayout.tsx`, `src/components/dj/NowPlaying.tsx` | Route-derived bar on `/map`, without `setDock`; dock buttons hidden there | 3 |
 | `src/components/layout/DJSidebar.tsx` | Library item active on `/map` | 3 |
-| `src/lib/LibraryFilterContext.tsx` *(proposed name)* | Search and filters shared by the table and the map for the session, provided above the routes | 4a |
+| `src/lib/LibraryFilterContext.tsx` (the name as proposed) | Search and filters shared by the table and the map for the session, provided above the routes | 4a |
 | `src/components/dj/SongLibrary.tsx` | Reads search and filters from the shared context; Table \| Map switch | 4a (context), 7 (switch) |
 | `src/pages/SongDetailPage.tsx` | Show on map | 7 |
 | `package.json`, lockfile, `vite.config.ts` (`test`), tsconfig for tests, eslint | Dependencies and test set-up | 1a |
@@ -180,9 +188,9 @@ export type MapInput =
   | "bpm" | "tags" | "relationships" | "genre" | "subgenre" | "key"
   | "energy" | "danceability" | "social_acceptance" | "year" | "duration";
 
-export interface InputSetting { enabled: boolean; weight: number } // weight 0.5–3, step 0.5 (proposed); only `enabled` turns an input off
+export interface InputSetting { enabled: boolean; weight: number } // weight 0.5–3, step 0.5 (shipped); only `enabled` turns an input off
 export type MapInputs = Record<MapInput, InputSetting>;
-export const DEFAULT_INPUTS: MapInputs; // the spec's default table (proposed)
+export const DEFAULT_INPUTS: MapInputs; // the spec's default table (shipped as proposed)
 
 export interface CamelotKey { n: number; mode: "A" | "B" } // 1–12, A = minor
 
@@ -285,15 +293,15 @@ the value.
 
 | Input | Rule |
 |---|---|
-| BPM | `x = |log2(a/b)| mod 1`, `d = min(x, 1 − x)` (octaves apart after folding half/double time), `s = max(0, 1 − d / 0.2)` *(proposed scale 0.2)* |
-| Key | Camelot steps = circular number distance (`min(|n1−n2|, 12−|n1−n2|)`) + 1 if the letters differ; `s = max(0, 1 − steps / 4)` *(proposed)* |
-| Genre | 1 if equal, else 0 *(proposed)* |
-| Subgenre | Jaccard of the two sets *(proposed)* |
-| Tags | Jaccard of the two tag-id sets *(proposed measure)* |
+| BPM | `x = |log2(a/b)| mod 1`, `d = min(x, 1 − x)` (octaves apart after folding half/double time), `s = max(0, 1 − d / 0.2)` (scale 0.2, shipped) |
+| Key | Camelot steps = circular number distance (`min(|n1−n2|, 12−|n1−n2|)`) + 1 if the letters differ; `s = max(0, 1 − steps / 4)` (shipped) |
+| Genre | 1 if equal, else 0 (shipped) |
+| Subgenre | Jaccard of the two sets (shipped) |
+| Tags | Jaccard of the two tag-id sets (shipped) |
 | Energy, danceability, social acceptance (three inputs) | `s = 1 − |a − b| / 5` |
-| Year | `s = max(0, 1 − |a − b| / 10)` *(proposed)* |
-| Duration | `s = max(0, 1 − |a − b| / 180)`, seconds *(proposed)* |
-| Relationships | `R(t)` = tracks connected to `t` (below). `s = 1` if `B ∈ R(A)`; else `0.5 × Jaccard(R(A), R(B))` if both are non-empty; else skip *(proposed)* |
+| Year | `s = max(0, 1 − |a − b| / 10)` (shipped) |
+| Duration | `s = max(0, 1 − |a − b| / 180)`, seconds (shipped) |
+| Relationships | `R(t)` = tracks connected to `t` (below). `s = 1` if `B ∈ R(A)`; else `0.5 × Jaccard(R(A), R(B))` if both are non-empty; else skip (shipped) |
 
 `R(t)`, connections, is undirected for every source: a relationship of any of
 the eight types in either direction, and every transition fact (below) in
@@ -326,7 +334,7 @@ BPM: 128–130 → 0.888; 87–174 → 1; 120–128 → 0.534; 128–140 → 0.3
   for the pair
 - Missing values are **skipped** (Tim, answer 10):
   `S(A,B) = Σ_{i∈C} w_i·s_i / Σ_{i∈C} w_i`
-- *(proposed)* Minimum overlap: the pair is compared only when
+- Minimum overlap (shipped): the pair is compared only when
   `|C| ≥ min(2, |E|)`; otherwise it has no similarity and can never be linked
 - `S` is symmetric. It is rounded to 9 decimals before any comparison
 - An enabled input weighs at least 0.5, so a compared pair never divides
@@ -336,12 +344,12 @@ BPM: 128–130 → 0.888; 87–174 → 1; 120–128 → 0.534; 128–140 → 0.3
 
 - `candidates(A)` = every shown track `B ≠ A` with `S(A,B)` defined and `> 0`
 - `nearest(A)` = the first `k` of `candidates(A)` by `S` descending, then
-  song id ascending. *(proposed)* `k = 8`. Fewer than `k` candidates: all of
+  song id ascending. `k = 8`. Fewer than `k` candidates: all of
   them. None: `A` is unlinked
 - Layout links: the undirected union. `{A,B}` is linked when `B ∈ nearest(A)`
   or `A ∈ nearest(B)`, with `s = S(A,B)`
 - The details panel's nearest tracks list is `nearest(A)` itself, each entry
-  with `S` as a whole percentage *(proposed)*
+  with `S` as a whole percentage (shipped)
 
 **Worked example 1** (only BPM on, so `min(2, |E|) = 1`; `k = 1`): A 128,
 B 130, C 174, D 87. `S(A,B) = 0.888`; `S(C,D) = 1` (87 and 174 fold
@@ -461,13 +469,13 @@ The rule *(phase 6 fixed the numbers; the harness and the measurements are in
 
 - `solveLayout(nodes, links, seeds)` returns `Positions`. Nodes are sorted by
   id before solving, so the same input gives the same output
-- Forces *(proposed; phase 2 tunes them on the real library)*: link distance
+- Forces (shipped as proposed; phase 2 kept them): link distance
   `30 + 120 × (1 − s)` and strength `s`; many-body charge −120 with
   `distanceMax` 600; a weak centre (0.05); collide by node radius + 2
 - Seeds: the positions on screen (mid-animation positions count). A new node
   starts at the mean of its linked neighbours' seeds, else on a golden-angle
   spiral over the new nodes in id order
-- `simulation.stop()`, then 300 synchronous ticks *(proposed)*. d3-force v3
+- `simulation.stop()`, then 300 synchronous ticks (shipped). d3-force v3
   draws its jiggle from a fixed-seed generator, so the result is deterministic
 - Unlinked nodes feel only charge and centre, so they settle at the edge
 
@@ -529,22 +537,22 @@ on or off commits at once.
 |---|---|---|---|
 | Track node | click | Selects it and shows its details; clicking it again keeps it selected | song id |
 | Empty canvas | click | Clears the selection | — |
-| Esc | key | Clears the selection *(proposed)* | — |
+| Esc | key | Clears the selection | — |
 | Track node | hover | Highlights it and its edges in the foreground colour; the rest dims | — |
 | Cluster node, or a Clusters list entry | choose | Adds a `ClusterFilter`; the map re-solves | dimension, value |
-| Nearest, transitions or partners list entry | click | Selects that track and pans to it *(proposed)* | song id |
-| Details: Play | click | `play(song)`: a run of one. On the playing track: pause and resume *(proposed)* | song |
+| Nearest, transitions or partners list entry | click | Selects that track and pans to it | song id |
+| Details: Play | click | `play(song)`: a run of one. On the playing track: pause and resume | song |
 | Details: Properties | click | Opens the Edit dialog; on save the map reloads and re-solves | song |
 | Details: Song page | click | `/song/:id` | song id |
-| Details: Show its relationships | click | Dialog: re-centres, with back history. Map: the core becomes that track and its partners, replacing any core *(proposed)* | song id |
+| Details: Show its relationships | click | Dialog: re-centres, with back history. Map: the core becomes that track and its partners, replacing any core | song id |
 | Dialog: Open in map | click | `/map?core=<id>` | song id |
-| Map rail: input switch | change | Recompute and re-solve; the nodes move in one 400 ms animation *(proposed)*, or jump under reduced motion | — |
+| Map rail: input switch | change | Recompute and re-solve; the nodes move in one 400 ms animation, or jump under reduced motion | — |
 | Map rail: weight | release | As above | — |
 | Map rail: layer switch | change | Shows or hides that edge kind; no re-solve | — |
 | Map rail: filters, core chip | change | The shown set changes; re-solve, animated like above | filter state |
 | Map rail, sections | collapse | The map takes the freed width; collapse states persist | — |
-| Toolbar | click | Zoom in, zoom out, fit, reset; the zoom level shows as text *(proposed)* | — |
-| Selecting a track | — | Replaces `?focus=` in the URL *(proposed)* | song id |
+| Toolbar | click | Zoom in, zoom out, fit, reset; the zoom level shows as text | — |
+| Selecting a track | — | Replaces `?focus=` in the URL | song id |
 | `/map?focus=<id>` | load | Selects and centres that track; an unknown id shows a notice | song id |
 
 ## Phases
@@ -564,7 +572,7 @@ changelog.
 | 4b | The `?core=` hand-off and the core chip (the dialog's Open in map button comes in phase 7); Show its relationships on the map; the 400 ms re-layout animation and reduced motion; the motion exception written into `DESIGN.md` and `design-system/README.md` | Contract TM-R2, TM-H1–TM-H3 | 4a |
 | 5 | The Layers section; relationship edges (seven types, side by side when a pair has several); the transition layer with labels on selection; the nearest layer; the legend (computed and authored) | Contract TM-L | 4a (parallel to 4b: separate section files) |
 | 6 | `clusters.ts`: the choice rule, `ClusterFilter`, cluster features, cluster nodes, the Clusters section, the fallbacks (crate, artist initial) and the last-resort notice (answer 3); `scripts/make-synthetic-library.ts` (run with `npx vite-node`) writing a sandbox `library.json`; measurements at 500, 1,000 and 5,000 tracks in Chromium and in the PyWebView window; `T`, `C_MIN`, `C_MAX` and the TM-C8 limits fixed here and in NFR-12; a web worker only if the numbers need one | Contract TM-C | 4b, 5 |
-| 7 | Entry points on (Table \| Map switch, Open in map, Show on map); no partial map reaches `main` before this (answer 2); `33_TRACK_MAP.md` to Active, remaining flags resolved; `PRODUCT.md`, `DESIGN.md`, `README.md`; impeccable audit; 1440, 1280, 768 and 375 px in both themes (375: the notice and the dialog); the whole contract; `int` → `main`; close #8 by hand | Contract TM-E and all clauses | all |
+| 7 | Entry points on (Table \| Map switch, Open in map, Show on map); no partial map reaches `main` before this (answer 2); the `/map` route lazy-loaded so the renderer leaves the library's first paint; `33_TRACK_MAP.md` to Active, remaining flags resolved; `PRODUCT.md`, `DESIGN.md`, `README.md`; impeccable audit; 1440, 1280, 768 and 375 px in both themes (375: the notice and the dialog); the whole contract; `int` → `main`; close #8 by hand | Contract TM-E and all clauses | all |
 
 ### Phase 3 calibration — the spread of `S` on the real 92 tracks
 
@@ -725,9 +733,46 @@ above: the measured budget never needs one. `T`/`C_MIN`/`C_MAX` stand.
   only ever opened deliberately (the dialog and, from phase 3, `/map`), so
   phase 7 should lazy-load the map route (`React.lazy`) to keep this off the
   library's first paint — carry it as a phase 7 checklist item, not a blocker.
+  **Done in phase 7, 2026-10-15**: `src/App.tsx` lazy-loads the `/map` route
+  under `Suspense`, and the dialog's graph tab moved into its own
+  `RelationshipGraphTab.tsx`, also lazy-loaded, so `react-force-graph-2d`,
+  `d3-force` and `TrackMapCanvas` no longer sit in the entry chunk at all —
+  the renderer arrives only when the user opens `/map` or the dialog's
+  Graph tab. **Measured in phase 7, 2026-10-15**: the entry chunk is
+  **603,040 bytes** (`dist/assets/index-DyeNE_a0.js`, gzip 185.97 kB) — back
+  below the 607,016-byte baseline despite the map shipping — with the
+  renderer in `TrackMapCanvas-*.js` (**207,130 bytes**, gzip 70.16 kB),
+  `/map` in `TrackMap-*.js` (40,610 bytes) and the dialog tab in
+  `RelationshipGraphTab-*.js` (1,820 bytes). The renderer's weight is paid
+  only when the user opens the map or the dialog's Graph tab.
 - **Similarity on the real library** rests on BPM, key, genre and subgenre
   until Tim adds genres, tags and ratings (fact 12); the phase 3 calibration shows
   whether the layout reads well on that
+
+## Phase 7 — the verification record (2026-10-15)
+
+Independent Tester run on the phase-7 tip (`feature_8_entry-points`): every
+gate green — `tsc` with the 9 known `MockupDataService` errors only and no
+others, `eslint` clean, `npm test` **198/198**, `vite build` passes, and the
+re-solve at 500 tracks (the O(T²) case) measured at **1.37 s against the 3 s
+limit**. Six behavioural claims were reproduced against a sandbox backend,
+including the 768 px threshold, confirmed at 767 (no canvas) and 768 (canvas).
+
+Source-blind Validator run against the whole behaviour contract:
+**59 of 59 clauses PASS** — TM-D 5, TM-M 14, TM-S 5, TM-R 11, TM-H 3, TM-L 7,
+TM-C 10, TM-E 4. The Validator read no source, set its fixtures through the
+sandbox API and judged only observed behaviour; its report is at
+`/tmp/kk-8-validation-report.md`.
+
+Impeccable audit: the detector reports **0 anti-patterns** in the map's code
+(the only advisories are literal colours in test fixtures, which is their
+job). Rendered checks in both themes: **0 contrast failures**, 0 unnamed
+controls, `nav` and `main` landmarks present, reduced motion honoured, and 0
+touch targets under 44 px in the map rail. Two follow-ups were found and fixed
+in the phase branch: a dense-map label pile (collision-aware titles) and an
+`h4` under the page's `h1` in the Edge legend (now `h2`). No token drift: no
+raw hex, no Tailwind palette colours, no `will-change` or blur in the map's
+code.
 
 ## Follow-ups after #8
 

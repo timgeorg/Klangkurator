@@ -5,6 +5,58 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 7 — entry points, docs to Active and lazy loading (issue #8, PF-81)
+
+The map becomes reachable, the spec becomes Active, and the renderer leaves the
+library's first paint:
+
+- **TM-E1 — the Table | Map switch** (`src/components/layout/LibraryViewSwitch.tsx`),
+  a pair of links in the header of both views (the library table and `/map`), in
+  the crate-tab pill treatment with the current view in Signal Wash. Both are real
+  destinations, so the browser's Back works and the app sidebar's Library item stays
+  active on both (TM-M1); the table's search and filters ride the shared
+  `LibraryFilterContext` across the switch both ways (TM-R11). Below 768 px the
+  switch is left out — the table is the way to browse, and `/map` shows its own
+  notice (TM-E4).
+- **TM-E2 — Show on map** on the song page (`SongDetailPage.tsx`), a link to
+  `/map?focus=<song id>`, which selects and centres that track (TM-M3).
+- **TM-E3 — Open in map** on the relationships dialog's graph details: the
+  `TrackDetails` action navigates to `/map?core=<the dialog's song id>`, so the map
+  opens on that song and its relationship partners as in TM-H1 — the core is
+  recomputed from the loaded relationships, shows as a removable chip, and removing
+  the chip clears `core` from the URL. The dialog passes the callback only in its
+  graph tab, so the action appears exactly where the spec puts it.
+- **TM-E4 — narrow screens:** at 375 px the library has no switch, `/map` shows its
+  short notice with a link back to the table, and the relationships dialog's graph
+  still works (its canvas is unchanged and needs no width-specific path).
+- **Lazy loading** (the phase 2 bundle note's phase 7 checklist item): `src/App.tsx`
+  now imports `/map` with `React.lazy` under a `Suspense` fallback shaped like the
+  map page, and the dialog's graph tab moved into its own
+  `src/components/dj/RelationshipGraphTab.tsx`, also lazy-loaded. The renderer's
+  modules (`react-force-graph-2d`, `d3-force`, `TrackMapCanvas`, the layout) no
+  longer sit in the entry chunk: the build now emits a lazy chunk beside the entry
+  chunk. The measured entry- and lazy-chunk sizes come from the gate run and are
+  carried in the phase 7 PR body; the plan's bundle note keeps the phase 2
+  baseline and the +197,390-byte figure for the comparison.
+- **Docs to Active:** `33_TRACK_MAP.md` is now **Active**, and every *(proposed)*
+  flag in it and in the plan is resolved — all of them shipped as proposed (the
+  route, the entry points, the default weights and their 0.5–3 grid, `k = 8`, the
+  minimum-overlap rule, the force constants, the 400 ms re-layout, the interaction
+  semantics), and the cluster thresholds were fixed at their starting values by
+  phase 6's measurements (`T` 500, `C_MIN` 4, `C_MAX` 60). Two items were **left
+  open by decision**: the keyboard navigation of the graph itself stays deferred
+  (its scheme is on record, arrow keys to the nearest node), and
+  `transition_notes`/alternative transitions/`phase_tags`/`vibe_tags` stay out of
+  the MVP (now stated as confirmed rather than proposed). `PRODUCT.md`, `DESIGN.md`,
+  `README.md` and `design-system/README.md` name the map and its entry points;
+  `13_LIBRARY_VIEW.md` documents the switch and the shared filters;
+  `14_RELATIONSHIPS.md` documents Open in map; `92_PLANNED_FEATURES.md` moves PF-81
+  to **Built**.
+- Tests: this phase adds none — its code is UI wiring (the switch, the two entry
+  links, the lazy boundaries) over computation phase 1b already covers. The gate
+  results (`tsc`, `eslint` on the changed files, `npm test`, `vite build` and the
+  bundle sizes) are recorded in the phase 7 PR body.
+
 ### Track map phase 6 — clusters, fallbacks and scale (issue #8, PF-81)
 
 Past the node threshold the map now groups instead of showing every track, and

@@ -42,6 +42,12 @@
 // which brings the clusters back (TM-C1–TM-C5). The fallbacks (crate, then the
 // artist's first letter) and the last resort (the first `T` by title, with the
 // notice) are the cluster module's (TM-C7, TM-C9, TM-C10).
+//
+// Phase 7: the page is now lazy-loaded from `src/App.tsx` (so its renderer
+// leaves the library's first paint), its header carries the Table | Map switch
+// (`LibraryViewSwitch`), and `/map?focus=<id>` is reached by the song page's
+// Show on map and `/map?core=<id>` by the dialog's Open in map. Below 768 px
+// the switch is left out and the notice below stands.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
@@ -49,6 +55,7 @@ import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
 import { type FilterOptions, type SongTagsById, filterSongs } from "@/components/dj/libraryTable";
 import { EmptyState } from "@/components/layout/EmptyState";
+import { LibraryViewSwitch } from "@/components/layout/LibraryViewSwitch";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MapRail } from "@/components/map/rail/MapRail";
 import type { NearestRow, PartnerRow } from "@/components/map/TrackDetails";
@@ -671,26 +678,32 @@ export default function TrackMap() {
         title="Map"
         meta={`${shownTrackCount} ${shownTrackCount === 1 ? "track" : "tracks"}`}
         actions={
-          <div role="group" aria-label="Map zoom" className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomIn())}>
-              <ZoomIn />
-              Zoom in
-            </Button>
-            <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomOut())}>
-              <ZoomOut />
-              Zoom out
-            </Button>
-            <Button variant="outline" onClick={() => runZoom((handle) => handle.fit())}>
-              <Maximize2 />
-              Fit
-            </Button>
-            <Button variant="outline" onClick={() => runZoom((handle) => handle.reset())}>
-              <RotateCcw />
-              Reset
-            </Button>
-            <output aria-label="Zoom level" className="k-num inline-block w-12 text-right text-[13px] text-muted-foreground">
-              {Math.round(zoomLevel * 100)}%
-            </output>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* TM-E1: the same Table | Map switch the table's header carries.
+                (The 375 px notice above returns before this header, so the
+                switch is never reachable there; TM-E4.) */}
+            <LibraryViewSwitch />
+            <div role="group" aria-label="Map zoom" className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomIn())}>
+                <ZoomIn />
+                Zoom in
+              </Button>
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.zoomOut())}>
+                <ZoomOut />
+                Zoom out
+              </Button>
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.fit())}>
+                <Maximize2 />
+                Fit
+              </Button>
+              <Button variant="outline" onClick={() => runZoom((handle) => handle.reset())}>
+                <RotateCcw />
+                Reset
+              </Button>
+              <output aria-label="Zoom level" className="k-num inline-block w-12 text-right text-[13px] text-muted-foreground">
+                {Math.round(zoomLevel * 100)}%
+              </output>
+            </div>
           </div>
         }
       />

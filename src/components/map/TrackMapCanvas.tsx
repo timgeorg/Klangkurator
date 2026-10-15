@@ -44,10 +44,51 @@ const MAX_SCALE = 8;
 /** Above this zoom every node is labelled; below it only the hovered and selected ones. */
 const LABEL_SCALE = 0.9;
 const LABEL_MAX_WIDTH = 132;
+/**
+ * A label's footprint in the frame's placement grid. A track's title rarely
+ * repeats, so at the fit zoom the map's dense centre would otherwise stack
+ * dozens of labels over each other. A label is only drawn when its cell and the
+ * ring of cells around it are free; the hovered and selected nodes (and
+ * clusters, which are few and carry the map's own grouping) always draw.
+ */
+const LABEL_CELL = 44;
 /** A hovered or selected node's halo, past the disc. */
 const RING_GAP = 4;
 /** The gap a line leaves at a node's edge. */
 const EDGE_GAP = 3;
+
+/**
+ * A tiny occupancy grid for label placement, in graph coordinates. It is reset
+ * on every frame, so a label's position is a function of what is drawn in that
+ * frame and the map is reproducible. `claim` returns false when the cell — or
+ * any cell in the ring around it, so labels keep a little air — is already
+ * taken.
+ */
+function createLabelGrid() {
+  const taken = new Set<string>();
+  const cellOf = (x: number, y: number) => `${Math.floor(x / LABEL_CELL)}:${Math.floor(y / LABEL_CELL)}`;
+  return {
+    reset() {
+      taken.clear();
+    },
+    claim(x: number, y: number, force: boolean): boolean {
+      const cx = Math.floor(x / LABEL_CELL);
+      const cy = Math.floor(y / LABEL_CELL);
+      let free = true;
+      for (let dx = -1; dx <= 1 && free; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (taken.has(`${cx + dx}:${cy + dy}`)) {
+            free = false;
+            break;
+          }
+        }
+      }
+      if (!free && !force) return false;
+      taken.add(cellOf(x, y));
+      return true;
+    },
+  };
+}
 /** The extra room an arrowhead leaves at the target node. */
 const ARROW_GAP = 6;
 /** The widest a transition's note may draw as an edge label before it is trimmed. */
@@ -202,6 +243,12 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
   const nodeIndex = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const animationRef = useRef<number | null>(null);
   const idSetRef = useRef<string>("");
+  /**
+   * The frame's label placement grid. Cleared at the start of every frame; each
+   * label claims a cell, and a label whose neighbourhood is taken stays hidden
+   * until the zoom or pan frees it. See LABEL_CELL and drawNode.
+   */
+  const labelGridRef = useRef(createLabelGrid());
   /** The first layout appears in place; nothing animates on mount. */
   const firstRunRef = useRef(true);
   /** Set when a fit is wanted; performed once the positions have settled. */
@@ -547,6 +594,17 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const isCluster = mapNode.kind === "cluster";
       const genre = mapNode.genreLabel;
 
+      // Claim this label's cell before anything draws, so the occupancy grid
+      // reflects what is on screen this frame (empty at the frame's start). The
+      // hovered and selected nodes always win a cell; clusters are few and carry
+      // the grouping, so they claim one too. Everything else yields to a
+      // neighbour so titles never stack over each other.
+      const claimed =
+        isSelected || isHovered || isCluster
+          ? labelGridRef.current.claim(x, y, true)
+          : labelGridRef.current.claim(x, y, false);
+      const showLabel = isSelected || isHovered || isCluster || (globalScale >= LABEL_SCALE && claimed);
+
       // The disc: the user's genre colour when the track has one, neutral when
       // not. A cluster draws hollow — a hairline outline over a tinted fill —
       // so a group never reads as one track (REQ-33-CL).
@@ -596,9 +654,11 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       ctx.restore();
 
       // Labels: the title at close zoom, and always for the hovered and selected
-      // nodes; a cluster shows its value and count instead.
+      // nodes; a cluster shows its value and count instead. A title that would
+      // collide with one already placed this frame stays hidden until the map is
+      // zoomed or panned (showLabel, claimed above).
       if (!fontsReady) return;
-      if (!(globalScale >= LABEL_SCALE || isSelected || isHovered)) return;
+      if (!showLabel) return;
       const text = mapNode.kind === "cluster" ? `${mapNode.label} · ${mapNode.count ?? 0}` : mapNode.label;
       ctx.save();
       ctx.font = `600 12px ${palette.sans}`;
@@ -716,6 +776,9 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
           minZoom={MIN_SCALE}
           maxZoom={MAX_SCALE}
           nodeRelSize={1}
+          // Cleared here, then filled by drawNode as the frame's nodes draw, so
+          // label placement reflects this frame and no other.
+          onRenderFramePre={() => labelGridRef.current.reset()}
           nodeCanvasObject={(node, ctx, globalScale) => drawNode(node.map, ctx, globalScale)}
           nodeCanvasObjectMode={() => "replace"}
           // These two are deliberately not memoised: a prop whose identity changed

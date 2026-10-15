@@ -138,7 +138,7 @@ export function LayersSection({ layers, onLayerChange, edges }: LayersSectionPro
       </ul>
 
       <div className="space-y-2">
-        <h4 className="text-[13px] font-semibold">Edge legend</h4>
+        <h2 className="text-[13px] font-semibold">Edge legend</h2>
 
         {/* The computed kinds first: what the map worked out, drawn differently
             from the authored links (TM-L5). */}

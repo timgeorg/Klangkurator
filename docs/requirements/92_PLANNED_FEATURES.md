@@ -106,4 +106,4 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-81 | Track map (similarity canvas) | All tracks on one fullscreen map (`/map`), the other view of the library: placed by a symmetric, user-weighted metadata similarity; clusters (genre, BPM range, subgenre, energy) past a node threshold; relationships and transitions as layers; the relationships dialog runs on the same canvas. Spec [33_TRACK_MAP.md](33_TRACK_MAP.md) (issue #8) |
+| PF-81 | Track map (similarity canvas) | **Built (issue #8, 2026-10-15)**: all tracks on one fullscreen map (`/map`, reached from the library's Table \| Map switch, a song page's Show on map, or a relationships dialog's Open in map): placed by a symmetric, user-weighted metadata similarity; clusters (genre, BPM range, subgenre, energy, then crate and artist initial) past a 500-track threshold; relationships and transitions as layers; the relationships dialog runs on the same canvas. Spec [33_TRACK_MAP.md](33_TRACK_MAP.md) (issue #8) |

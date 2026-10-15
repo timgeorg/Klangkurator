@@ -15,7 +15,7 @@ tags:
 - [[backend/]] — FastAPI server: JSON storage, audio analysis, library scan, preview playback, and API endpoints for the frontend.
 - [[components.json]] — Shadcn/ui configuration; maps component generator to the project's source structure.
 - [[design-system/]] — Reusable editorial design system: color tokens, typography stack, Tailwind preset, self-hosted fonts and assets.
-- [[docs/]] — The numbered requirements tree with its changelog, the build and redesign plans (including the redesign behaviour contract), and the MVP roadmap.
+- [[docs/]] — The numbered requirements tree with its changelog, the build and redesign plans (including the redesign behaviour contract), and the MVP roadmap; the root index also notes that `33_TRACK_MAP.md` is Active since phase 7 (issue #8).
 - [[eslint.config.js]] — ESLint rules for code quality and style consistency.
 - [[index.html]] — Main HTML entry point; loads Vite and applies theme synchronously to prevent flash before mount.
 - [[package.json]] — npm dependencies (React 18, Vite, TypeScript, Tailwind, shadcn/Radix, react-router, react-query) and the dev, build and lint scripts.

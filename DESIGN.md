@@ -365,7 +365,7 @@ Quiet and exact. The one primary action in view is the only orange object.
 
 ### Chips and Tabs
 - **Color chip:** a hairline pill 20px tall (24px at the medium size) with a 6px dot in the user's color and the label at 11px. An optional remove button shares the same pill.
-- **Tabs and segmented controls:** 32px pills of muted text. The active one turns Signal Wash with orange text. Crate tabs, relationship view modes and segmented controls all share this treatment.
+- **Tabs and segmented controls:** 32px pills of muted text. The active one turns Signal Wash with orange text. Crate tabs, the library's Table | Map switch, relationship view modes and segmented controls all share this treatment.
 - **Badge:** an 11px pill; the signal variant is Signal Wash with orange text.
 
 ### Cards / Containers
@@ -392,6 +392,9 @@ This is the preview player. As a 320px panel it shows a grained card surface, a 
 
 ### Empty States
 A page-level empty state is a grained band holding a Display SM serif line, one 15px sentence in muted text, the resolving action, and one of three shape compositions (orbit, stack, split). The inline variant is a dashed hairline box with an 18px serif line.
+
+### Track Map (signature)
+The library's other view, at `/map`: the whole collection on one fullscreen canvas with a side rail of controls. The map is reachable from a **Table | Map** switch in the library header — the same segmented pill treatment as crate tabs, the active view in Signal Wash with orange text, in the header of both views — from **Show on map** on a song page, and from **Open in map** on the relationships dialog's graph. A node is a disc in its main genre's user colour, neutral when it has none, with its title at close zoom and always on the hovered and selected tracks. Orange keeps its one meaning: the playing node carries the orange cut and the selected node the focus ring; hover emphasis and every edge use other colours. Relationship edges keep their one-line-style-per-type language, and the selected track's nearest tracks draw as thin neutral lines, so computed and authored edges never read alike; a legend names the kinds on screen. Past 500 tracks the map clusters, and a cluster draws hollow — a tinted arc of its genre colour with a hairline outline, sized by its count — so a group never reads as one track. The map rail (the map's own, distinct from the ink app sidebar) collapses as a whole and per section and holds Similarity, Filters, Layers, Clusters and the selected track's full details. On the map route the player is always the bottom bar with its dock buttons hidden, whatever the saved dock preference. Below 768px the switch and the map are left out: the library table is the way to browse, and `/map` shows a short notice with a link back to the table.
 
 ### Overlays
 Dialogs, popovers, menus and selects use the popover surface, 10px corners, a hairline and Lift 2. Closing a dialog returns focus to whatever opened it. A search field inside a picker has no box; its focus shows as a 2px orange rule under it. The highlighted option in a list (keyboard or pointer) speaks the same "this one" grammar as the active tab and the current row: Signal Wash fill, orange text, and the rail's small orange half-disc at its left edge (in the focus color, at least 5.7:1 against the popover in both themes). Selected options get an orange check. Tooltips invert to a foreground fill with ground-colored text at 11px and 6px corners. Toasts use Lift 1.

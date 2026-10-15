@@ -39,7 +39,9 @@ from the Edit track dialog.
   moves to the **Show its relationships** action, with the same back-button
   history. A legend under the canvas lists the relationship types on screen,
   each with its line style. **Open in map** (phase 7) continues into the full
-  map with this song and its partners as a removable filter
+  map with this song and its partners as a removable filter: it navigates to
+  `/map?core=<the dialog's song id>`, and the map recomputes the core from the
+  loaded relationships (TM-E3, TM-H1)
 - The selected track's details are compact: title, artist, its relationship
   partners as a list (each entry selects that track) and the actions **Play**
   (a run of one), **Song page** and **Show its relationships**. It shows no
