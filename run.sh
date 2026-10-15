@@ -165,10 +165,42 @@ cmd_server() {
 cmd_desktop() {
   require_node
   require_python
-  "$PY" -c 'import webview' >/dev/null 2>&1 \
-    || die "pywebview is not importable. Install it (and a GUI backend):
-     $PY -m pip install "pywebview[gtk]"
-     plus the system WebKit2GTK runtime (gir1.2-webkit2-4.1 or 4.0)."
+  # GTK reads its settings through GSettings; when the schema directory it
+  # resolves is not the system one (a sandboxed shell leaks XDG_DATA_DIRS, and
+  # VS Code runs as a snap), GTK **aborts** before a window can open. Point it at
+  # the system schemas first, so the probes below see what the user will get.
+  if [ -d /usr/share/glib-2.0/schemas ]; then
+    export GSETTINGS_SCHEMA_DIR="/usr/share/glib-2.0/schemas${GSETTINGS_SCHEMA_DIR:+:$GSETTINGS_SCHEMA_DIR}"
+  fi
+
+  # The window needs a GUI backend, not just the `webview` module: `import
+  # webview` succeeds with GTK missing, and the failure only shows when the
+  # window opens. Probe exactly what PyWebView's GTK backend loads, in its own
+  # order (`Gtk 3.0` before `WebKit2 4.1` — the reverse trips a namespace clash).
+  local gi_probe='import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2'
+  if ! "$PY" -c "$gi_probe" >/dev/null 2>&1; then
+    # PyGObject is an apt package built for the system Python; a venv cannot see
+    # it unless the interpreter version matches and dist-packages is on its path.
+    local dist="/usr/lib/python3/dist-packages"
+    if [ -d "$dist/gi" ] && [ "$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])')" = "$(/usr/bin/python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)" ]; then
+      local pth="$("$PY" -c 'import site; print(site.getsitepackages()[0])')/_dist-packages.pth"
+      if [ ! -f "$pth" ]; then
+        printf '%s\n' "$dist" > "$pth" \
+          && say "linked the system PyGObject into the venv ($pth)" \
+          || die "could not write $pth — do it by hand:  echo $dist > \"$pth\""
+      fi
+    fi
+    "$PY" -c "$gi_probe" >/dev/null 2>&1 \
+      || die "no GTK3/WebKit2 backend for PyWebView. Install:
+     sudo apt install python3-gi gir1.2-webkit2-4.1
+     or point me at an apt-built Python: KLANGKURATOR_PYTHON=/usr/bin/python3"
+  fi
+  # A window that constructs is the last thing checkable without a display; if
+  # even that aborts, GSettings is still resolving the wrong schemas.
+  "$PY" -c "$gi_probe; Gtk.Window()" >/dev/null 2>&1 \
+    || die "GTK could not open a window (its settings are unusable). Try:
+     GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas ./run.sh desktop
+     (or unset XDG_DATA_DIRS, which a sandboxed shell may have overridden)"
 
   say "building frontend (npm run build)"
   npm run build
