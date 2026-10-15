@@ -5,6 +5,42 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 1b — similarity model and tests (issue #8, PF-81)
+
+The map's computation lands as pure modules under `src/lib/trackMap/`:
+
+- `features.ts` reads a song and its tag ids into `TrackFeatures`. Key parsing
+  accepts the short ("Am", "F#m", "Bb"), long ("A minor", "C# major") and
+  Camelot ("8A") notations, case-insensitively, with `♯`/`♭` and `#`/`b`
+  alike; enharmonics share a Camelot code. Numbers ≤ 0 or not finite are
+  missing, ratings of 0 are unrated, empty sets are missing, and the genre
+  comes from `trackGenre()` (lowercased for comparing, its display case kept
+  as `genreLabel`).
+- `similarity.ts` holds the per-input table — BPM by tempo ratio with half and
+  double time folded, key by Camelot steps, genre 1/0, subgenre and tags by
+  Jaccard, the three ratings by their difference, year, duration, and
+  relationships through `R(t)` — the weighted composite (missing values
+  skipped, the minimum-overlap rule, symmetric, rounded to 9 decimals) and
+  `nearest` (top-k, `S` descending then id ascending, `S > 0` only).
+- `connections.ts` builds `R(t)`: any of the eight relationship types either
+  direction, plus every transition fact either direction.
+- `transitions.ts` gathers the transition facts — `transition` relationships,
+  consecutive tracks in a block, and consecutive tracks in a set's flat
+  `items` with blocks expanded in place (`phases` never read) — with a gap
+  breaking a run, dedup per `from → to` direction, merged notes and sources
+  ordered relationship, block, set, then by name and id.
+- `clusters.ts` gives `groupKey` for all six dimensions and the dimension
+  choice (try genre, BPM range, subgenre, energy; `C_MIN` 4, `C_MAX` 60; a
+  dimension with one group is never taken; the nearest band when none fits;
+  crate then artist initial as fallbacks). Node building is phase 6.
+- `buildModel.ts` assembles the track-mode `MapModel`: nodes, the undirected
+  union of the nearest sets as links, the relationship and transition edges,
+  and `unlinkedCount`.
+- `syntheticLibrary.ts` is the seeded generator the 500-track perf test uses.
+
+Every worked example and boundary in the plan's algorithm contract has a
+vitest test, including the 500-track nearest run in under 1 s.
+
 ### Track map phase 1a — shared types and test setup (issue #8, PF-81)
 
 `src/lib/trackMap/types.ts` fixes the module's shared types and
