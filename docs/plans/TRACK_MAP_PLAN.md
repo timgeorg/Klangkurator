@@ -749,6 +749,31 @@ above: the measured budget never needs one. `T`/`C_MIN`/`C_MAX` stand.
   until Tim adds genres, tags and ratings (fact 12); the phase 3 calibration shows
   whether the layout reads well on that
 
+## Phase 7 — the verification record (2026-10-15)
+
+Independent Tester run on the phase-7 tip (`feature_8_entry-points`): every
+gate green — `tsc` with the 9 known `MockupDataService` errors only and no
+others, `eslint` clean, `npm test` **198/198**, `vite build` passes, and the
+re-solve at 500 tracks (the O(T²) case) measured at **1.37 s against the 3 s
+limit**. Six behavioural claims were reproduced against a sandbox backend,
+including the 768 px threshold, confirmed at 767 (no canvas) and 768 (canvas).
+
+Source-blind Validator run against the whole behaviour contract:
+**59 of 59 clauses PASS** — TM-D 5, TM-M 14, TM-S 5, TM-R 11, TM-H 3, TM-L 7,
+TM-C 10, TM-E 4. The Validator read no source, set its fixtures through the
+sandbox API and judged only observed behaviour; its report is at
+`/tmp/kk-8-validation-report.md`.
+
+Impeccable audit: the detector reports **0 anti-patterns** in the map's code
+(the only advisories are literal colours in test fixtures, which is their
+job). Rendered checks in both themes: **0 contrast failures**, 0 unnamed
+controls, `nav` and `main` landmarks present, reduced motion honoured, and 0
+touch targets under 44 px in the map rail. Two follow-ups were found and fixed
+in the phase branch: a dense-map label pile (collision-aware titles) and an
+`h4` under the page's `h1` in the Edge legend (now `h2`). No token drift: no
+raw hex, no Tailwind palette colours, no `will-change` or blur in the map's
+code.
+
 ## Follow-ups after #8
 
 Journeys, the auto-advance walk and an axis mode. Planned only once #8 ships
