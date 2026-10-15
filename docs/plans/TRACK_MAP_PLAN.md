@@ -580,13 +580,32 @@ changelog.
 - **The cold renderer and the animation** are checked at the start of phase
   2, before the renderer's shape is fixed. Smartimize redraws continuously
   (`autoPauseRedraw={false}`); that idle cost matters at 5,000 tracks and in
-  WebKitGTK
+  WebKitGTK. **PASSED 2026-10-15** on both platforms (harness in `spike/`,
+  development-only, untracked): Chromium drew 25 frames in 400 ms (mean
+  16.2 ms, ~60 fps) and **0 canvas paints in 2000 ms idle**; the real
+  PyWebView window (WebKitGTK, 1280×800) painted the canvas and recorded
+  **0 paints in 3000 ms idle**. Keep `autoPauseRedraw` pinned on — it is
+  what delivers the zero-idle figure.
 - **The PyWebView window** (WebKitGTK) draws canvas more slowly than
   Chromium. The phase 2 spike runs there first, because phase 2 deletes the
-  old graph; a failure there would break the dialog until reverted
+  old graph; a failure there would break the dialog until reverted.
+  **Cleared 2026-10-15** — the window renders the pinned canvas; deletion
+  may proceed. (Note for the record: this sandbox needs
+  `GSETTINGS_SCHEMA_DIR=/usr/share/glib-2.0/schemas`, a non-snap
+  `XDG_DATA_DIRS`, and `PYTHONPATH=/usr/lib/python3/dist-packages` to open
+  the WebKitGTK window from inside the VS Code snap.)
 - **Main-thread cost** is bounded by `T`: nearest tracks only for `N ≤ T`,
   clusters above it. Phase 6 measures, and adds a worker only if needed
-- **Bundle size** of the new dependencies: recorded in phase 2
+- **Bundle size** of the new dependencies: recorded in phase 2.
+  **Baseline 2026-10-15**: the built main chunk was **607,016 bytes**
+  (`dist/assets/index-Dw8AkhD1.js`) before the renderer's modules entered the
+  graph; `react-force-graph-2d` and `d3-force` were already installed and in
+  `package.json`. **Measured in phase 2, 2026-10-15**: 804,406 bytes
+  (`dist/assets/index-S3bFwpjw.js`), **+197,390 bytes (+32%)** with
+  `TrackMapCanvas`, `TrackDetails` and `layout.ts` in the graph. The map is
+  only ever opened deliberately (the dialog and, from phase 3, `/map`), so
+  phase 7 should lazy-load the map route (`React.lazy`) to keep this off the
+  library's first paint — carry it as a phase 7 checklist item, not a blocker.
 - **Similarity on the real library** rests on BPM, key, genre and subgenre
   until Tim adds genres, tags and ratings (fact 12); the phase 3 calibration shows
   whether the layout reads well on that

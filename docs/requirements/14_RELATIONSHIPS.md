@@ -28,29 +28,37 @@ from the Edit track dialog.
 - "In Playlists" section: shows which playlists contain the song + position
 
 ### Graph View
-- *(changing with PF-81, [33_TRACK_MAP.md](33_TRACK_MAP.md) REQ-33-DG)* The
-  graph becomes a small instance of the track map's canvas: the same
-  renderer and look, still only the song and its relationship partners (all
-  eight types). The dialog opens with its song selected; clicking a track,
-  or choosing it in the details' partner list, selects it and shows its
-  details; re-centring moves to the **Show its relationships** action, with
-  the same back-button history; **Open in map** continues into the full map
-  with this song and its partners as a removable filter. The bullets below
-  describe the graph as built until then
-- HTML canvas, nodes = songs as black-and-white cover discs, related songs on
-  an ellipse around the centre song; the centre song carries the orange cut
+- *(changed in PF-81, [33_TRACK_MAP.md](33_TRACK_MAP.md) REQ-33-DG)* The graph
+  is a small instance of the track map's canvas: the same renderer
+  (`src/components/map/TrackMapCanvas.tsx`) and the same headless layout
+  (`src/lib/trackMap/layout.ts`), still only the song and its relationship
+  partners (all eight types). The dialog opens with its song selected; the
+  song sits at the origin with its partners around it, one line style per
+  relationship type. Clicking a track, or choosing an entry in the details'
+  partner list, selects it and shows its details beside the canvas; re-centring
+  moves to the **Show its relationships** action, with the same back-button
+  history. A legend under the canvas lists the relationship types on screen,
+  each with its line style. **Open in map** (phase 7) continues into the full
+  map with this song and its partners as a removable filter
+- The selected track's details are compact: title, artist, its relationship
+  partners as a list (each entry selects that track) and the actions **Play**
+  (a run of one), **Song page** and **Show its relationships**. It shows no
+  nearest tracks — those belong to the map rail
+- A node is a track: a disc in its main genre's user colour, neutral when it
+  has none. Orange means "this one": the playing track carries the orange cut,
+  the selected track the focus ring. Hovering a track highlights it and its
+  edges and dims the rest
 - Each relationship type has its own line, so the graph also reads in
   grayscale: `transition` solid and heavier in the foreground colour; `remix`,
   `edit`, `cover` solid in violet, green, cobalt; `mashup`, `bootleg` dashed
   in rose, clay; `same_sample`, `in_playlist` dotted in ochre, slate
   (source of truth: `src/lib/relationshipStyle.ts`)
-- A legend lists all eight types with their line
-- Song titles visible by default (no hover required); edge labels sit off
-  the node so they don't overlap
-- Clicking another node **navigates** — that song becomes the new center,
-  with back-button history; this works the same from the list view
-- Follows the theme (ink or paper): colours come from the design tokens, and
-  the canvas redraws when the theme changes; no grid, glow or gradients
+- Song titles show at close zoom, and always on the hovered and selected
+  tracks; a line leaves a gap at a node's edge, so the two never overlap
+- Clicking empty canvas clears the selection
+- Follows the theme (ink or paper): colours come from the design tokens, read
+  at runtime, and the canvas redraws when the theme or cover mode changes; no
+  grid, glow or gradients
 
 ## Transition Relationships And Set Planning
 

@@ -5,6 +5,47 @@ Last Updated: 2026-10-15
 
 ## 2026-10-15
 
+### Track map phase 2 — layout, canvas and the dialog on it (issue #8, PF-81)
+
+The map's layout and renderer land, and the relationships dialog's graph moves
+onto them:
+
+- `src/lib/trackMap/layout.ts` solves the layout headless with d3-force:
+  nodes sorted by id before solving (so the same input gives the same output),
+  link distance `30 + 120 × (1 − s)` at strength `s`, a many-body charge of
+  −120 with `distanceMax` 600, a weak centre (0.05) and collide by node radius
+  + 2, then `simulation.stop()` and 300 synchronous ticks. A new node starts at
+  the mean of its linked neighbours' seeds, else on a golden-angle spiral over
+  the new nodes in id order; a re-solve starts from the positions on screen, so
+  the map keeps its shape. Unlinked nodes settle at the edge.
+- `src/components/map/TrackMapCanvas.tsx` is the cold renderer the dialog and
+  the map share: positions are pinned with `fx`/`fy`, so it never simulates, and
+  `autoPauseRedraw` keeps it at zero paints while idle (the phase 2 spike
+  measured 0 in 2 s idle in Chromium and 3 s in the PyWebView window). It draws
+  genre-coloured discs, one line style per relationship type, the orange cut and
+  the focus ring on the playing and selected tracks, and dims the rest on hover.
+  It reads the design tokens at runtime, scales the backing store by
+  `devicePixelRatio`, draws text after `document.fonts.ready` and redraws on a
+  theme or cover-mode change; a changed node set appears in place and a change
+  of positions moves in one 400 ms ease-out animation (a jump under reduced
+  motion). `TrackMapCanvasHandle` exposes zoom in / out, fit, reset, centre-on
+  and the zoom level; graph-node arrow-key travel stays deferred.
+- `src/components/map/TrackDetails.tsx` is the selected track's details,
+  compact in the dialog and full in the map rail: cover, title, artist, BPM,
+  key, genre, ratings and tags; the nearest tracks with each similarity as a
+  whole percentage; the transitions in and out; and the actions Play (a run of
+  one), Properties, Song page and Show its relationships.
+- The relationships dialog's graph is now the same canvas: its song at the
+  origin with its partners around it, the song selected on open, a partner list
+  that selects, **Show its relationships** re-centring with back history, and a
+  legend of the relationship types on screen. **Open in map** comes in phase 7.
+- `src/components/dj/SongRelationshipGraph.tsx` is deleted; the dialog was its
+  only importer.
+- `14_RELATIONSHIPS.md` › Graph View describes the canvas-backed dialog. The
+  built bundle grows by the renderer's modules; the delta is recorded in
+  `docs/plans/TRACK_MAP_PLAN.md` › Risks and spikes (baseline 607,016 bytes,
+  `dist/assets/index-Dw8AkhD1.js`).
+
 ### Track map phase 1b — similarity model and tests (issue #8, PF-81)
 
 The map's computation lands as pure modules under `src/lib/trackMap/`:

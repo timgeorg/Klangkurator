@@ -12,8 +12,7 @@ tags:
 - [[LyricsDialog.tsx]] — Dialog for writing a track's lyrics.
 - [[NowPlaying.tsx]] — Player control component: displays the currently playing track with cover, waveform, play/pause with previous / next through the run, volume, auto-advance at track end, and toggles between dock positions (right panel on wide screens, bottom bar on narrow).
 - [[SongLibrary.tsx]] — Main library view: the filterable, sortable table with dynamic columns; applies inline edits optimistically through a write queue and keeps rows in place while editing.
-- [[SongRelationshipGraph.tsx]] — Canvas graph of a song's relationships: cover nodes, one line style per relationship type, re-centres on click; follows the theme.
-- [[SongRelationshipsDialog.tsx]] — Modal dialog for managing song relationships (add, edit, delete links to other songs by type).
+- [[SongRelationshipsDialog.tsx]] — Modal dialog for managing song relationships (add, edit, delete links to other songs by type); its graph tab is the track map's canvas (pre-selected song, partner list, Show its relationships with history, legend of the types on screen).
 - [[SongTableHeader.tsx]] — Table header row component with sortable column headers and filter inputs.
 - [[TrackTitle.tsx]] — A track title with its version or catalogue part set quieter, so two versions of one track never read the same in lists.
 - [[SongTableRow.tsx]] — One table row: cover, waveform, play and edit actions, and the inline-editable cells for every user-owned value.
