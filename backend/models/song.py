@@ -3,6 +3,11 @@
 from pydantic import BaseModel, Field, ConfigDict
 
 
+#: Song keys the model no longer has (issue #48: `people` replaced both). Rows
+#: saved before keep them; nothing reads them, and the export leaves them out.
+RETIRED_SONG_KEYS = frozenset({"danceability", "social_acceptance"})
+
+
 class SongBase(BaseModel):
     """Fields that can be set at creation time (excludes id/timestamps)."""
     title: str

@@ -279,22 +279,20 @@ def test_mixed_case_extensions_are_found(tmp_path):
     assert found == {"lower.mp3", "upper.MP3", "mixed.Mp3"}
 
 
-def test_a_crate_counts_the_same_way_the_filter_does(tmp_path, monkeypatch):
-    """A row without root_folder belongs to its parent folder, not "Unknown"."""
-    monkeypatch.setattr(
-        library_api, "extract_metadata", lambda path: {"title": Path(path).stem, "artist": "D"}
-    )
-    monkeypatch.setattr(library_api, "compute_peaks", lambda path: None)
-    monkeypatch.setattr(library_api, "extract_artwork", lambda path, song_id: None)
-    crate = tmp_path / "Techno"
-    crate.mkdir()
-    (crate / "a.wav").write_bytes(b"")
-    client.post("/api/library/scan", json={"root_path": str(tmp_path)})
-    _wait_until(_jobs_idle)
+def test_a_crate_counts_the_same_way_the_filter_does():
+    """A row without root_folder belongs to its parent folder, not "Unknown".
 
+    The row is created without `root_folder` on purpose: a scanned row always
+    carries one, so it could not tell the two rules apart."""
     from backend.api.library import crate_of
     from backend.storage import get_library_store
 
-    song = get_library_store().get_songs()[0]
+    res = client.post(
+        "/api/songs", json={"title": "A", "artist": "D", "file_path": "/music/Techno/a.wav"}
+    )
+    assert res.status_code == 201
+    song = get_library_store().get_song(res.json()["id"])
+    assert not song.get("root_folder")
+
     assert crate_of(song) == "Techno"
     assert {row["name"] for row in library_api.list_crates()} == {"Techno"}

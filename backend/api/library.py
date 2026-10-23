@@ -33,8 +33,7 @@ class PickFolderResponse(BaseModel):
 # The scan, the library-wide analysis and the per-track re-analyze exclude each
 # other; `_job` names the run that holds the slot. The lock only guards the
 # check-and-set — a job is not "busy" by holding it, because the batch jobs
-# return as soon as their thread is spawned. `_analyze_lock` is the same lock
-# under the name the per-track route and its tests already use.
+# return as soon as their thread is spawned.
 
 _JOB_MESSAGES = {
     "scan": "A scan is running",
@@ -43,7 +42,6 @@ _JOB_MESSAGES = {
 }
 
 _job_lock = threading.Lock()
-_analyze_lock = _job_lock
 _job: str | None = None
 
 
@@ -70,9 +68,8 @@ def _claim_job(kind: str, start=None) -> None:
     if not _job_lock.acquire(blocking=False):
         raise HTTPException(409, _job_message(_job))
     try:
-        running = _job or ("analysis" if _analyze_state["running"] else None)
-        if running is not None:
-            raise HTTPException(409, _job_message(running))
+        if _job is not None:
+            raise HTTPException(409, _job_message(_job))
         _job = kind
         if start is not None:
             start()

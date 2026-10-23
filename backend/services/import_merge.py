@@ -30,6 +30,13 @@ DATA_KEYS = (
 )
 DURATION_TOLERANCE_S = 2.0
 
+#: Every key a stored song row may carry: the model's field names plus their
+#: aliases. Rows store `mainGenre`, the alias of `main_genre`; matching on the
+#: field names alone dropped every imported main genre.
+_SONG_KEYS = frozenset(
+    key for name, field in SongBase.model_fields.items() for key in (name, field.alias) if key
+)
+
 # User-authored, conflict-resolvable song fields (MC-3). Ratings count as
 # empty when 0 (0 = unrated across the app), strings when None/"", arrays
 # when []. file_path is deliberately absent: paths are machine-truth (MC-2).
@@ -248,7 +255,7 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
             # Keys the model no longer has are dropped too: an export made
             # before a field was retired would otherwise write the dead key
             # into library.json, where it would ride into every later export.
-            new_song = {k: v for k, v in s.items() if k in SongBase.model_fields}
+            new_song = {k: v for k, v in s.items() if k in _SONG_KEYS}
             for f in CONFLICT_FIELDS:
                 if _empty(f, new_song.get(f)):
                     new_song.pop(f, None)

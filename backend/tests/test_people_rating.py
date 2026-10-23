@@ -179,3 +179,52 @@ def test_import_preview_reports_a_people_conflict_like_energy():
     assert fill_plan["summary"]["conflicts"] == 0
     client.post("/api/import", json={"envelope": fill, "resolutions": []})
     assert client.get(f"/api/songs/{unrated['id']}").json()["people"] == 2.5
+
+
+def test_export_leaves_out_the_old_keys_of_an_old_row():
+    """A row saved before #48 still holds the retired keys; the backup must not."""
+    song = _new_song(people=2)
+    _seed_old_keys(song["id"], danceability=4.0, social_acceptance=3.0)
+
+    exported = next(
+        s for s in client.get("/api/export").json()["data"]["songs"] if s["id"] == song["id"]
+    )
+    assert exported["people"] == 2
+    for key in OLD_RATING_KEYS:
+        assert key not in exported
+
+
+def test_import_keeps_the_main_genre_and_drops_the_old_keys():
+    """BC-10: an old export imports without its Dance/Social values — and keeps
+    everything else. The stored key is the alias `mainGenre`; filtering on the
+    model's field names alone dropped it for every added track."""
+    envelope = {
+        "format": "klangkurator-library",
+        "version": 1,
+        "exported_at": "2026-10-01T00:00:00Z",
+        "data": {
+            "songs": [{
+                "id": "old-export-id",
+                "title": "Dub Track",
+                "artist": "Basic Channel",
+                "file_path": "/music/dub-track.mp3",
+                "mainGenre": "Techno",
+                "subgenres": ["Dub Techno"],
+                "energy": 3,
+                "danceability": 4,
+                "social_acceptance": 2,
+            }],
+            "tags": [], "song_tags": [], "song_relationships": [],
+            "playlists": [], "playlist_songs": [], "blocks": [], "sets": [],
+        },
+    }
+    res = client.post("/api/import", json={"envelope": envelope, "resolutions": []})
+    assert res.status_code == 200
+
+    stored = next(s for s in get_library_store().get_songs() if s["title"] == "Dub Track")
+    assert stored["mainGenre"] == "Techno"
+    assert stored["subgenres"] == ["Dub Techno"]
+    assert stored["energy"] == 3
+    for key in OLD_RATING_KEYS:
+        assert key not in stored
+    assert stored["id"] != "old-export-id"

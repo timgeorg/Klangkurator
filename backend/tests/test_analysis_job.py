@@ -201,3 +201,34 @@ def test_cancel_during_the_last_track_ends_normally(tracks, monkeypatch):
     assert status["result"]["cancelled"] is False
     assert status["result"]["analyzed"] == TRACKS
     assert status["done"] == status["total"] == TRACKS
+
+
+def test_an_abort_left_from_the_last_track_does_not_cancel_the_next_run(tracks, monkeypatch):
+    """The stop is cleared when a run starts. An Abort that arrived during the
+    last track outlives that run; without the clear, the next run would stop
+    before its first track and report `cancelled` with nothing analyzed."""
+    release = threading.Event()
+    started = threading.Event()
+
+    def hold(title):
+        if title == "track2":
+            started.set()
+            release.wait(5)
+
+    _stub_detector(monkeypatch, hold)
+    client.post("/api/library/analyze-all")
+    assert started.wait(5)
+    assert client.post("/api/library/analyze-cancel").status_code == 200
+    release.set()
+    _wait_until(_jobs_idle)
+    assert library_api._analyze_stop.is_set()
+
+    store = get_library_store()
+    for song_id in tracks:
+        store.update_song(song_id, {"bpm": None})
+    assert client.post("/api/library/analyze-all").json()["started"] is True
+    _wait_until(_jobs_idle)
+
+    status = _analysis_status()
+    assert status["result"]["cancelled"] is False
+    assert status["result"]["analyzed"] == TRACKS
