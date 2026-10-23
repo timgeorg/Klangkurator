@@ -1,7 +1,7 @@
 # Track Map (Similarity Canvas)
 
 Status: Active
-Last Updated: 2026-10-15
+Last Updated: 2026-10-23
 Source: issue #8 (brainstorm 2026-10-13, round two 2026-10-14) and Tim's
 answers of 2026-10-14 late, quoted verbatim in
 [TRACK_MAP_PLAN.md](../plans/TRACK_MAP_PLAN.md) › Decisions
@@ -93,8 +93,9 @@ Not in the MVP:
   transition compatibility) nor PF-52 (phrase-level audio), and it does not
   reuse the transition weights of `31_TRANSITION_MINING.md`
 - Inputs, each switched on or off and weighted in the map rail: BPM, tags,
-  relationships, genre, subgenre, key, energy, danceability, social
-  acceptance; year and duration exist but start off
+  relationships, genre, subgenre, key, energy, people (one input since
+  issue #48, which replaced danceability and social acceptance — the two meant
+  the same thing, so they were counted twice); year and duration exist but start off
 - Default weights **(shipped as proposed; Tim: key matters least, BPM, tags
   and relationships most)**:
 
@@ -106,8 +107,7 @@ Not in the MVP:
 | Genre | 2 |
 | Subgenre | 2 |
 | Energy | 1 |
-| Danceability | 1 |
-| Social acceptance | 1 |
+| People | 1 |
 | Key | 0.5 |
 | Year, Duration | 1 each, switched off |
 

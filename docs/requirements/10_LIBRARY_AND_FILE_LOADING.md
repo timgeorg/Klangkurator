@@ -1,7 +1,7 @@
 # Library And File Loading
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-23
 Source: Requirements.md sections 4, 12; new set-planning workflow
 
 ## Root Folder Concept
@@ -75,6 +75,35 @@ from loose file picks.
 4. Show stats: total, added, skipped, errors
 5. User can then browse, tag, and annotate the imported tracks
 
+### Scan progress (REQ-10-SP, PF-86; issue #46 — planned)
+A scan decodes every file for its waveform peaks (~1.4 s per file measured),
+so a large folder takes minutes. It must never be a silent blocking request.
+- The scan runs as a **background job**. `POST /api/library/scan` returns at
+  once with `{started: true, total: N}`.
+- `GET /api/library/scan-status` reports `running`, `finished`, `done`,
+  `total`, `current_file` (the file name, not the path), `current_crate`,
+  `added`, `skipped`, `errors` (a list of `"<file>: <reason>"` strings), and
+  once finished `result` (`{total, added, skipped, errors}`) or `error`.
+- `done` counts **files finished**: added, skipped or failed. The first status
+  reads `0 / N`, the last `N / N`; `current_file` is the file in progress.
+  Progress comes from these counts, never from a timer.
+- The job always ends with `running: false` and a `result` or an `error`, also
+  when a file throws, so no view spins forever.
+- **Where it shows** (Tim, 2026-10-23: *"yes, outside, toas with loading bar on
+  library page, if clicked away only on the import page"*):
+  - On the **Import page**: a progress bar, `done / total`, and the current
+    track with its crate. Leaving the page and coming back mid-scan shows it
+    again (the page reads the status on mount).
+  - **Outside the Import page** (the library page, and the other pages too —
+    the toast host is app-wide): a **progress toast** with the same bar, count
+    and current track. The toast can be closed; once closed it stays closed
+    for that scan, and the progress shows only on the Import page.
+- **When it finishes** (Tim: *"no, just that it finished, no stats"*): a toast
+  says **"Scan finished"**, without numbers, on whatever page is open. The
+  Import page shows the summary (added / skipped / errors) only for a scan that
+  finished while the page was open.
+- Stopping a scan is not part of this (not requested).
+
 ### Backend folder browsing (picker support)
 - `GET /api/library/browse?path=<dir>` lists a directory's subfolders for
   the client-side tree dialog
@@ -92,21 +121,49 @@ from loose file picks.
 - Files that no longer exist on disk are flagged but NOT deleted (user confirms)
 
 ### Audio analysis progress (REQ-10-AP)
-- "Analyze BPM/Key" runs as a **background job with visible progress** —
-  the user sees `Analyzing (3/47)…` with the current track title, a
-  progress bar, and elapsed/remaining feel. A silent multi-minute
-  blocking request is not acceptable.
-- Backend: analysis runs async; progress is exposed at
-  `GET /api/library/analyze-status` (done / total / current_title /
-  running). The frontend polls it while a job is running.
-- Only one analysis job runs at a time; starting a new one while one is
-  running is rejected with a clear message. This holds in **both** directions:
-  the per-track re-analyze below refuses to start while a library-wide job
-  runs, and the library-wide job refuses to start while a per-track run is in
+- "Analyze BPM and key" runs as a **background job with visible progress**. A
+  silent multi-minute blocking request is not acceptable.
+- Backend: `POST /api/library/analyze-all` starts the job and returns
+  `{started: true, total: N}`. `GET /api/library/analyze-status` reports
+  `running`, `finished`, `stopping`, `done`, `total`, `current_title`, and once
+  finished `result` (`{analyzed, updated, skipped, errors, cancelled}`) or
+  `error`. `total` is counted once, at the start, and the status reports that
+  same number.
+- `done` counts **tracks finished** (analyzed, skipped or failed): the first
+  status reads `0 / N`, the last `N / N`; `current_title` is the track in
   progress.
+- **One background job at a time.** Library-wide analysis, per-track re-analyze
+  (below) and the folder scan (REQ-10-SP) exclude each other in the backend:
+  starting one while another runs is refused with 409 and a message naming the
+  running job (checked and claimed under one lock). The Import page disables
+  folder pick, Re-scan and Analyze while any job runs, including a job it
+  picked back up on load.
 - The job is per-run (in-memory), not persisted to JSON — if the backend
   restarts mid-job, progress is simply gone and the user can restart.
-- Final summary (analyzed/updated/skipped/errors) is shown on completion.
+- When a job (analysis or scan) ends, the app fires
+  `klangkurator:library-changed`, so the library table refreshes.
+
+#### Where progress shows, and Abort (PF-86; issue #46 — planned)
+The same rule as the scan (REQ-10-SP), so both jobs behave alike:
+- On the **Import page**: the progress bar, `done / total`, the current title,
+  and an **Abort** button.
+- **Outside the Import page**: a **progress toast** with the bar, `done /
+  total` songs, the current title and **Abort**. It stacks with the regular
+  toasts and is never replaced by them. It can be closed; once closed it stays
+  closed for that run, and progress and Abort remain on the Import page.
+- **Abort** stops the job **after the track it is on** (3–5 s). Tracks already
+  analyzed keep their BPM/key, because every track is saved as it finishes.
+  While stopping, the progress reads "Stopping after this track…" and Abort is
+  disabled. `POST /api/library/analyze-cancel` asks the running job to stop; it
+  answers 409 when none runs, and the app then only refreshes the status (no
+  error message). A stop requested during the last track ends the job normally
+  (`cancelled: false`).
+- When the job ends, a toast gives the summary — "Analysis complete" or
+  "Analysis stopped", with analyzed / updated / skipped — and the Import page
+  keeps its "Last run" line.
+- A page reload (or a second tab) while a job runs picks it back up: the app
+  reads both statuses once on start. Closing the desktop window stops the
+  backend, and the job with it.
 
 ### Per-track re-analyze (REQ-10-RA, PF-79; issue #6)
 - A track's **detail page** offers `Re-analyze` next to Play / Edit /
