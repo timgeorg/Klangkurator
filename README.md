@@ -123,9 +123,9 @@ folder, let the scan finish (you get a progress bar), and the library view takes
 ## Local agents (MCP)
 
 Specified in [docs/requirements/34_MCP_SERVER.md](docs/requirements/34_MCP_SERVER.md)
-(PF-85, issue #47); **not built yet**. The design is a thin client: the server holds no
-state, opens nothing under `~/.klangkurator/`, and forwards every tool call to the
-backend that is already running. 24 curated tools, no deletion, no audio, stdio only.
+(PF-85, issue #47). A thin client: the server holds no state, opens nothing under
+`~/.klangkurator/`, and forwards every tool call to the backend that is already running.
+24 curated tools, no deletion, no audio, stdio only.
 
 The backend must be up first (`./run.sh`). Then point an MCP client at the server. The
 project folder and the venv's interpreter are the only two things to fill in:

@@ -1,6 +1,6 @@
 # MCP Server
 
-Status: Active
+Status: Active — built (issue #47, 2026-10-23)
 Last Updated: 2026-10-23
 Source: issue #47 (Tim, 2026-10-23: *"Would you need MCP to better interact with
 Klangkurator? What would MCP need for that tool?"*). Plan:
