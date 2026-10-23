@@ -522,7 +522,7 @@ export function SubgenresCell({ song, onPatch }: { song: Song; onPatch: PatchSon
   );
 }
 
-// ── Ratings: energy, dance, social (bars), rank (stars) ────
+// ── Ratings: energy, people (bars), rank (stars) ──────────
 
 const STEPS = [1, 2, 3, 4, 5];
 const oneDecimal = (n: number) => Math.round(n * 10) / 10;

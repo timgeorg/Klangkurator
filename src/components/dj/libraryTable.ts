@@ -21,8 +21,7 @@ export interface FilterState {
   bpm: RangeValue;
   key: string[];
   energy: RangeValue;
-  danceability: RangeValue;
-  social: RangeValue;
+  people: RangeValue;
   rank: RangeValue;
   duration: RangeValue;
   tags: string[];
@@ -60,8 +59,7 @@ export const FILTER_CONFIG: Record<
   genre: { type: "multiselect", optionsKey: "mainGenres" },
   subgenres: { type: "multiselect", optionsKey: "subgenres" },
   energy: { type: "range", min: 0, max: 5 },
-  danceability: { type: "range", min: 0, max: 5 },
-  social: { type: "range", min: 0, max: 5 },
+  people: { type: "range", min: 0, max: 5 },
   rank: { type: "range", min: 1, max: 5 },
   duration: { type: "range", min: 0, max: 600 },
   tags: { type: "multiselect", optionsKey: "tags" },
@@ -78,8 +76,7 @@ export const INITIAL_FILTERS: FilterState = {
   bpm: {},
   key: [],
   energy: {},
-  danceability: {},
-  social: {},
+  people: {},
   rank: {},
   duration: {},
   tags: [],
@@ -134,10 +131,8 @@ export function filterSongs(
     if (filters.bpm.max !== undefined && (!song.bpm || song.bpm > filters.bpm.max)) return false;
     if (filters.energy.min !== undefined && song.energy < filters.energy.min) return false;
     if (filters.energy.max !== undefined && song.energy > filters.energy.max) return false;
-    if (filters.danceability.min !== undefined && song.danceability < filters.danceability.min) return false;
-    if (filters.danceability.max !== undefined && song.danceability > filters.danceability.max) return false;
-    if (filters.social.min !== undefined && song.social_acceptance < filters.social.min) return false;
-    if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
+    if (filters.people.min !== undefined && (song.people ?? 0) < filters.people.min) return false;
+    if (filters.people.max !== undefined && (song.people ?? 0) > filters.people.max) return false;
     if (filters.rank.min !== undefined && (song.rank ?? 0) < filters.rank.min) return false;
     if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
     if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;

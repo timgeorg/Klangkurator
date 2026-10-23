@@ -12,6 +12,7 @@ tags:
 - [[test_song_update.py]] — Partial song updates: an explicit null clears an optional field, omitted fields stay, required and list fields can't be blanked.
 - [[test_rank.py]] — The per-track rank (issue #4): create round-trips, PUT sets it, and a song without a rank reads back as 0.
 - [[test_decimal_energy.py]] — Decimal ratings (issue #7): fractional round-trips, rank stays int, legacy fractional JSON lists without 500.
+- [[test_people_rating.py]] — One People rating (issue #48): the retired Dance and Social keys are ignored, `people` round-trips and exports, a scan writes it unrated, and an import conflicts on it like energy (0 counts as empty).
 - [[test_export_import.py]] — Export/import (issue #10): envelope, match precedence, fill/clobber, conflict resolutions, uuid protection, tag identity, other-store skip, wholesale-replace regression.
 - [[test_reanalyze.py]] — Per-track re-analyze (issue #6): it overrides the "only fill missing" rule, the BPM range reaches the engine and steers it, an out-of-range result is reported and never written, one analysis at a time, malformed ranges are 422.
 - [[test_scan_job.py]] — The folder scan job (issue #46): start returns at once with `{started, total}`, done counts 0 → N, a throwing file lands in errors and the job still finishes, an unexpected exception ends `running: false` with `error`, an empty folder is `total: 0`, and scan and analysis refuse each other with a 409.

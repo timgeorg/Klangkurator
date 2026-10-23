@@ -29,9 +29,8 @@ export class LocalDataService implements DataService {
       year: 2024,
       duration: 180,
       file_path: '/sample/welcome.mp3',
-      danceability: 3,
       energy: 3,
-      social_acceptance: 3,
+      people: 3,
     };
     await storage.addSong(sample);
     console.log('LocalDataService: Minimal initialization complete!');

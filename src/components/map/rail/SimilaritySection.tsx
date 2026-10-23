@@ -21,8 +21,7 @@ const INPUT_LABELS: Record<MapInput, string> = {
   subgenre: "Subgenre",
   key: "Key",
   energy: "Energy",
-  danceability: "Danceability",
-  social_acceptance: "Social acceptance",
+  people: "People",
   year: "Year",
   duration: "Duration",
 };

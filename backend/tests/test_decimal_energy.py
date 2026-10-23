@@ -1,4 +1,4 @@
-"""Decimal energy (issue #7): the three 0–5 ratings take one decimal."""
+"""Decimal ratings (issue #7): the 0–5 ratings take one decimal, rank stays whole."""
 
 from fastapi.testclient import TestClient
 
@@ -60,7 +60,7 @@ def test_legacy_store_with_a_fraction_energy_lists_without_error():
 
     store = get_library_store()
     song = _new_song()
-    store.update_song(song["id"], {"energy": 3.8, "danceability": 2.5})
+    store.update_song(song["id"], {"energy": 3.8, "people": 2.5})
     res = client.get("/api/songs")
     assert res.status_code == 200
     energies = {s["id"]: s["energy"] for s in res.json()}
