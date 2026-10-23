@@ -11,6 +11,7 @@ Two rules live here rather than in the app:
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,16 @@ RELATIONSHIP_TYPES = (
 
 #: The palette's fallback (src/lib/palette.ts:38), used when a tag has no colour.
 FALLBACK_COLOR = "#A1A2B3"
+
+#: An id as the app mints them (uuid4) or older data carries them. Anything
+#: else could leave the route it is put into, so it never reaches a path.
+_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+#: The ranges the app's own controls allow: BPM as backend/config.py
+#: (BPM_MIN, BPM_MAX), ratings and rank as 11_SONG_MODEL.
+BPM_RANGE = (40.0, 250.0)
+RATING_RANGE = (0.0, 5.0)
+RANK_RANGE = (0, 5)
 
 server = MCPServer(
     name="klangkurator",
@@ -89,9 +100,10 @@ def search_tracks(
     Args:
         query (str | None): Matches title, artist, main genre, subgenres,
             genres, legacy genre, key or album.
-        crate (str | None): Exact crate (the song's `root_folder`).
-        genre (str | None): Any of main genre, genres or legacy genre.
-        key (str | None): Exact musical key.
+        crate (str | None): The crate (the song's `root_folder`), any case.
+        genre (str | None): Any of main genre, genres or legacy genre, any case.
+        key (str | None): The musical key, any case. An empty crate, genre or
+            key is no filter.
         bpm_min (float | None): Lowest BPM, inclusive.
         bpm_max (float | None): Highest BPM, inclusive.
         missing_bpm (bool): Only tracks without a BPM. Not combined with the
@@ -114,7 +126,7 @@ def search_tracks(
 
     songs = call("GET", "/api/songs", params={"slim": "true"})
     filters = {
-        "query": query, "crate": crate, "genre": genre, "key": key,
+        "query": query, "crate": crate or None, "genre": genre or None, "key": key or None,
         "bpm_min": bpm_min, "bpm_max": bpm_max, "missing_bpm": missing_bpm,
     }
     matching = [_slim(song) for song in songs if _matches(song, filters)]
@@ -138,11 +150,13 @@ def _matches(song: dict, filters: dict) -> bool:
     """
     if filters["query"] and not _matches_text(song, filters["query"]):
         return False
-    if filters["crate"] is not None and _crate_of(song) != filters["crate"]:
+    if filters["crate"] is not None and _crate_of(song).casefold() != filters["crate"].casefold():
         return False
-    if filters["genre"] is not None and filters["genre"] not in _genres_of(song):
+    if filters["genre"] is not None and filters["genre"].casefold() not in {
+        genre.casefold() for genre in _genres_of(song)
+    }:
         return False
-    if filters["key"] is not None and song.get("musical_key") != filters["key"]:
+    if filters["key"] is not None and (song.get("musical_key") or "").casefold() != filters["key"].casefold():
         return False
     return _matches_bpm(song.get("bpm"), filters["missing_bpm"], filters["bpm_min"], filters["bpm_max"])
 
@@ -238,7 +252,7 @@ def get_track(song_id: str) -> dict:
     Returns:
         dict: The full song row.
     """
-    return call("GET", f"/api/songs/{song_id}")
+    return call("GET", f"/api/songs/{_require_id(song_id, 'track')}")
 
 
 @server.tool(annotations=IDEMPOTENT)
@@ -282,9 +296,10 @@ def update_track(
         dict: The updated song, slim.
 
     Raises:
-        ToolError: No field was given.
+        ToolError: No field was given, or a value is outside what the app allows.
     """
     _require_write()
+    _require_id(song_id, "track")
     fields = _named_fields(
         locals(), exclude=("song_id",), rename={"main_genre": "mainGenre"}
     )
@@ -293,7 +308,33 @@ def update_track(
             "Give at least one field to change, e.g. energy=3.5. "
             "To clear a field, do it in the app."
         )
+    problems = _value_problems(fields)
+    if problems:
+        raise ToolError("Nothing was written: " + "; ".join(problems) + ".")
     return _slim(call("PUT", f"/api/songs/{song_id}", json=fields))
+
+
+def _value_problems(fields: dict) -> list[str]:
+    """What the app's own controls would not let a user enter.
+
+    Args:
+        fields (dict): The values about to be sent.
+
+    Returns:
+        list[str]: One phrase per problem; empty when every value fits.
+    """
+    problems = []
+    for name in ("title", "artist"):
+        if name in fields and not str(fields[name]).strip():
+            problems.append(f"{name} cannot be empty")
+    for name in ("energy", "people"):
+        if name in fields and not RATING_RANGE[0] <= fields[name] <= RATING_RANGE[1]:
+            problems.append(f"{name} must be between 0 and 5")
+    if "rank" in fields and not RANK_RANGE[0] <= fields["rank"] <= RANK_RANGE[1]:
+        problems.append("rank must be between 0 and 5")
+    if "bpm" in fields and not BPM_RANGE[0] <= fields["bpm"] <= BPM_RANGE[1]:
+        problems.append("bpm must be between 40 and 250")
+    return problems
 
 
 def _named_fields(
@@ -331,8 +372,8 @@ def scan_library(root_path: str) -> dict:
         dict: `{started, total}`.
     """
     _require_write()
-    _require_allowed_root(root_path)
-    return call("POST", "/api/library/scan", json={"root_path": root_path})
+    root = _require_allowed_root(root_path)
+    return call("POST", "/api/library/scan", json={"root_path": root})
 
 
 @server.tool(annotations=READ)
@@ -367,8 +408,8 @@ def set_library_root(root_path: str) -> dict:
         dict: `{root_path}`.
     """
     _require_write()
-    _require_allowed_root(root_path)
-    return call("PUT", "/api/library/root", json={"root_path": root_path})
+    root = _require_allowed_root(root_path)
+    return call("PUT", "/api/library/root", json={"root_path": root})
 
 
 # ── Analysis ────────────────────────────────────────────
@@ -417,7 +458,7 @@ def analyze_track(
         if bpm_min is None or bpm_max is None:
             raise ToolError("A BPM range needs both bpm_min and bpm_max")
         body = {"bpm_min": bpm_min, "bpm_max": bpm_max}
-    return call("POST", f"/api/library/analyze/{song_id}", json=body)
+    return call("POST", f"/api/library/analyze/{_require_id(song_id, 'track')}", json=body)
 
 
 @server.tool(annotations=WRITE)
@@ -471,7 +512,8 @@ def tag_track(song_id: str, tag_id: str) -> dict:
         dict: `{status: "ok"}`.
     """
     _require_write()
-    return call("POST", f"/api/songs/{song_id}/tags", json={"tag_id": tag_id})
+    _require_id(tag_id, "tag")
+    return call("POST", f"/api/songs/{_require_id(song_id, 'track')}/tags", json={"tag_id": tag_id})
 
 
 @server.tool(annotations=WRITE)
@@ -486,7 +528,7 @@ def untag_track(song_id: str, tag_id: str) -> dict:
         dict: `{status: "ok"}`.
     """
     _require_write()
-    return call("DELETE", f"/api/songs/{song_id}/tags/{tag_id}")
+    return call("DELETE", f"/api/songs/{_require_id(song_id, 'track')}/tags/{_require_id(tag_id, 'tag')}")
 
 
 # ── Playlists ───────────────────────────────────────────
@@ -532,28 +574,30 @@ def create_playlist(name: str, color: str | None = None, description: str | None
     })
 
 
-@server.tool(annotations=WRITE)
-def playlist_add(playlist_id: str, song_id: str, position: int | None = None) -> dict:
-    """Add a track to a playlist.
+@server.tool(annotations=IDEMPOTENT)
+def playlist_add(playlist_id: str, song_id: str) -> dict:
+    """Add a track to the end of a playlist. Adding it again changes nothing.
 
     The API answers 201 for an unknown playlist or song, so both are checked
     here first — otherwise the tool would report a success that wrote nothing.
+    A track already in the playlist is not added twice, so a retry is safe.
 
     Args:
         playlist_id (str): The playlist's id.
         song_id (str): The track's id.
-        position (int | None): Where to put it; the end when omitted.
 
     Returns:
         dict: `{playlist_id, song_id, position}`.
     """
     _require_write()
+    _require_id(playlist_id, "playlist")
+    _require_id(song_id, "track")
     _require_exists("/api/playlists", playlist_id, "playlist")
     _require_exists("/api/songs", song_id, "track")
-    body: dict[str, Any] = {"song_id": song_id}
-    if position is not None:
-        body["position"] = position
-    return call("POST", f"/api/playlists/{playlist_id}/songs", json=body)
+    for row in call("GET", "/api/playlist-songs") or []:
+        if row.get("playlist_id") == playlist_id and row.get("song_id") == song_id:
+            return row
+    return call("POST", f"/api/playlists/{playlist_id}/songs", json={"song_id": song_id})
 
 
 @server.tool(annotations=WRITE)
@@ -571,7 +615,10 @@ def playlist_remove(playlist_id: str, song_id: str) -> dict:
         ToolError: The association does not exist (the API answers 404).
     """
     _require_write()
-    call("DELETE", f"/api/playlists/{playlist_id}/songs/{song_id}")
+    call(
+        "DELETE",
+        f"/api/playlists/{_require_id(playlist_id, 'playlist')}/songs/{_require_id(song_id, 'track')}",
+    )
     return {"status": "ok"}
 
 
@@ -588,6 +635,8 @@ def list_relationships(song_id: str | None = None) -> list[dict]:
     Returns:
         list[dict]: The relationship rows.
     """
+    if song_id is not None:
+        _require_id(song_id, "track")
     rows = call("GET", "/api/relationships")
     if song_id is None:
         return rows
@@ -620,6 +669,8 @@ def link_tracks(
         ToolError: The type is not one the app knows.
     """
     _require_write()
+    _require_id(source_song_id, "track")
+    _require_id(target_song_id, "track")
     if relationship_type not in RELATIONSHIP_TYPES:
         raise ToolError(
             f"Unknown relationship type “{relationship_type}”. "
@@ -643,7 +694,7 @@ def get_transitions(song_id: str) -> list[dict]:
     Returns:
         list[dict]: `[{song, notes}]`, the songs slim.
     """
-    rows = call("GET", f"/api/songs/{song_id}/transition-suggestions")
+    rows = call("GET", f"/api/songs/{_require_id(song_id, 'track')}/transition-suggestions")
     for row in rows:
         if isinstance(row.get("song"), dict):
             row["song"] = _slim(row["song"])
@@ -652,21 +703,25 @@ def get_transitions(song_id: str) -> list[dict]:
 
 @server.tool(annotations=WRITE)
 def export_library(output_path: str | None = None) -> dict:
-    """Back the library up: a summary, or the envelope written to a file.
+    """Back the library up: a summary, or the envelope written to a new file.
 
     Without a path the answer is a summary and not the envelope — it is
-    megabytes, and it would fill the agent's context. With a path the file is
-    written outside the app's data directory, which the app alone owns.
+    megabytes, and it would fill the agent's context. With a path the envelope
+    goes into a new `.json` file inside the export folder
+    (``KLANGKURATOR_EXPORT_DIR``, default ``~/klangkurator-exports``); a
+    relative path is taken inside that folder. An existing file is never
+    replaced, and a read-only session gets the summary only.
 
     Args:
-        output_path (str | None): Where to write the envelope.
+        output_path (str | None): The file to create, inside the export folder.
 
     Returns:
         dict: `{format, version, exported_at, counts}`, or
-        `{path, bytes, counts}` when a path was given.
+        `{path, bytes, counts}` when a file was written.
 
     Raises:
-        ToolError: The path is inside the app's data directory.
+        ToolError: Read-only mode, a path outside the export folder, not a
+        `.json` name, a file that already exists, or a failed write.
     """
     envelope = call("GET", "/api/export")
     counts = {name: len(rows) for name, rows in envelope["data"].items()}
@@ -679,37 +734,76 @@ def export_library(output_path: str | None = None) -> dict:
     if output_path is None:
         return summary
 
-    target = Path(output_path).expanduser().resolve()
-    if _is_inside_data_dir(target):
-        raise ToolError(
-            f"{target} is inside Klangkurator's data folder. "
-            "Export somewhere else — the app owns that folder."
-        )
+    _require_write()
+    target = _export_target(output_path)
     _write_envelope(target, envelope)
     return {"path": str(target), "bytes": target.stat().st_size, "counts": counts}
 
 
-def _write_envelope(target: Path, envelope: dict) -> None:
-    """Write the export, saying what went wrong and leaving no half file.
+def _export_target(output_path: str) -> Path:
+    """Where an export may go: a new `.json` file inside the export folder.
 
     Args:
-        target (Path): Where the envelope goes; its parent is created.
+        output_path (str): The requested file, absolute or relative to the folder.
+
+    Returns:
+        Path: The resolved file path.
+
+    Raises:
+        ToolError: The folder is the app's own data folder, the path leaves the
+        folder, or the name is not `.json`.
+    """
+    folder = config.export_dir().resolve()
+    if _is_inside_data_dir(folder):
+        raise ToolError(
+            f"The export folder {folder} is inside Klangkurator's data folder, which "
+            "the app owns. Point KLANGKURATOR_EXPORT_DIR somewhere else."
+        )
+    requested = Path(output_path).expanduser()
+    target = (requested if requested.is_absolute() else folder / requested).resolve()
+    if folder not in target.parents:
+        raise ToolError(
+            f"{target} is outside the export folder {folder}. Give a file name, or set "
+            "KLANGKURATOR_EXPORT_DIR to the folder you want."
+        )
+    if target.suffix.lower() != ".json":
+        raise ToolError(f"{target.name} is not a .json file name.")
+    return target
+
+
+def _write_envelope(target: Path, envelope: dict) -> None:
+    """Create the export file; never replace one, never leave half a file.
+
+    Args:
+        target (Path): A new file inside the export folder; missing folders are created.
         envelope (dict): The export to write.
 
     Raises:
-        ToolError: The path cannot be written, or the write failed part way.
+        ToolError: The file exists, or it could not be written.
     """
+    text = json.dumps(envelope, indent=2, ensure_ascii=False)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8")
     except OSError as exc:
-        # A truncated backup is worse than none: it looks like a backup. The
-        # cleanup is best-effort — the same error can make it fail too, and
-        # that must not replace the message the caller needs.
-        try:
-            target.unlink(missing_ok=True)
-        except OSError:
-            pass
+        # Kept apart from the file's own "exists" case: a *file* standing where
+        # a folder should be also raises FileExistsError here.
+        raise ToolError(f"Could not write {target}: {exc}") from None
+    created = False
+    try:
+        # "x" refuses an existing file, so an older backup is never overwritten.
+        with open(target, "x", encoding="utf-8") as handle:
+            created = True
+            handle.write(text)
+    except FileExistsError:
+        raise ToolError(f"{target} already exists. Pick a new file name.") from None
+    except OSError as exc:
+        # Only a file this call created is removed: a truncated backup is worse
+        # than none, and nothing else is touched.
+        if created:
+            try:
+                target.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise ToolError(f"Could not write {target}: {exc}") from None
 
 
@@ -729,11 +823,15 @@ def _require_write() -> None:
         )
 
 
-def _require_allowed_root(root_path: str) -> None:
+def _require_allowed_root(root_path: str) -> str:
     """Refuse a folder outside the allowlist, before any HTTP call (BC-21).
 
     Args:
         root_path (str): The requested music folder.
+
+    Returns:
+        str: The resolved folder — what was checked is what the app receives,
+        so a relative path cannot resolve differently in the app's own folder.
 
     Raises:
         ToolError: The folder is outside every allowed root.
@@ -745,12 +843,30 @@ def _require_allowed_root(root_path: str) -> None:
         allowed = [configured] if configured else []
     roots = [Path(entry).expanduser().resolve() for entry in allowed]
     if any(requested == root or root in requested.parents for root in roots):
-        return
+        return str(requested)
     shown = " or ".join(str(root) for root in roots) or "none — KLANGKURATOR_ROOTS is empty"
     raise ToolError(
         f"{requested} is outside the folders this server may scan ({shown}). "
         "Add it to KLANGKURATOR_ROOTS to allow it."
     )
+
+
+def _require_id(value: str, label: str) -> str:
+    """Refuse anything but a plain id before it goes into a path.
+
+    Args:
+        value (str): The id a caller passed.
+        label (str): What the id names, for the message.
+
+    Returns:
+        str: The id, unchanged.
+
+    Raises:
+        ToolError: The value is not a plain id ("../x", "x#", "a/b", "").
+    """
+    if not _ID.fullmatch(value or ""):
+        raise ToolError(f"{value!r} is not a {label} id. Use an id a list or search tool returned.")
+    return value
 
 
 def _require_exists(collection_path: str, item_id: str, label: str) -> None:

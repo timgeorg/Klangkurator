@@ -1,10 +1,12 @@
-"""Configuration from the environment, read once at import (REQ-34-CT).
+"""Configuration from the environment (REQ-34-CT).
 
-No I/O happens here, so the server starts and lists its tools with the backend
+Each value is read when it is used, so a changed variable needs no restart. No
+I/O happens here, so the server starts and lists its tools with the backend
 stopped.
 """
 
 import os
+from pathlib import Path
 
 #: Where the app's API listens. The MCP server never starts the app.
 DEFAULT_URL = "http://127.0.0.1:8000"
@@ -22,9 +24,21 @@ def timeout() -> float:
     """How long one HTTP request may take."""
     raw = os.environ.get("KLANGKURATOR_TIMEOUT", "")
     try:
-        return float(raw) if raw else DEFAULT_TIMEOUT
+        value = float(raw) if raw else DEFAULT_TIMEOUT
     except ValueError:
         return DEFAULT_TIMEOUT
+    # Zero or less would fail every request at once and read as an outage.
+    return value if value > 0 else DEFAULT_TIMEOUT
+
+
+#: The folder `export_library` writes into, unless KLANGKURATOR_EXPORT_DIR names another.
+DEFAULT_EXPORT_DIR = "~/klangkurator-exports"
+
+
+def export_dir() -> Path:
+    """The one folder `export_library` may write into (``KLANGKURATOR_EXPORT_DIR``)."""
+    raw = os.environ.get("KLANGKURATOR_EXPORT_DIR", "").strip()
+    return Path(raw or DEFAULT_EXPORT_DIR).expanduser()
 
 
 def read_only() -> bool:
