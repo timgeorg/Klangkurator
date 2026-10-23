@@ -315,14 +315,21 @@ def test_a_job_publishes_its_end_before_it_stops(monkeypatch):
     """`running` is written last, so no status read sees a run that stopped
     without its result (the views would call it vanished)."""
     order: list[str] = []
-    monkeypatch.setattr(library_api, "_scan_state", _Recording(library_api._scan_state, order))
+    # A clean running state: an earlier test may leave an `error`, and then
+    # _finish_scan rightly writes no result at all.
+    clean = {"running": True, "finished": False, "error": None, "result": None}
+    monkeypatch.setattr(
+        library_api, "_scan_state", _Recording({**library_api._scan_state, **clean}, order)
+    )
     monkeypatch.setattr(library_api, "_job", "scan")
     library_api._finish_scan()
     assert order.index("result") < order.index("running")
     assert order.index("finished") < order.index("running")
 
     order.clear()
-    monkeypatch.setattr(library_api, "_analyze_state", _Recording(library_api._analyze_state, order))
+    monkeypatch.setattr(
+        library_api, "_analyze_state", _Recording({**library_api._analyze_state, **clean}, order)
+    )
     monkeypatch.setattr(library_api, "_job", "analysis")
     library_api._run_analysis(get_library_store(), [])
     assert order.index("result") < order.index("running")

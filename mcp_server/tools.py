@@ -42,11 +42,17 @@ FALLBACK_COLOR = "#A1A2B3"
 #: else could leave the route it is put into, so it never reaches a path.
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
-#: The ranges the app's own controls allow: BPM as backend/config.py
-#: (BPM_MIN, BPM_MAX), ratings and rank as 11_SONG_MODEL.
-BPM_RANGE = (40.0, 250.0)
-RATING_RANGE = (0.0, 5.0)
-RANK_RANGE = (0, 5)
+#: What `update_track` accepts per numeric field: the app's own ranges (BPM as
+#: backend/config.py BPM_MIN/BPM_MAX, ratings and rank as 11_SONG_MODEL). The
+#: app reads 0 as "unset" for each of them, so 0 would clear the field.
+_ALLOWED = {
+    "energy": (lambda v: 0 < v <= 5, "energy must be above 0 and at most 5"),
+    "people": (lambda v: 0 < v <= 5, "people must be above 0 and at most 5"),
+    "rank": (lambda v: 0 < v <= 5, "rank must be from 1 to 5"),
+    "bpm": (lambda v: 40 <= v <= 250, "bpm must be between 40 and 250"),
+    "year": (lambda v: v > 0, "year must be above 0"),
+    "duration": (lambda v: v > 0, "duration must be above 0"),
+}
 
 server = MCPServer(
     name="klangkurator",
@@ -311,9 +317,7 @@ def update_track(
         )
     problems = _value_problems(fields)
     if problems:
-        raise ToolError(
-            "Nothing was written: " + "; ".join(problems) + ". To empty a field, do it in the app."
-        )
+        raise ToolError("Nothing was written: " + "; ".join(problems) + ".")
     return _slim(call("PUT", f"/api/songs/{song_id}", json=fields))
 
 
@@ -339,15 +343,14 @@ def _emptying(fields: dict) -> list[str]:
         list[str]: One phrase per field that would be emptied.
     """
     return [
-        f"{name} would be emptied"
+        f"{name} would be emptied (empty a field in the app)"
         for name, value in fields.items()
         if (isinstance(value, str) and not value.strip()) or (isinstance(value, list) and not value)
     ]
 
 
 def _out_of_range(fields: dict) -> list[str]:
-    """Numbers outside the app's ranges. 0 means unrated, so a 0 rating or
-    rank would clear the field and is refused too.
+    """Numbers outside the app's ranges, a 0 that would clear a field included.
 
     Args:
         fields (dict): The values about to be sent.
@@ -355,15 +358,10 @@ def _out_of_range(fields: dict) -> list[str]:
     Returns:
         list[str]: One phrase per value out of range.
     """
-    problems = []
-    for name in ("energy", "people"):
-        if name in fields and not RATING_RANGE[0] < fields[name] <= RATING_RANGE[1]:
-            problems.append(f"{name} must be above 0 and at most 5")
-    if "rank" in fields and not RANK_RANGE[0] < fields["rank"] <= RANK_RANGE[1]:
-        problems.append("rank must be from 1 to 5")
-    if "bpm" in fields and not BPM_RANGE[0] <= fields["bpm"] <= BPM_RANGE[1]:
-        problems.append("bpm must be between 40 and 250")
-    return problems
+    return [
+        phrase for name, (fits, phrase) in _ALLOWED.items()
+        if name in fields and not fits(fields[name])
+    ]
 
 
 def _named_fields(
@@ -820,7 +818,7 @@ def _write_envelope(target: Path, envelope: dict) -> None:
     text = json.dumps(envelope, indent=2, ensure_ascii=False)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         # Kept apart from the file's own "exists" case: a *file* standing where
         # a folder should be also raises FileExistsError here.
         raise ToolError(f"Could not write {target}: {exc}") from None
@@ -832,7 +830,7 @@ def _write_envelope(target: Path, envelope: dict) -> None:
             handle.write(text)
     except FileExistsError:
         raise ToolError(f"{target} already exists. Pick a new file name.") from None
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         # Only a file this call created is removed: a truncated backup is worse
         # than none, and nothing else is touched.
         if created:

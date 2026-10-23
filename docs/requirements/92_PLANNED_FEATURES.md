@@ -109,7 +109,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-85 | MCP server | **Built 2026-10-23** (issue #47, PR #55; review fixes #57). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (67 % of the payload), and a browse sandbox that also allows the configured root (an external drive is unreachable today). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
+| PF-85 | MCP server | **Built 2026-10-23** (issue #47, PR #55; review fixes #57). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (most of the payload: 62–71 % across the measurements on record), and a browse sandbox that also allows the configured root (before it, an external drive was unreachable). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
 
 ## Track Map
 

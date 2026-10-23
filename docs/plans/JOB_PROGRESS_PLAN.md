@@ -98,7 +98,7 @@ scan job built here.
    and its crate). For analysis it adds
    `<ToastAction altText="Abort the BPM and key analysis">`. It is open while a job
    runs, the route is not `/load-files`, and the toast was not closed for this
-   run. Closing it (X, swipe, Esc) sets `toastClosed` for the run. Hold the last
+   run. Closing it (X or swipe; Escape is ignored, BC-18) sets `toastClosed` for the run. Hold the last
    progress so the exit animation is not empty. The jobs exclude each other, so
    one toast slot is enough.
 9. **`LoadFiles.tsx`:** remove its own scan and analysis polling and state, and

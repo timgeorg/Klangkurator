@@ -719,3 +719,31 @@ def test_a_write_that_fails_part_way_removes_only_its_own_file(tmp_path, monkeyp
         tools.export_library("new.json")
     assert sorted(p.name for p in folder.iterdir()) == ["older.json"]
     assert (folder / "older.json").read_text() == "an older backup"
+
+
+def test_update_track_refuses_a_year_or_duration_that_would_clear_it(song):
+    """The app reads a 0 year or duration as missing, so 0 would clear it."""
+    for fields in ({"year": 0}, {"duration": 0}, {"year": -1}):
+        with pytest.raises(ToolError, match="must be above 0"):
+            tools.update_track(song["id"], **fields)
+
+
+def test_a_range_error_does_not_talk_about_emptying(song):
+    """The emptying hint belongs to emptying, not to a value that is too high."""
+    with pytest.raises(ToolError) as caught:
+        tools.update_track(song["id"], energy=9)
+    assert "empty" not in str(caught.value)
+
+
+def test_an_unencodable_export_name_is_one_message(tmp_path, monkeypatch):
+    """A lone surrogate cannot become a file name; it is refused, not raised bare."""
+    monkeypatch.setenv("KLANGKURATOR_EXPORT_DIR", str(tmp_path / "exports"))
+
+    with pytest.raises(ToolError, match="not a usable file name|Could not write"):
+        tools.export_library("\ud800.json")
+
+
+def test_a_huge_timeout_is_capped(monkeypatch):
+    """1e10 s would overflow the socket layer; it is capped at a day."""
+    monkeypatch.setenv("KLANGKURATOR_TIMEOUT", "1e10")
+    assert config.timeout() == config.MAX_TIMEOUT

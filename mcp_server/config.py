@@ -15,6 +15,9 @@ DEFAULT_URL = "http://127.0.0.1:8000"
 #: Seconds a single API call may take before it is reported as unreachable.
 DEFAULT_TIMEOUT = 30.0
 
+#: The longest timeout handed to the HTTP client; a larger value is capped.
+MAX_TIMEOUT = 86400.0
+
 
 def api_url() -> str:
     """The base URL of the running app."""
@@ -30,7 +33,10 @@ def timeout() -> float:
         return DEFAULT_TIMEOUT
     # Zero or less would fail every request at once and read as an outage;
     # inf or nan cannot be handed to the HTTP client at all.
-    return value if math.isfinite(value) and value > 0 else DEFAULT_TIMEOUT
+    if not (math.isfinite(value) and value > 0):
+        return DEFAULT_TIMEOUT
+    # A value past what a socket accepts (1e10 s) would fail every request.
+    return min(value, MAX_TIMEOUT)
 
 
 #: The folder `export_library` writes into, unless KLANGKURATOR_EXPORT_DIR names another.

@@ -81,7 +81,7 @@ def test_a_legacy_row_without_rank_still_reports_it():
 
 
 def test_slim_is_at_least_55_percent_smaller_with_full_waveforms():
-    """The measured share is 67 % at 1,907 tracks; this fixture proves the floor."""
+    """The measured share is 62–71 % (docs); this fixture proves the floor."""
     for index in range(20):
         _add_song(f"track-{index}")
 
