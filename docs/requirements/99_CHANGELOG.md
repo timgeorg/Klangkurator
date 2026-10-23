@@ -1,7 +1,48 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-15
+Last Updated: 2026-10-23
+
+## 2026-10-23
+
+Three specs from Tim's requests, written before the code, plan-reviewed, with a
+technical plan and a behavior contract each in `docs/plans/`. All are planned;
+none is built yet.
+
+### Scan and analysis progress (#46, PF-86)
+
+- **Both long jobs run in the background, one at a time.** The folder scan was
+  one blocking request with a spinner as its only feedback; it becomes a job
+  with `GET /api/library/scan-status` (REQ-10-SP). Scan, library-wide analysis
+  and per-track re-analyze now exclude each other in the backend (409).
+- **Where progress shows:** on the Import page, and outside it in a closable
+  toast (Tim: *"yes, outside, toas with loading bar on library page, if clicked
+  away only on the import page"*). Analysis gets **Abort**, which stops after
+  the current track (`POST /api/library/analyze-cancel`). A finished scan says
+  only "Scan finished" (Tim: *"no, just that it finished, no stats"*).
+- **Counters count finished items**, so a job starts at `0 / N` and ends at
+  `N / N` (the old analysis counter started at `1 / N`). The never-built
+  "elapsed/remaining feel" is dropped from REQ-10-AP.
+
+### People replaces Dance and Social (#48, PF-87)
+
+Tim: *"Dance/Social is too much and add the end means the same."* One 0–5
+rating, `people`, replaces `danceability` and `social_acceptance` in the song
+model (`11_SONG_MODEL.md`), the JSON example (`21_DATA_MODEL_LIBRARY_JSON.md`),
+the library table, filters, sort and keyboard rules (`13_LIBRARY_VIEW.md`), set
+planning sort (`16_SET_PLANNING.md`), NFR-11 (`90_NFRS.md`) and the track map,
+where it is one input at weight 1 (`33_TRACK_MAP.md`; the TM-M4 contract
+clause in `docs/plans/TRACK_MAP_BEHAVIOR_CONTRACT.md` is marked superseded). No
+compatibility: the old values are dropped and Tim re-enters them by hand.
+`Requirements.md` is frozen as a historical document.
+
+### Crate tabs: collapse and multi-select (#49, PF-88)
+
+New REQ-13-CT in `13_LIBRARY_VIEW.md`. With more than 10 crates, the tab bar
+collapses to the first 10 plus every selected crate and a "+N more" toggle.
+Shift+click adds a crate to the selection or removes it (A+B+C), using the
+Crate filter that was already multi-select underneath. Touch screens get
+44 px tabs.
 
 ## 2026-10-15
 

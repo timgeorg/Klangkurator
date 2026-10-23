@@ -1,5 +1,9 @@
 # DJ Database System — Requirements & Masterplan
 
+> **Frozen 2026-10-23.** Historical masterplan. The numbered specs in
+> `docs/requirements/` are the truth and win where they differ (for example,
+> issue #48 replaced `danceability` and `social_acceptance` with `people`).
+
 A comprehensive, locally-hosted DJ music organization tool inspired by Lexicon DJ but focused on **deep organization, tagging, knowledge-graph relationships, and set planning**. Designed to eventually run as a desktop application via **PyWebView** with a JSON-file backend.
 
 This document is the master spec, consolidated from every requirement raised in the project chat.

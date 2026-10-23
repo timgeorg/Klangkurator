@@ -27,3 +27,9 @@ tags:
 - [[EXPORT_IMPORT_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for export/import (issue #10), judged black-box against a sandbox copy of the library.
 - [[REANALYZE_PLAN.md]] — plan for the per-track re-analyze with a BPM range hint (issue #6): probed facts on librosa priors, the in/out-of-window decision, lock policy, files.
 - [[REANALYZE_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the per-track re-analyze (issue #6), judged black-box against a sandbox copy of the library.
+- [[JOB_PROGRESS_PLAN.md]] — technical plan for issue #46: scan and analysis as background jobs, one at a time, progress toast, Abort.
+- [[JOB_PROGRESS_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #46, judged source-blind by the Validator.
+- [[PEOPLE_RATING_PLAN.md]] — technical plan for issue #48: `people` replaces `danceability` and `social_acceptance`, no compatibility.
+- [[PEOPLE_RATING_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #48, judged source-blind by the Validator.
+- [[CRATE_TABS_PLAN.md]] — technical plan for issue #49: crate tabs collapse past 10, Shift+click multi-select.
+- [[CRATE_TABS_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #49, judged source-blind by the Validator.
