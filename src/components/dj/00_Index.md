@@ -18,4 +18,5 @@ tags:
 - [[TrackTitle.tsx]] — A track title with its version or catalogue part set quieter, so two versions of one track never read the same in lists.
 - [[SongTableRow.tsx]] — One table row: cover, waveform, play and edit actions, and the inline-editable cells for every user-owned value.
 - [[ReanalyzeDialog.tsx]] — The popup that re-analyzes one track's BPM and key, with an optional BPM range hint (issue #6).
+- [[JobProgressToast.tsx]] — The scan/analysis progress toast on every page but Import (issue #46): one controlled Radix toast with the bar, `done / total`, the current file and crate (or track title), Abort for an analysis, and a close that holds for that run.
 - [[libraryTable.ts]] — Shared types, filter config and constants for the library table (FilterState, SortState, FilterValue, FILTER_CONFIG, `INITIAL_FILTERS`) plus `filterSongs`, the search-and-filter predicate the table and the track map share (phase 4a).
