@@ -12,14 +12,13 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from mcp_server import config
 
-_UNREACHABLE = (
-    httpx2.ConnectError,
-    httpx2.ConnectTimeout,
-    httpx2.ReadTimeout,
-    httpx2.WriteTimeout,
-    httpx2.PoolTimeout,
-    httpx2.TimeoutException,
-)
+#: Every transport failure, plus a URL that cannot be parsed at all. The six
+#: timeout classes are all `HTTPError`s, so naming the base class closes this
+#: set instead of widening it: `UnsupportedProtocol` (a URL pasted without a
+#: scheme) and `RemoteProtocolError` (the app mid-restart) used to escape as a
+#: bare "Error executing tool" with no advice. `InvalidURL` is not an
+#: `HTTPError`, so it is named separately.
+_UNREACHABLE = (httpx2.HTTPError, httpx2.InvalidURL)
 
 
 def call(method: str, path: str, *, json: Any = None, params: dict | None = None) -> Any:

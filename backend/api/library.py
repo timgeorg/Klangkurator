@@ -8,7 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.config import BPM_MAX, BPM_MIN, SUPPORTED_AUDIO_EXTENSIONS
+from backend.config import BPM_MAX, BPM_MIN
+from backend.scanner.file_scanner import scan_directory
 from backend.scanner.metadata import extract_metadata
 from backend.scanner.waveform import compute_peaks
 from backend.scanner.artwork import extract_artwork
@@ -132,20 +133,19 @@ def scan_library(body: ScanRequest):
     if not root.is_dir():
         raise HTTPException(400, f"Not a directory: {root}")
 
-    audio_files = _audio_files_in(root)
+    audio_files = scan_directory(str(root))
     store = get_library_store()
     _claim_job("scan", lambda: _reset_scan_state(len(audio_files)))
-    _start_scan(root, audio_files, store)
+    try:
+        _start_scan(root, audio_files, store)
+    except BaseException:
+        # The thread never ran, so its `finally` will never free the slot:
+        # release it here or every later job answers 409 for the session.
+        _release_job("scan")
+        _scan_state["running"] = False
+        _scan_state["finished"] = True
+        raise
     return {"started": True, "total": len(audio_files)}
-
-
-def _audio_files_in(root: Path) -> list[Path]:
-    """Every supported audio file under `root`, sorted, without duplicates."""
-    files: list[Path] = []
-    for ext in SUPPORTED_AUDIO_EXTENSIONS:
-        files.extend(root.rglob(f"*{ext}"))
-        files.extend(root.rglob(f"*{ext.upper()}"))
-    return sorted(set(files))
 
 
 def _reset_scan_state(total: int) -> None:
@@ -317,13 +317,23 @@ def scan_status():
 
 @router.get("/crates")
 def list_crates():
-    """List distinct root_folder values with track counts."""
+    """List the library's crates with their track counts.
+
+    The crate rule is the app's `crateOf` (`src/lib/trackFormat.ts`): the
+    stored `root_folder`, else the file's parent folder, else "Unknown". It
+    used to count a row without `root_folder` under "Unknown" while the filter
+    (and the table) called it by its parent folder, so one track belonged to
+    three different crates depending on who asked.
+
+    Returns:
+        list[dict]: `{name, track_count}` per crate, sorted by name.
+    """
     store = get_library_store()
     songs = store.get_songs()
 
     crate_counts: dict[str, int] = {}
     for song in songs:
-        folder = song.get("root_folder") or "Unknown"
+        folder = crate_of(song)
         crate_counts[folder] = crate_counts.get(folder, 0) + 1
 
     crates = [
@@ -384,6 +394,25 @@ def browse_directory(path: str | None = None):
             for d in dirs
         ],
     }
+
+
+def crate_of(song: dict) -> str:
+    """The crate a song belongs to: its `root_folder`, else its file's folder.
+
+    Args:
+        song (dict): A song row.
+
+    Returns:
+        str: The crate name, or "Unknown" when the row carries no path.
+    """
+    if song.get("root_folder"):
+        return str(song["root_folder"])
+    path = song.get("file_path")
+    if path:
+        parent = Path(str(path)).parent.name
+        if parent:
+            return parent
+    return "Unknown"
 
 
 def _browse_boundaries(home: Path) -> tuple[Path, ...]:
@@ -491,14 +520,6 @@ def pick_folder():
 # Single in-process job (single-user app): POST /analyze-all starts one
 # daemon thread and returns immediately; the frontend polls
 # GET /analyze-status for progress. No persistence across restarts.
-# (AnalyzeResponse is kept for backward compatibility / OpenAPI schema.)
-
-class AnalyzeResponse(BaseModel):
-    analyzed: int
-    updated: int
-    skipped: int
-    errors: list[str]
-
 
 _analyze_state: dict = {
     "running": False,
@@ -615,8 +636,15 @@ def analyze_all_songs():
         return analyze_all_missing_bpm(store, songs=[])
 
     _claim_job("analysis", lambda: _reset_analysis_state(len(to_analyze)))
-    thread = threading.Thread(target=_run_analysis, args=(store, to_analyze), daemon=True)
-    thread.start()
+    try:
+        thread = threading.Thread(target=_run_analysis, args=(store, to_analyze), daemon=True)
+        thread.start()
+    except BaseException:
+        # Same as the scan: no thread means no `finally` to free the slot.
+        _release_job("analysis")
+        _analyze_state["running"] = False
+        _analyze_state["finished"] = True
+        raise
     return {"started": True, "total": len(to_analyze)}
 
 

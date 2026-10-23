@@ -20,6 +20,8 @@ Principles (each carries its contract clause):
 
 from __future__ import annotations
 
+from backend.models.song import SongBase
+
 ENVELOPE_FORMAT = "klangkurator-library"
 ENVELOPE_VERSION = 1
 DATA_KEYS = (
@@ -242,8 +244,11 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
         export_ids[s.get("id")] = local["id"] if local else None
         if local is None:
             # add_song mints a fresh machine-local id (MC-5) and returns it;
-            # a foreign "id" key is dropped so it can never leak through
-            new_song = {k: v for k, v in s.items() if k != "id"}
+            # a foreign "id" key is dropped so it can never leak through.
+            # Keys the model no longer has are dropped too: an export made
+            # before a field was retired would otherwise write the dead key
+            # into library.json, where it would ride into every later export.
+            new_song = {k: v for k, v in s.items() if k in SongBase.model_fields}
             for f in CONFLICT_FIELDS:
                 if _empty(f, new_song.get(f)):
                     new_song.pop(f, None)

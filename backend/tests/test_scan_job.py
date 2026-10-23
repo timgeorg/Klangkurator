@@ -238,3 +238,63 @@ def test_a_scan_is_refused_while_an_analysis_runs(music, monkeypatch):
     assert "analysis" in res.json()["detail"].lower()
 
     gate.set()
+
+
+def test_a_thread_that_cannot_start_releases_the_slot(monkeypatch, tmp_path):
+    """A spawn failure must not strand the job slot for the rest of the session."""
+    monkeypatch.setattr(
+        library_api.threading, "Thread", lambda *a, **k: _UnstartableThread()
+    )
+
+    from fastapi.testclient import TestClient as _Client
+    from backend.main import app as _app
+
+    # The app's handler re-raises here instead of answering 500.
+    with pytest.raises(RuntimeError, match="can't start new thread"):
+        _Client(_app, raise_server_exceptions=True).post(
+            "/api/library/scan", json={"root_path": str(tmp_path)}
+        )
+
+    assert library_api._job is None
+    assert library_api._scan_state["running"] is False
+
+
+class _UnstartableThread:
+    """A thread whose start() raises, as the OS can do under thread pressure."""
+
+    def start(self):
+        """Fail the way the OS can."""
+        raise RuntimeError("can't start new thread")
+
+
+def test_mixed_case_extensions_are_found(tmp_path):
+    """`Song.Mp3` matched neither the lower nor the upper pattern before."""
+    from backend.scanner.file_scanner import scan_directory
+
+    for name in ("lower.mp3", "upper.MP3", "mixed.Mp3", "notes.txt"):
+        (tmp_path / name).write_bytes(b"")
+
+    found = {path.name for path in scan_directory(str(tmp_path))}
+
+    assert found == {"lower.mp3", "upper.MP3", "mixed.Mp3"}
+
+
+def test_a_crate_counts_the_same_way_the_filter_does(tmp_path, monkeypatch):
+    """A row without root_folder belongs to its parent folder, not "Unknown"."""
+    monkeypatch.setattr(
+        library_api, "extract_metadata", lambda path: {"title": Path(path).stem, "artist": "D"}
+    )
+    monkeypatch.setattr(library_api, "compute_peaks", lambda path: None)
+    monkeypatch.setattr(library_api, "extract_artwork", lambda path, song_id: None)
+    crate = tmp_path / "Techno"
+    crate.mkdir()
+    (crate / "a.wav").write_bytes(b"")
+    client.post("/api/library/scan", json={"root_path": str(tmp_path)})
+    _wait_until(_jobs_idle)
+
+    from backend.api.library import crate_of
+    from backend.storage import get_library_store
+
+    song = get_library_store().get_songs()[0]
+    assert crate_of(song) == "Techno"
+    assert {row["name"] for row in library_api.list_crates()} == {"Techno"}

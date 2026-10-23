@@ -196,7 +196,10 @@ def _matches_bpm(
 
 
 def _crate_of(song: dict) -> str:
-    """A song's crate, the way the app derives it (src/lib/trackFormat.ts:88-92).
+    """A song's crate, with the same rule `list_crates` counts by.
+
+    Kept identical to the app's `crateOf` (src/lib/trackFormat.ts) and the
+    backend's `crate_of`, so a crate an agent is told about can be filtered to.
 
     Args:
         song (dict): A song row.
@@ -207,11 +210,8 @@ def _crate_of(song: dict) -> str:
     if song.get("root_folder"):
         return str(song["root_folder"])
     path = song.get("file_path")
-    if path:
-        parent = Path(str(path)).parent.name
-        if parent:
-            return parent
-    return "Unknown"
+    parent = Path(str(path)).parent.name if path else ""
+    return parent or "Unknown"
 
 
 def _genres_of(song: dict) -> set[str]:
@@ -566,9 +566,13 @@ def playlist_remove(playlist_id: str, song_id: str) -> dict:
 
     Returns:
         dict: `{status: "ok"}`.
+
+    Raises:
+        ToolError: The association does not exist (the API answers 404).
     """
     _require_write()
-    return call("DELETE", f"/api/playlists/{playlist_id}/songs/{song_id}")
+    call("DELETE", f"/api/playlists/{playlist_id}/songs/{song_id}")
+    return {"status": "ok"}
 
 
 # ── Curation ────────────────────────────────────────────
@@ -681,9 +685,32 @@ def export_library(output_path: str | None = None) -> dict:
             f"{target} is inside Klangkurator's data folder. "
             "Export somewhere else — the app owns that folder."
         )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write_envelope(target, envelope)
     return {"path": str(target), "bytes": target.stat().st_size, "counts": counts}
+
+
+def _write_envelope(target: Path, envelope: dict) -> None:
+    """Write the export, saying what went wrong and leaving no half file.
+
+    Args:
+        target (Path): Where the envelope goes; its parent is created.
+        envelope (dict): The export to write.
+
+    Raises:
+        ToolError: The path cannot be written, or the write failed part way.
+    """
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        # A truncated backup is worse than none: it looks like a backup. The
+        # cleanup is best-effort — the same error can make it fail too, and
+        # that must not replace the message the caller needs.
+        try:
+            target.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise ToolError(f"Could not write {target}: {exc}") from None
 
 
 # ── Guards ──────────────────────────────────────────────
@@ -737,7 +764,8 @@ def _require_exists(collection_path: str, item_id: str, label: str) -> None:
     Raises:
         ToolError: No row with that id.
     """
-    rows = call("GET", collection_path) or []
+    params = {"slim": "true"} if collection_path == "/api/songs" else None
+    rows = call("GET", collection_path, params=params) or []
     if not any(row.get("id") == item_id for row in rows):
         raise ToolError(f"No {label} with id {item_id}")
 

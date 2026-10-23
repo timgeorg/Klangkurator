@@ -373,3 +373,33 @@ def test_the_app_runs_without_the_mcp_package():
     ]
 
     assert offenders == []
+
+
+def test_a_url_without_a_scheme_is_one_message(monkeypatch):
+    """BC-22: a host:port pasted into KLANGKURATOR_URL must not raise bare."""
+    monkeypatch.setattr(config, "TRANSPORT", None, raising=False)
+    monkeypatch.setenv("KLANGKURATOR_URL", "127.0.0.1:8000")
+    monkeypatch.setattr(mcp_client, "_client", _real_client)
+
+    with pytest.raises(ToolError, match="127.0.0.1:8000"):
+        tools.list_crates()
+
+
+def test_a_failed_export_names_the_path_and_leaves_no_file(tmp_path):
+    """BC-17: a backup that cannot be written must say so, never half-write."""
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("a file, not a folder")
+
+    with pytest.raises(ToolError, match="Could not write"):
+        tools.export_library(str(blocker / "backup.json"))
+
+
+def test_playlist_remove_reports_ok():
+    """The published shape is `{status: "ok"}`, not the route's empty body."""
+    song = app_client.post("/api/songs", json={
+        "title": "t", "artist": "a", "file_path": "/m/t.mp3",
+    }).json()
+    playlist = tools.create_playlist("P")
+    tools.playlist_add(playlist["id"], song["id"])
+
+    assert tools.playlist_remove(playlist["id"], song["id"]) == {"status": "ok"}
