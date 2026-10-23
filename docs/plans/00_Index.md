@@ -33,3 +33,5 @@ tags:
 - [[PEOPLE_RATING_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #48, judged source-blind by the Validator.
 - [[CRATE_TABS_PLAN.md]] — technical plan for issue #49: crate tabs collapse past 10, Shift+click multi-select.
 - [[CRATE_TABS_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #49, judged source-blind by the Validator.
+- [[MCP_SERVER_PLAN.md]] — technical plan for issue #47: the three backend prerequisites, the 24-tool surface, the mcp 2.x API, and the three open questions answered.
+- [[MCP_SERVER_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #47, judged source-blind by the Validator with curl and an MCP client.

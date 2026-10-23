@@ -340,30 +340,29 @@ def list_crates():
 def browse_directory(path: str | None = None):
     """List subdirectories of `path` for the client-side folder dialog.
 
+    Two boundaries are reachable (REQ-10-BW): the home folder, and the
+    configured root even when it sits outside home. An external drive holding
+    the music was unreachable here while `POST /scan` and `PUT /root` accepted
+    it, so a browser tab could not pick the folder the app already read.
+
     - `path` omitted or "~" → the user's home directory
     - Only directories are returned (no files)
     - Hidden entries (dot-prefixed) are skipped
-    - Access outside the user's home directory is rejected
+    - A path outside both boundaries is rejected
+
+    Args:
+        path (str | None): The folder to list; omitted or "~" is home.
+
+    Returns:
+        dict: `path`, `parent` (None at either boundary) and `directories`.
+
+    Raises:
+        HTTPException: 400 when the path is not a directory, 403 outside both
+            boundaries or on a permission error.
     """
     home = Path.home().resolve()
-    raw = (path or "").strip()
-
-    if raw in ("", "~", "/"):
-        target = home
-    else:
-        target = Path(raw).expanduser()
-        if not target.is_absolute():
-            target = home / target
-        target = target.resolve()
-
-        # Sandboxed to the home directory — this endpoint exists so a browser
-        # tab can pick a music folder on the same machine; nothing beyond
-        # ~ should be reachable through it.
-        if target != home and home not in target.parents:
-            raise HTTPException(
-                403,
-                f"Access denied: {target} is outside your home directory ({home})",
-            )
+    boundaries = _browse_boundaries(home)
+    target = _browse_target(path, home, boundaries)
 
     if not target.is_dir():
         raise HTTPException(400, f"Not a directory: {target}")
@@ -379,12 +378,67 @@ def browse_directory(path: str | None = None):
 
     return {
         "path": str(target),
-        "parent": str(target.parent) if target != home else None,
+        "parent": None if target in boundaries else str(target.parent),
         "directories": [
             {"name": d.name, "path": str(d), "has_children": _has_subdirs(d)}
             for d in dirs
         ],
     }
+
+
+def _browse_boundaries(home: Path) -> tuple[Path, ...]:
+    """The folders browsing may reach: home, plus the configured root.
+
+    Args:
+        home (Path): The resolved home folder.
+
+    Returns:
+        tuple[Path, ...]: Home first, then the configured root when it is a
+        different folder.
+    """
+    boundaries = [home]
+    try:
+        configured = get_library_store().get_config("root_path")
+    except Exception:  # noqa: BLE001 — an unreadable store must not break browsing
+        return tuple(boundaries)
+    if configured:
+        root = Path(configured).expanduser().resolve()
+        if root != home:
+            boundaries.append(root)
+    return tuple(boundaries)
+
+
+def _browse_target(raw: str | None, home: Path, boundaries: tuple[Path, ...]) -> Path:
+    """The folder a browse request names, refused when it is outside `boundaries`.
+
+    Args:
+        raw (str | None): The requested path; empty or "~" is home.
+        home (Path): The resolved home folder, for relative paths.
+        boundaries (tuple[Path, ...]): The folders browsing may reach.
+
+    Returns:
+        Path: The resolved folder to list.
+
+    Raises:
+        HTTPException: 403 when the folder is outside every boundary.
+    """
+    requested = (raw or "").strip()
+    if requested in ("", "~", "/"):
+        return home
+
+    target = Path(requested).expanduser()
+    if not target.is_absolute():
+        target = home / target
+    target = target.resolve()
+
+    if any(target == b or b in target.parents for b in boundaries):
+        return target
+
+    allowed = " or ".join(str(b) for b in boundaries)
+    raise HTTPException(
+        403,
+        f"Access denied: {target} is outside your home directory or music folder ({allowed})",
+    )
 
 
 def _has_subdirs(d: Path) -> bool:

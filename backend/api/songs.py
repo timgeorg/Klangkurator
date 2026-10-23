@@ -1,6 +1,7 @@
 """Songs CRUD endpoints."""
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from backend.models.song import Song, SongBase, SongCreate, SongUpdate
 from backend.models.tag import Tag
@@ -10,21 +11,56 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 
 
 @router.get("", response_model=list[Song])
-def list_songs(search: str | None = Query(None)):
+def list_songs(search: str | None = Query(None), slim: bool = Query(False)):
+    """List every song, optionally without the waveform envelope.
+
+    The envelope is 200 floats per track — 62 % of a listing at 499 tracks and
+    67 % at 1,907 — which is most of the payload for a caller that cannot draw
+    a waveform (REQ-10-SL). `slim=true` is a projection, not pagination: the
+    app's own client keeps the default full rows.
+
+    Args:
+        search (str | None): Case-insensitive filter over title, artist,
+            genres, key and album.
+        slim (bool): Drop `waveform_peaks` from every row.
+
+    Returns:
+        list[Song] | JSONResponse: the rows, or the slim projection of them.
+    """
     store = get_library_store()
     songs = store.get_songs()
     if search:
-        q = search.lower()
-        songs = [
-            s for s in songs
-            if q in s["title"].lower()
-            or q in s["artist"].lower()
-            or any(q in (g or "").lower() for g in (s.get("genres") or []))
-            or q in (s.get("genre") or "").lower()
-            or q in (s.get("musical_key") or "").lower()
-            or q in (s.get("album") or "").lower()
-        ]
-    return songs
+        songs = [song for song in songs if _matches_search(song, search.lower())]
+    if not slim:
+        return songs
+    # Validate first, then drop the envelope: the response model is what fills
+    # defaults a legacy row lacks (rank, phase_tags, vibe_tags), so stripping
+    # the raw dicts would hand back a narrower row than the full listing.
+    return JSONResponse([
+        Song.model_validate(song).model_dump(by_alias=True, exclude={"waveform_peaks"})
+        for song in songs
+    ])
+
+
+def _matches_search(song: dict, needle: str) -> bool:
+    """Whether a song carries `needle` in any field the listing searches.
+
+    Args:
+        song (dict): A stored song.
+        needle (str): The search text, already lowercased.
+
+    Returns:
+        bool: True on a hit in title, artist, genres, genre, key or album.
+    """
+    haystack = [
+        song.get("title") or "",
+        song.get("artist") or "",
+        song.get("genre") or "",
+        song.get("musical_key") or "",
+        song.get("album") or "",
+        *(song.get("genres") or []),
+    ]
+    return any(needle in str(value).lower() for value in haystack)
 
 
 @router.get("/{song_id}", response_model=Song)

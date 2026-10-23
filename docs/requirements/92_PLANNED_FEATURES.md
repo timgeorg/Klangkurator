@@ -105,6 +105,12 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-79 | Per-track re-analyze with an optional BPM range | A `Re-analyze` action on a track (popup, song detail page) that re-runs BPM/key and **overrides** the library-wide "only fill missing" rule for that one track — the repair path for a wrong BPM, which is otherwise unfixable. Optional BPM min/max steers the estimate (a bounded prior, not a hard filter); if the result cannot honestly sit in the given range it is reported and the stored BPM is left unchanged (issue #6) |
 | PF-86 | Scan and analysis progress | Planned (issue #46, Tim 2026-10-23). Both long jobs run in the background, one at a time (409 otherwise). Progress (bar, done / total, current track) shows on the Import page and, outside it, in a closable toast; analysis adds Abort (stops after the current track). A finished scan says only "Scan finished". Spec: `10_LIBRARY_AND_FILE_LOADING.md` REQ-10-SP, REQ-10-AP; plan: `docs/plans/JOB_PROGRESS_PLAN.md` |
 
+## Agent Access
+
+| ID | Feature | Notes |
+|---|---|---|
+| PF-85 | MCP server | Planned (issue #47, Tim 2026-10-23). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (67 % of the payload), and a browse sandbox that also allows the configured root (an external drive is unreachable today). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
+
 ## Track Map
 
 | ID | Feature | Notes |

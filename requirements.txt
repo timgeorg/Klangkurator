@@ -4,3 +4,10 @@ pydantic>=2.0
 mutagen>=1.47
 pywebview>=5.0
 librosa>=0.11.0
+
+# MCP server (issue #47) — the library for a local agent. The app never imports
+# it: `python -c "import backend.main"` must keep working without this package.
+mcp>=2.3,<3
+# The HTTP client mcp_server imports directly. It also arrives transitively
+# through mcp, but a direct import must be declared, not inherited.
+httpx2>=2.10

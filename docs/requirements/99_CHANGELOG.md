@@ -5,9 +5,50 @@ Last Updated: 2026-10-23
 
 ## 2026-10-23
 
-Three specs from Tim's requests, written before the code, plan-reviewed, with a
-technical plan and a behavior contract each in `docs/plans/`. All are planned;
-none is built yet.
+Four specs from Tim's requests — #46, #47, #48, #49 — written before the code,
+plan-reviewed, with a technical plan and a behavior contract each in
+`docs/plans/`. All are planned; none is built yet.
+
+### MCP server for local agents (#47, PF-85)
+
+Tim: *"Would you need MCP to better interact with Klangkurator? What would MCP
+need for that tool?"* A local agent (Claude Desktop, Copilot, Cursor) now has a
+spec'd way in: new `34_MCP_SERVER.md` (REQ-34-PR, -TS, -CT, -AX) with a curated
+**24-tool** surface over **stdio**, as a thin HTTP client of the running
+backend. It holds no state and opens no file under `~/.klangkurator/`, because
+`BaseStore._save` writes one shared `.tmp` file — two writers lose data. No
+`delete_*` tool: removal stays in the app, where the user sees it. Config
+through `KLANGKURATOR_URL`, `KLANGKURATOR_TIMEOUT`, `KLANGKURATOR_READ_ONLY`
+and `KLANGKURATOR_ROOTS`; the 10 read tools carry `readOnlyHint`, the 14
+others `destructiveHint: false`, all `openWorldHint: false`. Two new
+`requirements.txt` entries (`mcp`, `httpx2`), and `backend/` still imports
+neither — the app runs with `mcp` absent.
+
+Three backend prerequisites, each useful without MCP: the scan job (#46), the
+`slim` listing below, and the widened browse sandbox below.
+
+**Decisions:** `scan_library` has no dry run — an honest preview needs a
+backend count-only path, and walking in the server would duplicate the import
+rules; the server ships as a top-level `mcp_server/` package in this repo, not
+a separate distribution, because the app must run without `mcp`; `update_track`
+keeps the existing partial `PUT` (`_CLEARABLE` + `exclude_unset` never blanks a
+field) and refuses an empty body, which the backend would accept and write.
+
+### Slim library listing and a browse sandbox that reaches the music (#47)
+
+Two backend changes this spec now requires, both measured on the real library:
+
+- **`GET /api/songs?slim=true`** (REQ-10-SL) returns the same rows without
+  `waveform_peaks`. Peaks are 200 floats per track and **67.1 %** of the body
+  (3,735,141 bytes at 1,907 tracks, 1,187 bytes per track — the issue's 62 %
+  was a 499-track sample). The projection runs after validation, so model
+  defaults a legacy row lacks are still filled. The app keeps the full rows;
+  only an agent asks for slim.
+- **`GET /api/library/browse` also allows the configured root** (REQ-10-BW).
+  The browser was sandboxed to `$HOME`, so an external-drive library was
+  unreachable — `403` on `/media/tim/Extreme SSD/#MUSIC` — while `POST /scan`
+  and `PUT /root` took the same path. `parent` is `null` at home and at the
+  root; everything else still gets a 403.
 
 ### Scan and analysis progress (#46, PF-86)
 
