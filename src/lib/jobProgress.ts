@@ -6,9 +6,9 @@
 /** Failed status reads in a row before the views stop waiting (~10 s at 500 ms). */
 export const POLL_FAILURE_LIMIT = 20;
 
-/** The Import page, with or without a trailing slash — the router matches both. */
+/** The Import page, in any case and with or without a trailing slash — the router matches all of them. */
 export function isImportPage(pathname: string): boolean {
-  return pathname.replace(/\/+$/, "") === "/load-files";
+  return pathname.replace(/\/+$/, "").toLowerCase() === "/load-files";
 }
 
 /** How a run ended, read from the first status that no longer says `running`. */

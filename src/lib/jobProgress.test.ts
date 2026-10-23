@@ -6,6 +6,8 @@ describe("isImportPage", () => {
   it("matches the Import page with and without a trailing slash", () => {
     expect(isImportPage("/load-files")).toBe(true);
     expect(isImportPage("/load-files/")).toBe(true);
+    expect(isImportPage("/Load-Files")).toBe(true);
+    expect(isImportPage("/LOAD-FILES/")).toBe(true);
   });
 
   it("does not match any other page", () => {

@@ -550,7 +550,7 @@ def test_a_timeout_is_not_reported_as_unreachable(monkeypatch):
 
 def test_a_timeout_of_zero_or_less_falls_back_to_the_default(monkeypatch):
     """Zero would fail every request at once and read as an outage."""
-    for raw in ("0", "-5", "abc"):
+    for raw in ("0", "-5", "abc", "inf", "nan"):
         monkeypatch.setenv("KLANGKURATOR_TIMEOUT", raw)
         assert config.timeout() == config.DEFAULT_TIMEOUT
 
@@ -611,33 +611,111 @@ def test_scan_tools_start_a_scan_and_report_it(monkeypatch, tmp_path):
 
 
 def test_analysis_tools_run_and_report(monkeypatch, tmp_path):
-    """analyze_track answers with the detector's values; analyze_all runs to its end."""
+    """analyze_all starts a real job and reports its end; analyze_track answers at once."""
     import time
 
     from backend.api import library as library_api
+    from backend.scanner import audio_analysis
 
     audio = tmp_path / "a.wav"
     audio.write_bytes(b"")
     song_id = app_client.post(
         "/api/songs", json={"title": "A", "artist": "B", "file_path": str(audio)}
     ).json()["id"]
-    monkeypatch.setattr(
-        library_api, "analyze_track",
-        lambda path, **kwargs: {"bpm": 128.0, "musical_key": "Am", "duration": 200.0},
-    )
+    detected = {"bpm": 128.0, "musical_key": "Am", "duration": 200.0}
+    monkeypatch.setattr(audio_analysis, "analyze_track", lambda path, **kwargs: dict(detected))
+    monkeypatch.setattr(library_api, "analyze_track", lambda path, **kwargs: dict(detected))
 
-    one = tools.analyze_track(song_id)
-    assert (one["song_id"], one["bpm"]) == (song_id, 128.0)
-
-    assert isinstance(tools.analyze_all(), dict)
+    assert tools.analyze_all() == {"started": True, "total": 1}
     deadline = time.monotonic() + 5
     while tools.analyze_status()["running"]:
         assert time.monotonic() < deadline, "the analysis did not finish"
         time.sleep(0.02)
-    assert tools.analyze_status()["running"] is False
+    assert tools.analyze_status()["result"]["analyzed"] == 1
+
+    one = tools.analyze_track(song_id)
+    assert (one["song_id"], one["bpm"]) == (song_id, 128.0)
 
 
 def test_scan_artwork_reports_its_counts(song):
     """scan_artwork answers with the four counts the app reports."""
     counts = tools.scan_artwork()
     assert {"processed", "extracted", "skipped", "errors"} <= set(counts)
+
+
+# ── Round two of the review (issue #57) ─────────────────
+
+
+def test_update_track_refuses_values_that_would_empty_a_field(song):
+    """The tool never clears a field: no empty text or list, no 0 rating or rank."""
+    for fields in (
+        {"album": ""}, {"lyrics": "   "}, {"subgenres": []}, {"vibe_tags": []},
+        {"energy": 0}, {"people": 0}, {"rank": 0},
+    ):
+        with pytest.raises(ToolError, match="Nothing was written"):
+            tools.update_track(song["id"], **fields)
+
+
+def test_export_refuses_a_file_inside_the_data_folder_from_a_wider_folder(monkeypatch):
+    """With the export folder set to $HOME, `.klangkurator/…` is still the app's."""
+    home = Path(os.environ["HOME"])
+    monkeypatch.setenv("KLANGKURATOR_EXPORT_DIR", str(home))
+
+    with pytest.raises(ToolError, match="data folder"):
+        tools.export_library(".klangkurator/sets-copy.json")
+    assert not (home / ".klangkurator" / "sets-copy.json").exists()
+
+
+def test_export_refuses_a_symlink_that_leads_out(tmp_path, monkeypatch):
+    """A link inside the export folder is followed before the check."""
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (folder / "link").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setenv("KLANGKURATOR_EXPORT_DIR", str(folder))
+
+    with pytest.raises(ToolError, match="outside the export folder"):
+        tools.export_library("link/x.json")
+    assert list(outside.iterdir()) == []
+
+
+def test_export_refuses_a_name_that_is_not_a_file_name(tmp_path, monkeypatch):
+    """A NUL byte is one clear message, not a bare error."""
+    monkeypatch.setenv("KLANGKURATOR_EXPORT_DIR", str(tmp_path / "exports"))
+
+    with pytest.raises(ToolError, match="not a usable file name"):
+        tools.export_library("bad\x00name.json")
+
+
+def test_a_write_that_fails_part_way_removes_only_its_own_file(tmp_path, monkeypatch):
+    """A half-written backup is removed; an older one beside it is untouched."""
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    (folder / "older.json").write_text("an older backup")
+    monkeypatch.setenv("KLANGKURATOR_EXPORT_DIR", str(folder))
+    real_open = open
+
+    class _DiskFull:
+        """A file handle whose write fails after the first few bytes."""
+
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            self.handle.close()
+            return False
+
+        def write(self, text):
+            self.handle.write(text[:10])
+            raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(tools, "open", lambda *a, **k: _DiskFull(real_open(*a, **k)), raising=False)
+
+    with pytest.raises(ToolError, match="Could not write"):
+        tools.export_library("new.json")
+    assert sorted(p.name for p in folder.iterdir()) == ["older.json"]
+    assert (folder / "older.json").read_text() == "an older backup"

@@ -7,8 +7,6 @@ import { Toast, ToastAction, ToastClose, ToastDescription, ToastTitle } from "@/
 import { useBackgroundJobs } from "@/lib/BackgroundJobsContext";
 import { isImportPage } from "@/lib/jobProgress";
 
-/** The Import page shows the same progress inline, so the toast stays off it. */
-
 interface Shown {
   kind: "scan" | "analysis";
   title: string;
@@ -29,8 +27,9 @@ interface Shown {
  * made that way would be evicted by the next edit's notice (BC-14). Radix
  * portals every `<Toast>` into the shared viewport, so it stacks with them.
  *
- * It closes on X, swipe or Escape, and stays closed for that run: progress
- * and Abort remain on the Import page (BC-4, BC-8). While the toast animates
+ * It stays off the Import page, which shows the same progress inline. It
+ * closes on X or swipe — not on Escape (BC-18) — and stays closed for that
+ * run: progress and Abort remain on the Import page (BC-4, BC-8). While the toast animates
  * out it holds the last progress it showed, so the exit is not an empty box.
  */
 export function JobProgressToast() {

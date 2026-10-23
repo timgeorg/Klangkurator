@@ -300,7 +300,8 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
       try {
         return await request();
       } catch (error) {
-        if (apiStatus(error) === 409) await refresh({ scan: true, analysis: true }, false);
+        // Announcing is safe: only a run this page saw end is announced.
+        if (apiStatus(error) === 409) await refresh({ scan: true, analysis: true });
         throw error;
       } finally {
         setStarting(false);

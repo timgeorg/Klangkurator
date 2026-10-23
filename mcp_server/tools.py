@@ -1,6 +1,6 @@
 """The curated tool surface (REQ-34-TS): 24 tools, no deletion.
 
-A generated server would hand a model all 39 endpoints, including
+A generated server would hand a model all 40 API paths, including
 `DELETE /api/songs/{id}`. This one exposes what an agent needs to read and
 curate, and nothing destructive.
 
@@ -283,9 +283,10 @@ def update_track(
 ) -> dict:
     """Change the fields you name, and only those.
 
-    An argument left unset is not sent, so a partial call can never blank a
-    field; to empty one, do it in the app. Repeating the same call changes
-    nothing. `main_genre`, `energy` and `people` are the field names the app
+    An argument left unset is not sent, and a value that would empty a field
+    (an empty text or list, a rating or rank of 0) is refused, so this tool
+    never clears anything; to empty a field, do it in the app. Repeating the
+    same call changes nothing. `main_genre`, `energy` and `people` are the field names the app
     documents; the rest follow the stored song model.
 
     Args:
@@ -310,7 +311,9 @@ def update_track(
         )
     problems = _value_problems(fields)
     if problems:
-        raise ToolError("Nothing was written: " + "; ".join(problems) + ".")
+        raise ToolError(
+            "Nothing was written: " + "; ".join(problems) + ". To empty a field, do it in the app."
+        )
     return _slim(call("PUT", f"/api/songs/{song_id}", json=fields))
 
 
@@ -323,15 +326,41 @@ def _value_problems(fields: dict) -> list[str]:
     Returns:
         list[str]: One phrase per problem; empty when every value fits.
     """
+    return _emptying(fields) + _out_of_range(fields)
+
+
+def _emptying(fields: dict) -> list[str]:
+    """Values that would empty a field: an empty text or an empty list.
+
+    Args:
+        fields (dict): The values about to be sent.
+
+    Returns:
+        list[str]: One phrase per field that would be emptied.
+    """
+    return [
+        f"{name} would be emptied"
+        for name, value in fields.items()
+        if (isinstance(value, str) and not value.strip()) or (isinstance(value, list) and not value)
+    ]
+
+
+def _out_of_range(fields: dict) -> list[str]:
+    """Numbers outside the app's ranges. 0 means unrated, so a 0 rating or
+    rank would clear the field and is refused too.
+
+    Args:
+        fields (dict): The values about to be sent.
+
+    Returns:
+        list[str]: One phrase per value out of range.
+    """
     problems = []
-    for name in ("title", "artist"):
-        if name in fields and not str(fields[name]).strip():
-            problems.append(f"{name} cannot be empty")
     for name in ("energy", "people"):
-        if name in fields and not RATING_RANGE[0] <= fields[name] <= RATING_RANGE[1]:
-            problems.append(f"{name} must be between 0 and 5")
-    if "rank" in fields and not RANK_RANGE[0] <= fields["rank"] <= RANK_RANGE[1]:
-        problems.append("rank must be between 0 and 5")
+        if name in fields and not RATING_RANGE[0] < fields[name] <= RATING_RANGE[1]:
+            problems.append(f"{name} must be above 0 and at most 5")
+    if "rank" in fields and not RANK_RANGE[0] < fields["rank"] <= RANK_RANGE[1]:
+        problems.append("rank must be from 1 to 5")
     if "bpm" in fields and not BPM_RANGE[0] <= fields["bpm"] <= BPM_RANGE[1]:
         problems.append("bpm must be between 40 and 250")
     return problems
@@ -759,8 +788,12 @@ def _export_target(output_path: str) -> Path:
             f"The export folder {folder} is inside Klangkurator's data folder, which "
             "the app owns. Point KLANGKURATOR_EXPORT_DIR somewhere else."
         )
-    requested = Path(output_path).expanduser()
-    target = (requested if requested.is_absolute() else folder / requested).resolve()
+    try:
+        requested = Path(output_path).expanduser()
+        target = (requested if requested.is_absolute() else folder / requested).resolve()
+    except (ValueError, OSError, RuntimeError):
+        # A NUL byte, a symlink loop or an unknown "~user" is not a file name.
+        raise ToolError(f"{output_path!r} is not a usable file name.") from None
     if folder not in target.parents:
         raise ToolError(
             f"{target} is outside the export folder {folder}. Give a file name, or set "
@@ -768,6 +801,9 @@ def _export_target(output_path: str) -> Path:
         )
     if target.suffix.lower() != ".json":
         raise ToolError(f"{target.name} is not a .json file name.")
+    if _is_inside_data_dir(target):
+        # The folder itself may be outside (e.g. $HOME) while the file is not.
+        raise ToolError(f"{target} is inside Klangkurator's data folder, which the app owns.")
     return target
 
 

@@ -285,9 +285,11 @@ def _crate_name(root: Path, file_path: Path) -> str:
 
 
 def _finish_scan() -> None:
-    """End the scan job: publish its result (or error) and free the slot."""
-    _scan_state["running"] = False
-    _scan_state["finished"] = True
+    """End the scan job: publish its result (or error), then mark it stopped.
+
+    `running` goes False last: a status read in between must never see a run
+    that stopped without its result, which the views would report as vanished.
+    """
     if _scan_state["error"] is None:
         _scan_state["result"] = {
             "total": _scan_state["total"],
@@ -295,6 +297,8 @@ def _finish_scan() -> None:
             "skipped": _scan_state["skipped"],
             "errors": list(_scan_state["errors"]),
         }
+    _scan_state["finished"] = True
+    _scan_state["running"] = False
     _release_job("scan")
 
 
@@ -696,8 +700,9 @@ def _run_analysis(store, to_analyze: list[dict]) -> None:
         logger.exception("Analysis job failed")
         _analyze_state["error"] = str(exc)
     finally:
-        _analyze_state["running"] = False
+        # `running` last, as in _finish_scan: a read in between sees the result.
         _analyze_state["finished"] = True
+        _analyze_state["running"] = False
         _release_job("analysis")
 
 

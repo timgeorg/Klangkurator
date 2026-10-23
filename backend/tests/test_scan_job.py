@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from backend.api import library as library_api
 from backend.main import app
+from backend.storage import get_library_store
 from backend.scanner import audio_analysis
 
 client = TestClient(app)
@@ -296,3 +297,33 @@ def test_a_crate_counts_the_same_way_the_filter_does():
 
     assert crate_of(song) == "Techno"
     assert {row["name"] for row in library_api.list_crates()} == {"Techno"}
+
+
+class _Recording(dict):
+    """A job state that records the order its keys are written in."""
+
+    def __init__(self, data, order):
+        super().__init__(data)
+        self.order = order
+
+    def __setitem__(self, key, value):
+        self.order.append(key)
+        super().__setitem__(key, value)
+
+
+def test_a_job_publishes_its_end_before_it_stops(monkeypatch):
+    """`running` is written last, so no status read sees a run that stopped
+    without its result (the views would call it vanished)."""
+    order: list[str] = []
+    monkeypatch.setattr(library_api, "_scan_state", _Recording(library_api._scan_state, order))
+    monkeypatch.setattr(library_api, "_job", "scan")
+    library_api._finish_scan()
+    assert order.index("result") < order.index("running")
+    assert order.index("finished") < order.index("running")
+
+    order.clear()
+    monkeypatch.setattr(library_api, "_analyze_state", _Recording(library_api._analyze_state, order))
+    monkeypatch.setattr(library_api, "_job", "analysis")
+    library_api._run_analysis(get_library_store(), [])
+    assert order.index("result") < order.index("running")
+    assert order.index("finished") < order.index("running")

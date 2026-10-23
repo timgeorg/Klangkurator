@@ -37,12 +37,13 @@ _SONG_KEYS = frozenset(
     key for name, field in SongBase.model_fields.items() for key in (name, field.alias) if key
 )
 
-# User-authored, conflict-resolvable song fields (MC-3). Ratings count as
+# User-authored, conflict-resolvable song fields (MC-3), by their stored key:
+# `mainGenre` is how rows hold the main genre (the model's alias). Ratings count as
 # empty when 0 (0 = unrated across the app), strings when None/"", arrays
 # when []. file_path is deliberately absent: paths are machine-truth (MC-2).
 CONFLICT_FIELDS = (
     "energy", "people", "rank", "bpm",
-    "musical_key", "year", "main_genre", "drum_notes", "element_notes",
+    "musical_key", "year", "mainGenre", "drum_notes", "element_notes",
     "mixing_notes", "transition_notes", "lyrics", "phase_tags", "vibe_tags",
 )
 
