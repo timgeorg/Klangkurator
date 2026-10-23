@@ -43,8 +43,7 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
   bpm: (s) => s.bpm,
   key: (s) => s.musical_key,
   energy: (s) => s.energy,
-  danceability: (s) => s.danceability,
-  social: (s) => s.social_acceptance,
+  people: (s) => s.people ?? 0,
   rank: (s) => s.rank || undefined,
   duration: (s) => s.duration,
 };

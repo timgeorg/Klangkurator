@@ -53,7 +53,7 @@ describe("syntheticLibrary", () => {
   it("produces ratings on the 0–5 scale with one decimal", () => {
     const songs = syntheticLibrary({ count: 100, seed: 4 });
     for (const song of songs) {
-      for (const value of [song.energy, song.danceability, song.social_acceptance]) {
+      for (const value of [song.energy, song.people ?? 0]) {
         expect(value).toBeGreaterThanOrEqual(0);
         expect(value).toBeLessThanOrEqual(5);
         expect(Math.abs(Math.round(value * 10) - value * 10)).toBeLessThan(1e-9);
@@ -128,7 +128,7 @@ describe("syntheticLibrary — the fixture shapes (phase 6)", () => {
     expect(bare.every((song) => song.bpm === undefined)).toBe(true);
     expect(bare.every((song) => (song.subgenres ?? []).length === 0)).toBe(true);
     expect(bare.every((song) => song.energy === 0)).toBe(true);
-    expect(bare.every((song) => song.danceability === 0 && song.social_acceptance === 0)).toBe(true);
+    expect(bare.every((song) => (song.people ?? 0) === 0)).toBe(true);
     expect(bare.every((song) => song.root_folder === undefined)).toBe(true);
   });
 

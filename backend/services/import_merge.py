@@ -32,7 +32,7 @@ DURATION_TOLERANCE_S = 2.0
 # empty when 0 (0 = unrated across the app), strings when None/"", arrays
 # when []. file_path is deliberately absent: paths are machine-truth (MC-2).
 CONFLICT_FIELDS = (
-    "energy", "danceability", "social_acceptance", "rank", "bpm",
+    "energy", "people", "rank", "bpm",
     "musical_key", "year", "main_genre", "drum_notes", "element_notes",
     "mixing_notes", "transition_notes", "lyrics", "phase_tags", "vibe_tags",
 )
@@ -41,7 +41,7 @@ CONFLICT_FIELDS = (
 def _empty(field: str, value) -> bool:
     if value is None:
         return True
-    if field in ("energy", "danceability", "social_acceptance", "rank"):
+    if field in ("energy", "people", "rank"):
         return value == 0
     if field in ("phase_tags", "vibe_tags"):
         return len(value) == 0
@@ -51,7 +51,7 @@ def _empty(field: str, value) -> bool:
 def _values_differ(field: str, a, b) -> bool:
     # Numbers compare numerically so a stored int 3 vs imported float 3.0 is
     # NOT a conflict (post-#13 ratings carry decimals).
-    if field in ("energy", "danceability", "social_acceptance", "rank", "bpm", "year"):
+    if field in ("energy", "people", "rank", "bpm", "year"):
         try:
             return float(a) != float(b)
         except (TypeError, ValueError):

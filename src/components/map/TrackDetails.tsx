@@ -161,12 +161,11 @@ export function TrackDetails({
             )}
           </div>
 
-          <dl className="grid grid-cols-3 gap-x-4 gap-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
             {(
               [
                 ["Energy", song.energy],
-                ["Danceability", song.danceability],
-                ["Social", song.social_acceptance],
+                ["People", song.people ?? 0],
               ] as const
             ).map(([label, value]) => (
               <div key={label} className="min-w-0">

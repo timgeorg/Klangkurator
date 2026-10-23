@@ -85,23 +85,23 @@ def test_preview_rejects_an_unsupported_future_version():
 # ── MC-2/MC-3: fill-empty + matched tracks keep identity ──────
 
 def test_fill_empty_fills_missing_fields_without_clobbering():
-    local = _song(danceability=3)  # energy missing
+    local = _song(people=3)  # energy missing
     env = _envelope(songs=[{
         "id": "11111111-1111-1111-1111-111111111111",
         "title": local["title"], "artist": local["artist"],
         "file_path": "/other/machine/sequence.mp3",  # moved on disk
-        "energy": 3.8, "danceability": 9,  # 9 is nonsense but non-empty
+        "energy": 3.8, "people": 9,  # 9 is nonsense but non-empty
     }])
     plan = client.post("/api/import/preview", json=env).json()
     assert plan["summary"]["matched"] == 1
-    assert plan["summary"]["conflicts"] == 1  # danceability 3 vs 9 differs
+    assert plan["summary"]["conflicts"] == 1  # people 3 vs 9 differs
     assert plan["summary"]["filled"] >= 1     # energy was a silent fill
     # no overwrite resolution → local values kept; only the fill applies
     res2 = client.post("/api/import", json={"envelope": env, "resolutions": []})
     assert res2.status_code == 200
     after = client.get(f"/api/songs/{local['id']}").json()
     assert after["energy"] == 3.8          # filled from import
-    assert after["danceability"] == 3      # local kept (no resolution)
+    assert after["people"] == 3            # local kept (no resolution)
     # MC-2: the local path is never overwritten by a moved-file import
     assert after["file_path"] == local["file_path"]
 

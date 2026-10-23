@@ -23,9 +23,10 @@ export interface Song {
   year?: number;
   file_path: string;
   artwork_url?: string;
-  danceability: number;
+  /** Energy and people are the two 0–5 ratings, one decimal each; 0 = unrated. */
   energy: number;
-  social_acceptance: number;
+  /** 0–5, one decimal; 0 or missing reads as unrated (issue #48). */
+  people?: number;
   rank?: number;
   drum_notes?: string;
   element_notes?: string;

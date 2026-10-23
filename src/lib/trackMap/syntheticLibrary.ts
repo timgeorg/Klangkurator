@@ -44,7 +44,7 @@ export interface SyntheticOmit {
   subgenre?: boolean;
   energy?: boolean;
   crate?: boolean;
-  /** Also leave out the other two ratings, so nothing rated remains. */
+  /** Also leave out the other rating, so nothing rated remains. */
   ratings?: boolean;
 }
 
@@ -116,9 +116,8 @@ export function syntheticLibrary(options: SyntheticLibraryOptions = {}): Synthet
       subgenres: hasSubgenre ? [subgenres[index % subgenres.length]] : [],
       year: 1995 + Math.floor(random() * 30),
       artwork_url: undefined,
-      danceability: omit.ratings ? 0 : rating(random),
       energy: omit.energy ? 0 : energy,
-      social_acceptance: omit.ratings ? 0 : rating(random),
+      people: omit.ratings ? 0 : rating(random),
       root_folder: omit.crate || !crates.length ? undefined : crates[index % crates.length],
     });
   }

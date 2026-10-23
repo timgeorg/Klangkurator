@@ -114,7 +114,7 @@ const trimmed = (value: string): string => value.trim();
  * One song's values for the similarity composite.
  *
  * `bpm`, `year` and `duration` are missing when absent, ≤ 0 or not finite;
- * the three ratings are missing when 0 (unrated); an empty `subgenres` or
+ * the two ratings are missing when 0 (unrated); an empty `subgenres` or
  * `tagIds` set stays empty and is skipped per pair. Genre and subgenres are
  * lowercased for comparing; `genreLabel` keeps the display case for labels
  * and the user's genre colour.
@@ -133,8 +133,7 @@ export function toFeatures(song: TrackMapSong, tagIds: readonly string[] = []): 
     subgenres: uniqueValues(song.subgenres, lowercase),
     tagIds: uniqueValues(tagIds, trimmed),
     energy: positiveNumber(song.energy),
-    danceability: positiveNumber(song.danceability),
-    social_acceptance: positiveNumber(song.social_acceptance),
+    people: positiveNumber(song.people ?? 0),
     year: positiveNumber(song.year),
     duration: positiveNumber(song.duration),
   };

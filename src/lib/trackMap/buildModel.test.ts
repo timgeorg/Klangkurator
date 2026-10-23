@@ -24,9 +24,8 @@ function song(id: string, overrides: Partial<TrackMapSong> = {}): TrackMapSong {
     id,
     title: `Title ${id}`,
     artist: "Artist",
-    danceability: 0,
     energy: 0,
-    social_acceptance: 0,
+    people: 0,
     ...overrides,
   };
 }

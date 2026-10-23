@@ -96,13 +96,11 @@ describe("inputSimilarity — genre, subgenre and tags", () => {
 });
 
 describe("inputSimilarity — the ratings, year and duration", () => {
-  it("the three ratings are 1 − |a − b| / 5", () => {
+  it("the two ratings are 1 − |a − b| / 5", () => {
     // Values present, so the rule is exercised on its own; toFeatures makes a 0 absent.
     expect(inputSimilarity("energy", feat({ id: "a", energy: 3 }), feat({ id: "b", energy: 4 }))).toBeCloseTo(0.8, 9);
-    expect(inputSimilarity("danceability", feat({ id: "a", danceability: 3 }), feat({ id: "b", danceability: 3 }))).toBe(1);
-    expect(
-      inputSimilarity("social_acceptance", feat({ id: "a", social_acceptance: 5 }), feat({ id: "b", social_acceptance: 1 })),
-    ).toBeCloseTo(0.2, 9);
+    expect(inputSimilarity("people", feat({ id: "a", people: 3 }), feat({ id: "b", people: 3 }))).toBe(1);
+    expect(inputSimilarity("people", feat({ id: "a", people: 5 }), feat({ id: "b", people: 1 }))).toBeCloseTo(0.2, 9);
   });
 
   it("skips an unrated track", () => {
@@ -260,7 +258,7 @@ describe("nearest", () => {
 
   it("matches worked example 5: a 0 BPM is missing, and the pair compares on its other inputs", () => {
     const options: SimilarityOptions = { inputs: inputs({ bpm: 3, genre: 2, energy: 1 }) };
-    const raw = { title: "x", artist: "y", danceability: 0, social_acceptance: 0 };
+    const raw = { title: "x", artist: "y", people: 0 };
     const a = toFeatures({ ...raw, id: "A", bpm: 0, mainGenre: "Techno", energy: 4 });
     const b = toFeatures({ ...raw, id: "B", bpm: 0, mainGenre: "Techno", energy: 4 });
 
@@ -282,22 +280,22 @@ describe("nearest", () => {
 
   it("keeps at most k, S descending and then id ascending", () => {
     // The ratings give S = 1 − |a − b| / 5 on a 1-D scale, so the order is fixed.
-    const options: SimilarityOptions = { inputs: inputs({ energy: 1, danceability: 1 }), k: 2 };
-    const a = feat({ id: "A", energy: 5, danceability: 5 });
+    const options: SimilarityOptions = { inputs: inputs({ energy: 1, people: 1 }), k: 2 };
+    const a = feat({ id: "A", energy: 5, people: 5 });
     const tracks = [
       a,
-      feat({ id: "B", energy: 4, danceability: 4 }),
-      feat({ id: "C", energy: 3, danceability: 3 }),
-      feat({ id: "D", energy: 4, danceability: 4 }),
+      feat({ id: "B", energy: 4, people: 4 }),
+      feat({ id: "C", energy: 3, people: 3 }),
+      feat({ id: "D", energy: 4, people: 4 }),
     ];
     // B and D tie at 0.8, so the id breaks it; C (0.6) is third and dropped.
     expect(nearest(a, tracks, options).map((entry) => entry.id)).toEqual(["B", "D"]);
   });
 
   it("defaults k to 8", () => {
-    const options: SimilarityOptions = { inputs: inputs({ energy: 1, danceability: 1 }) };
+    const options: SimilarityOptions = { inputs: inputs({ energy: 1, people: 1 }) };
     const tracks = Array.from({ length: 12 }, (_, index) =>
-      feat({ id: `t${String(index).padStart(2, "0")}`, energy: 5, danceability: 5 }),
+      feat({ id: `t${String(index).padStart(2, "0")}`, energy: 5, people: 5 }),
     );
     expect(nearest(tracks[0], tracks, options)).toHaveLength(8);
   });
@@ -320,7 +318,7 @@ describe("nearest over 500 synthetic tracks", () => {
   it("completes in under 1 s", () => {
     const features = buildFeatures(syntheticLibrary({ count: 500, seed: 7 }));
     const options: SimilarityOptions = {
-      inputs: inputs({ bpm: 3, tags: 3, genre: 2, subgenre: 2, key: 0.5, energy: 1, danceability: 1, social_acceptance: 1 }),
+      inputs: inputs({ bpm: 3, tags: 3, genre: 2, subgenre: 2, key: 0.5, energy: 1, people: 1 }),
     };
     const started = performance.now();
     const all = allNearest(features, options);

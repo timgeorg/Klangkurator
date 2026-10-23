@@ -27,8 +27,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   genre: { id: 'genre', label: 'Genre', minWidth: 80, maxWidth: 220, defaultWidth: 96, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   subgenres: { id: 'subgenres', label: 'Subgenres', minWidth: 100, maxWidth: 300, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
   energy: { id: 'energy', label: 'Energy', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  danceability: { id: 'danceability', label: 'Dance', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
-  social: { id: 'social', label: 'Social', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
+  people: { id: 'people', label: 'People', minWidth: 72, maxWidth: 120, defaultWidth: 76, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   rank: { id: 'rank', label: 'Rank', minWidth: 72, maxWidth: 120, defaultWidth: 80, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   duration: { id: 'duration', label: 'Time', minWidth: 64, maxWidth: 120, defaultWidth: 64, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   tags: { id: 'tags', label: 'Tags', minWidth: 100, maxWidth: 480, defaultWidth: 140, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
@@ -42,7 +41,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
 // with the player panel docked.
 const DEFAULT_COLUMN_ORDER = [
   'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
-  'subgenres', 'energy', 'danceability', 'social', 'rank', 'album', 'rootFolder',
+  'subgenres', 'energy', 'people', 'rank', 'album', 'rootFolder',
   'tags', 'lyrics', 'notes'
 ];
 
@@ -98,11 +97,11 @@ const loadPersistedColumnConfig = (): ColumnConfig | null => {
           return next;
         })();
     // Migration: persisted orders from before issue #4 have no 'rank' column.
-    // Insert after 'social' (or the nearest rating) so existing users see it.
+    // Insert after 'people' (or the nearest rating) so existing users see it.
     const rankedOrder = migratedOrder.includes('rank')
       ? migratedOrder
       : (() => {
-          const anchor = ['social', 'danceability', 'energy'].find((id) => migratedOrder.includes(id));
+          const anchor = ['people', 'energy'].find((id) => migratedOrder.includes(id));
           const idx = anchor ? migratedOrder.indexOf(anchor) : -1;
           const next = [...migratedOrder];
           next.splice(idx >= 0 ? idx + 1 : next.length, 0, 'rank');

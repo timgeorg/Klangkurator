@@ -273,9 +273,8 @@ def _song_data(
         "root_folder": _crate_name(root, file_path),
         "waveform_peaks": peaks,
         "artwork_url": None,
-        "danceability": 0,
         "energy": 0,
-        "social_acceptance": 0,
+        "people": 0,
     }
 
 
