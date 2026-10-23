@@ -30,7 +30,7 @@ IDEMPOTENT = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, open_world_hint=False, idempotent_hint=True
 )
 
-#: The relationship types the app knows (src/lib/storage.ts:84).
+#: The relationship types the app knows (`relationship_type` in src/lib/storage.ts).
 RELATIONSHIP_TYPES = (
     "remix", "same_sample", "cover", "mashup", "edit", "bootleg", "in_playlist", "transition",
 )

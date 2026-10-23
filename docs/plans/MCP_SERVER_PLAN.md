@@ -24,7 +24,7 @@ Depends on #46 (the scan job).
 - **`slim` must project after validation.** `GET /api/songs` has a response
   model (`songs.py:12`) that fills defaults a legacy row lacks — 29 keys out of
   a 21-key stored row, gaining `rank: 0`, `phase_tags: []`, `vibe_tags: []`;
-  raw dicts would drop `rank` from 1,907 rows. **The share is 67.1 %, not 62 %**:
+  raw dicts would drop `rank` from 1,907 rows. **The share is 62–71 % depending on the measurement, not a fixed 62 %**:
   3,735,141 B full / 1,110,193 B slim at 1,907 tracks, 1,187 B of peaks each
   (the issue's figure was a 499-track sample). 200 floats per row
   (`backend/scanner/waveform.py:4`); 27 crates, 107 tracks with a BPM.

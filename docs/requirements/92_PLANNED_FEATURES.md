@@ -93,7 +93,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the three 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |
+| PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |
 | PF-78 | Decimal ratings | The three 0–5 ratings (`energy`, `danceability`, `social_acceptance`) take one decimal (step 0.1 in the dialog); the 5-bar meter stays and floors on display (stored 3.8 → 3 bars) (issue #7). `danceability` and `social_acceptance` give way to `people` in PF-87 |
 | PF-87 | People rating | **Built 2026-10-23** (issue #48, PR #53; review fixes #57). One 0–5 rating, `people` ("People"), replaces `danceability` and `social_acceptance`, which measured the same thing. No compatibility: the old values are dropped and re-entered by hand; old keys in an existing library are ignored. Table, edit dialog, filters, sort, track map (one input at weight 1), export/import. Spec: `11_SONG_MODEL.md`; plan: `docs/plans/PEOPLE_RATING_PLAN.md` |
 | PF-83 | Library export / import | Export the whole store as one versioned JSON envelope (`klangkurator-library-<date>.json`); import merges — fill-empty silently, conflicts resolved in a popup (per-conflict overwrite yes/no + apply-to-all). Track identity: file_path → artist+title+duration ±2 s → artist+title. Replaces the old wholesale-replace import. Finishes NFR-2 (issue #10) |
@@ -109,7 +109,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-85 | MCP server | Planned (issue #47, Tim 2026-10-23). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (67 % of the payload), and a browse sandbox that also allows the configured root (an external drive is unreachable today). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
+| PF-85 | MCP server | **Built 2026-10-23** (issue #47, PR #55; review fixes #57). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (67 % of the payload), and a browse sandbox that also allows the configured root (an external drive is unreachable today). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
 
 ## Track Map
 

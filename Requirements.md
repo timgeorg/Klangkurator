@@ -2,7 +2,8 @@
 
 > **Frozen 2026-10-23.** Historical masterplan. The numbered specs in
 > `docs/requirements/` are the truth and win where they differ (for example,
-> issue #48 replaced `danceability` and `social_acceptance` with `people`).
+> issue #48 replaced `danceability` and `social_acceptance` with `people`, and
+> the mock data services below were removed on 2026-10-23, #57).
 
 A comprehensive, locally-hosted DJ music organization tool inspired by Lexicon DJ but focused on **deep organization, tagging, knowledge-graph relationships, and set planning**. Designed to eventually run as a desktop application via **PyWebView** with a JSON-file backend.
 

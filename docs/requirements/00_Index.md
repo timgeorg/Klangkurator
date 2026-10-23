@@ -7,7 +7,7 @@ tags:
 
 - [[00_INDEX.md]] — alternate uppercase index linking to all domain files (legacy, kept for link compatibility).
 - [[01_VISION_AND_PRINCIPLES.md]] — product vision, design principles, target user.
-- [[02_SYSTEM_CONTEXT.md]] — runtime architecture, data service abstraction, PyWebView plan, design system.
+- [[02_SYSTEM_CONTEXT.md]] — runtime architecture, data access, PyWebView plan, design system.
 - [[10_LIBRARY_AND_FILE_LOADING.md]] — root folder as the unit of import, native picker, auto-scan, crate mapping, file scanning, empty-library redirect.
 - [[11_SONG_MODEL.md]] — song entity: identity, musical properties, ratings, notes, phase/vibe tags.
 - [[12_TAGS_AND_GENRES.md]] — centralized tags, genre hierarchy, color management.

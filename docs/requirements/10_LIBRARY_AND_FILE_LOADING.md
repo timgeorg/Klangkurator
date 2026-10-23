@@ -107,7 +107,8 @@ so a large folder takes minutes. It must never be a silent blocking request.
 ### Slim library listing (REQ-10-SL; issue #47)
 `GET /api/songs` carries each track's 200-float `waveform_peaks`, which is the
 bulk of the body and something no list view needs: measured 3,735,141 bytes at
-1,907 tracks, of which **67.1 %** is peaks (1,187 bytes per track).
+1,907 tracks, of which the peaks are most (62–71 % across the measurements on
+record, about 1.2 KB per track).
 - `?slim=true` returns the same rows with the `waveform_peaks` key absent —
   not null. Everything else is identical for value, including the model
   defaults a legacy row lacks (`rank: 0`, `phase_tags: []`, `vibe_tags: []`),

@@ -54,7 +54,7 @@ the library through a curated set of tools, without a second process writing
 | 16 | `untag_track` | `DELETE /api/songs/{id}/tags/{tag_id}` | `song_id`, `tag_id` | `{status: "ok"}` |
 | 17 | `list_playlists` | `GET /api/playlists` + `GET /api/playlist-songs` | — | playlists, each with `tracks: [{song_id, position}]` |
 | 18 | `create_playlist` | `POST /api/playlists` | `name`, `color`, `description` | the playlist |
-| 19 | `playlist_add` | `POST /api/playlists/{id}/songs` | `playlist_id`, `song_id`, `position` | `{playlist_id, song_id, position}` |
+| 19 | `playlist_add` | `POST /api/playlists/{id}/songs` | `playlist_id`, `song_id` | `{playlist_id, song_id, position}` |
 | 20 | `playlist_remove` | `DELETE /api/playlists/{id}/songs/{song_id}` | `playlist_id`, `song_id` | `{status: "ok"}` |
 | 21 | `list_relationships` | `GET /api/relationships` | `song_id` (optional) | relationship rows |
 | 22 | `link_tracks` | `POST /api/relationships` | `source_song_id`, `target_song_id`, `relationship_type`, `notes` | the relationship |
@@ -78,14 +78,15 @@ Rules that belong to the tool layer, not the backend:
   `search` parameter (`backend/api/songs.py:13-26`) is not used: it covers a
   different field set, so narrowing with it would drop rows the app keeps.
 - **`update_track` sends only what the caller set.** `PUT` with
-  `exclude_unset` plus `_CLEARABLE` (`backend/api/songs.py:49-62`) means an
+  `exclude_unset` plus `_CLEARABLE` (`update_song` in `backend/api/songs.py`) means an
   omitted field is untouched and a partial body cannot blank one. An argument
   left `None` is **not sent**, so the tool cannot clear a field at all — a
   caller who wants a field emptied does it in the app. An empty call is refused
   before any HTTP request (the backend answers 200 and rewrites `library.json`
-  for an empty body — verified). So is a value the app's own controls would not
-  allow: a blank title or artist, energy, people or rank outside 0–5, a BPM
-  outside 40–250 (issue #57).
+  for an empty body — verified). So is any value that would empty a field (an
+  empty text or list, a rating or rank of 0) and any value the app's own
+  controls would not allow (energy, people or rank above 5, a BPM outside
+  40–250) — the tool never clears a field (issue #57).
 - **`playlist_add` checks first.** `POST /api/playlists/{id}/songs` accepts a
   nonexistent playlist and a nonexistent song (`201`):
   `library_store.add_playlist_song` (`:231-243`) validates nothing. The tool
@@ -94,7 +95,7 @@ Rules that belong to the tool layer, not the backend:
   no `position` argument: the store does not move the other rows, so an insert
   position did nothing useful.
 - **`link_tracks` validates the type** against the eight the app knows
-  (`src/lib/storage.ts:84`): remix, same_sample, cover, mashup, edit, bootleg,
+  (`relationship_type` in `src/lib/storage.ts`): remix, same_sample, cover, mashup, edit, bootleg,
   in_playlist, transition. The API takes any string.
 - **`create_tag` defaults the colour** to `#A1A2B3` (the palette's
   `FALLBACK_COLOR`, `src/lib/palette.ts:38`). The app's name hash
@@ -125,7 +126,7 @@ Rules that belong to the tool layer, not the backend:
   `KLANGKURATOR_READ_ONLY` (`1` refuses the 13 tools that change the library;
   unset or empty is off) ·
   `KLANGKURATOR_ROOTS` (`os.pathsep`-separated allowlist for `scan_library`
-  and `set_library_root`; default: the configured root only, read once from
+  and `set_library_root`; default: the configured root only, read on each call from
   `GET /api/library/root`).
 - **Annotations.** All 24 tools carry `openWorldHint: false` — the domain is
   one local library. The 10 read tools carry `readOnlyHint: true`. The other
@@ -157,7 +158,9 @@ Rules that belong to the tool layer, not the backend:
   compare it against the allowlist, and refuse a path outside it **before**
   making any request. They send the resolved folder, so what was checked is
   what the app receives. The allowlist default is the configured root, so a
-  fresh install can scan its own root and nothing else.
+  configured root may be scanned and nothing else. With no root configured
+  and no `KLANGKURATOR_ROOTS` (a fresh install before a folder is chosen),
+  both tools refuse every path.
 - **The widened browse sandbox** (REQ-10-BW) serves the app's folder dialog
   and any client of the HTTP API; no MCP tool calls it: `GET /api/library/browse` allows `$HOME` **and** the
   configured root, and reports `parent: null` at either boundary.

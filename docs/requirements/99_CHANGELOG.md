@@ -40,7 +40,7 @@ field) and refuses an empty body, which the backend would accept and write.
 Two backend changes this spec now requires, both measured on the real library:
 
 - **`GET /api/songs?slim=true`** (REQ-10-SL) returns the same rows without
-  `waveform_peaks`. Peaks are 200 floats per track and **67.1 %** of the body
+  `waveform_peaks`. Peaks are 200 floats per track and most (62–71 % across the measurements on record) of the body
   (3,735,141 bytes at 1,907 tracks, 1,187 bytes per track — the issue's 62 %
   was a 499-track sample). The projection runs after validation, so model
   defaults a legacy row lacks are still filled. The app keeps the full rows;
