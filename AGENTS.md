@@ -28,7 +28,7 @@ Local-first DJ library organizer: React + Vite + TypeScript + Tailwind (shadcn/u
 
 ## Gates before a PR
 
-- `npx tsc --noEmit -p tsconfig.app.json`: no new errors (the remaining ones are pre-existing in the unused mock data service).
+- `npx tsc --noEmit -p tsconfig.app.json`: no errors.
 - `python -m pytest backend/tests` (in the project's Python environment): passes. The tests point `HOME` at a throwaway folder, never the real library.
 - `npx eslint <changed files>`: no new problems.
 - `npx vite build`: passes.

@@ -1,7 +1,5 @@
 {
   "detector": {
-    "ignoreFiles": [
-      "src/services/MockupDataService.ts"
-    ]
+    "ignoreFiles": []
   }
 }
