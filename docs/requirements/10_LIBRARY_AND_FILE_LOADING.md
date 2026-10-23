@@ -104,16 +104,47 @@ so a large folder takes minutes. It must never be a silent blocking request.
   finished while the page was open.
 - Stopping a scan is not part of this (not requested).
 
+### Slim library listing (REQ-10-SL; issue #47)
+`GET /api/songs` carries each track's 200-float `waveform_peaks`, which is the
+bulk of the body and something no list view needs: measured 3,735,141 bytes at
+1,907 tracks, of which **67.1 %** is peaks (1,187 bytes per track).
+- `?slim=true` returns the same rows with the `waveform_peaks` key absent —
+  not null. Everything else is identical for value, including the model
+  defaults a legacy row lacks (`rank: 0`, `phase_tags: []`, `vibe_tags: []`),
+  because the projection runs after validation.
+- **The app keeps the full rows.** `GET /api/songs` without the parameter is
+  unchanged, so the library table, the track map and the player keep their
+  waveforms; nothing in the frontend sends `slim`.
+- This is a **projection, not pagination**: the same track count, the same
+  order, no filter applied.
+- `get_track` on the MCP side (`34_MCP_SERVER.md`) is the one read that asks
+  for the whole row, peaks included.
+
 ### Backend folder browsing (picker support)
 - `GET /api/library/browse?path=<dir>` lists a directory's subfolders for
   the client-side tree dialog
-- Only directories are returned; access outside the user's home directory
-  is rejected
+- Only directories are returned; access outside the home folder and the
+  configured root is rejected (REQ-10-BW below)
 - Used by the browser-mode folder dialog; desktop mode uses the PyWebView
   native dialog directly
 - In the dialog a folder opens on click or Enter (focus moves to its first
   subfolder); the use button takes the folder that is open. Paths inside the
   home folder show as `~/…`; a folder without subfolders says so
+
+#### The sandbox allows the configured root too (REQ-10-BW; issue #47)
+The browser was sandboxed to `$HOME` only, so a library on an external drive
+could not be reached — while `POST /api/library/scan` and `PUT
+/api/library/root` accepted the very same path. Measured on the real library:
+the root is `/media/tim/Extreme SSD/#MUSIC`, and browsing it answered `403
+Access denied: … is outside your home directory (/home/tim)`.
+- A path is allowed when it is the home directory, the **configured root**
+  (`_config.root_path`, resolved), or inside either. Everything else keeps the
+  403 and the same message shape, naming what was refused.
+- `parent` is `null` at both boundaries (home and root), so the dialog's "up"
+  control stops there.
+- A library with no root configured falls back to the home folder alone.
+- The widening is the browser's, not the scan's: neither `POST /scan` nor `PUT
+  /root` changes what it accepts.
 
 ### Re-scan
 - Re-scanning the same root folder only adds new files — existing songs are

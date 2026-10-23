@@ -30,9 +30,9 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
   serves library-tracked audio files
 - **Album covers** — embedded art extracted from ID3 `APIC` / FLAC pictures / MP4 `covr`,
   re-encoded to bounded 300px thumbnails, served through a cacheable artwork endpoint
-- **Root-folder import** — native OS folder picker in desktop mode, sandboxed
-  home-directory browser dialog in web mode; auto-scan on import, and idempotent re-scan
-  that never overwrites your notes, tags, or ratings
+- **Root-folder import** — native OS folder picker in desktop mode, a browser dialog
+  sandboxed to your home folder and the configured root in web mode; auto-scan on import,
+  and idempotent re-scan that never overwrites your notes, tags, or ratings
 - **Background analysis** — scanning and audio analysis run as a background job with live
   progress (polled status endpoint), so the UI stays responsive while a library processes
 - **Song detail view** — full metadata, notes, tags, relationships, cover, and waveform in
@@ -120,6 +120,49 @@ and skips package installs with `NO_INSTALL=1`. Default ports: `BACKEND_PORT=800
 First run: the library is empty and the app takes you to the import page — pick a music
 folder, let the scan finish (you get a progress bar), and the library view takes over.
 
+## Local agents (MCP)
+
+Specified in [docs/requirements/34_MCP_SERVER.md](docs/requirements/34_MCP_SERVER.md)
+(PF-85, issue #47); **not built yet**. The design is a thin client: the server holds no
+state, opens nothing under `~/.klangkurator/`, and forwards every tool call to the
+backend that is already running. 24 curated tools, no deletion, no audio, stdio only.
+
+The backend must be up first (`./run.sh`). Then point an MCP client at the server. The
+project folder and the venv's interpreter are the only two things to fill in:
+
+```json
+{
+  "mcpServers": {
+    "klangkurator": {
+      "command": "/path/to/klangkurator/.venv/bin/python3",
+      "args": ["-m", "mcp_server"],
+      "env": {
+        "PYTHONPATH": "/path/to/klangkurator",
+        "KLANGKURATOR_URL": "http://127.0.0.1:8000",
+        "KLANGKURATOR_TIMEOUT": "30",
+        "KLANGKURATOR_READ_ONLY": "",
+        "KLANGKURATOR_ROOTS": ""
+      }
+    }
+  }
+}
+```
+
+Same block in Claude Desktop's `claude_desktop_config.json`, in Cursor's
+`.cursor/mcp.json`, and in Copilot's MCP settings. Or run it by hand from the project
+folder: `python -m mcp_server` (the venv that runs the backend; needs `mcp` from
+`requirements.txt`).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KLANGKURATOR_URL` | `http://127.0.0.1:8000` | Where the backend listens. `BACKEND_PORT` in `run.sh` changes it. |
+| `KLANGKURATOR_TIMEOUT` | `30` | Seconds per request. Analysis and scans are jobs, so no call waits for them. |
+| `KLANGKURATOR_READ_ONLY` | unset (empty = off) | `1` refuses the 13 tools that change the library, before any request. Reads and `export_library` keep working. |
+| `KLANGKURATOR_ROOTS` | the configured root (empty = that default) | `:`-separated folders `scan_library` and `set_library_root` may touch. |
+
+A stopped backend gives one message naming the URL and `./run.sh`, not a traceback. With
+`mcp` uninstalled the app still runs — `backend/` never imports it.
+
 ## How it's built
 
 The interesting part is the process, not just the feature list. Each feature passes
@@ -166,7 +209,7 @@ The tester role is where judgment pays off — probing beyond the happy path has
   keep, checked view by view
 - `docs/requirements/` — numbered domain specs with a changelog: `13_LIBRARY_VIEW.md`
   (the table contract), `11_SONG_MODEL.md`, `16_SET_PLANNING.md`, `33_TRACK_MAP.md`
-  (the similarity canvas), the data-model docs
+  (the similarity canvas), `34_MCP_SERVER.md` (agent access), the data-model docs
   (`20`–`22`), `90_NFRS.md`, `91_INVARIANTS.md` (the numbered constraint table),
   `92_PLANNED_FEATURES.md` (the backlog), `93_OUT_OF_SCOPE.md`
 - `docs/plans/BACKLOG_ORCHESTRATION.ipynb` — the working session log: sprint board,
