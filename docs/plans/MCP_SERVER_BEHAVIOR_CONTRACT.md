@@ -107,9 +107,11 @@ type is not one of the eight the app knows **then** it is refused.
 ### BC-17 — export stays out of the context
 **When** I call `export_library()` without a path **then** the answer is a
 summary (format, version, `exported_at`, counts) and **not** the envelope.
-**When** I give a path outside `~/.klangkurator/` **then** the file is written
-there, it parses as the envelope, and the answer names the path and the byte
-size. A path inside `~/.klangkurator/` is refused.
+**When** I give a new `.json` file name **then** the file is created inside the
+export folder (`KLANGKURATOR_EXPORT_DIR`, default `~/klangkurator-exports`), it
+parses as the envelope, and the answer names the path and the byte size. A path
+outside that folder, a name that is not `.json`, and an existing file are
+refused, and an existing file is left as it was (issue #57).
 
 ### BC-18 — the scan tools
 **When** I call `scan_library(root_path=<the configured root>)` **then** it
@@ -132,8 +134,8 @@ change the library (`update_track`, `create_tag`, `tag_track`, `untag_track`,
 `scan_library`, `set_library_root`, `analyze_all`, `analyze_track`,
 `scan_artwork`) **then** each fails with a message naming
 `KLANGKURATOR_READ_ONLY` and `library.json`'s modification time is unchanged.
-Reads still work, and `export_library` still writes its file to a path outside
-`~/.klangkurator/`.
+Reads and the `export_library` summary still work; writing the export file is
+refused.
 
 ### BC-21 — the roots allowlist
 **Given** an allowlist **when** I call `scan_library` or `set_library_root` with

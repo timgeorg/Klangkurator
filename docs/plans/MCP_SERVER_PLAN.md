@@ -112,7 +112,7 @@ Nothing outside this list. Paths are relative to the repo root.
 4. **Two gates, both before any request.** *Roots:* `KLANGKURATOR_ROOTS` if set,
    else one lazy `GET /api/library/root`; a resolved target must equal or sit
    inside an allowed root. *Read-only:* one decorator on the 13 library-writing
-   tools; `export_library` is not gated, it never touches `~/.klangkurator/`. A
+   tools; `export_library` keeps its summary in read-only mode and refuses the file (#57). A
    gated tool stays **listed** and fails on call.
 5. **The tools.** Thin functions: build params, call, project; every
    track-bearing result drops `waveform_peaks`. `search_tracks` fetches
@@ -120,7 +120,8 @@ Nothing outside this list. Paths are relative to the repo root.
    `missing_bpm` is `bpm is None` and excludes the BPM bounds. `update_track`
    sends only non-`None` arguments and refuses `{}`. `list_playlists` joins
    `/api/playlists` with `/api/playlist-songs`. `export_library` returns a
-   summary, or streams the envelope to a path outside `~/.klangkurator/`.
+   summary, or writes the envelope to a new `.json` file in the export folder
+   (`KLANGKURATOR_EXPORT_DIR`; #57 replaced "any path outside the data folder").
 6. **Tests and docs.** Tests live in `backend/tests/`, so `conftest.py`'s
    throwaway `HOME` applies: `pytest.importorskip("mcp")`, tools driven through
    the `MCPServer` object, HTTP via a `transport=` seam in `client.py` pointed

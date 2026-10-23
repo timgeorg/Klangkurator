@@ -42,7 +42,7 @@ Each song stores:
 
 `0` means unrated for both, and a song row without `people` reads as 0.
 **People replaces `danceability` and `social_acceptance`** (issue #48, PF-87 —
-planned): the two measured the same thing. No compatibility: nothing migrates,
+built 2026-10-23): the two measured the same thing. No compatibility: nothing migrates,
 aliases or reads the old fields. Their values are dropped (Tim: *"just drop
 everything, I'll re-add those ratings"*); old keys still sitting in an existing
 `library.json` are ignored — never shown, never written.

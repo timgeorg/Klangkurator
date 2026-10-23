@@ -19,7 +19,7 @@ the library through a curated set of tools, without a second process writing
 - This is not stylistic. `BaseStore._save` writes one shared `.tmp` file and
   renames it (`backend/storage/base_store.py:34-41`); two processes doing that
   to the same library lose writes.
-- **Curated, not generated.** 38 paths in `/openapi.json` is noise, and a
+- **Curated, not generated.** 40 paths in `/openapi.json` (2026-10-23) is noise, and a
   generated surface would offer `DELETE /api/songs/{song_id}`. The 24 tools
   below are the whole surface; deletion is absent on purpose (a track or
   playlist should be removed in the app, where the user sees what is going).
@@ -65,13 +65,15 @@ Rules that belong to the tool layer, not the backend:
 
 - **`slim` projection.** Every track-bearing result drops `waveform_peaks`
   (REQ-10-SL) except `get_track`, the one tool that carries them. Measured on
-  the 1,907-track library: 67.1 % smaller rows, 1.19 KB/track of peaks gone.
+  the live library, the peaks are most of a listing's bytes (62–71 % across
+  the measurements on record, about 1.2 KB per track).
 - **Filter semantics are the table's.** `search_tracks` filters in the server
   process over one slim listing, using the same rules as
   `src/components/dj/libraryTable.ts:110-134`: `query` matches title, artist,
-  `mainGenre`, `subgenres`, `genres`, `genre`, `musical_key`; `crate` is the
-  exact `root_folder` (the app's `crateOf`, `src/lib/trackFormat.ts:88-92`);
-  `genre` matches `mainGenre` ∪ `genres` ∪ `genre`; `key` is exact. `bpm_min`/
+  `mainGenre`, `subgenres`, `genres`, `genre`, `musical_key` and `album`;
+  `crate` is the `root_folder` (the app's `crateOf`, `src/lib/trackFormat.ts:88-92`);
+  `genre` matches `mainGenre` ∪ `genres` ∪ `genre`. `crate`, `genre` and `key`
+  compare without case, and an empty one is no filter. `bpm_min`/
   `bpm_max` and `missing_bpm` are mutually exclusive. The backend's own
   `search` parameter (`backend/api/songs.py:13-26`) is not used: it covers a
   different field set, so narrowing with it would drop rows the app keeps.
@@ -81,21 +83,31 @@ Rules that belong to the tool layer, not the backend:
   left `None` is **not sent**, so the tool cannot clear a field at all — a
   caller who wants a field emptied does it in the app. An empty call is refused
   before any HTTP request (the backend answers 200 and rewrites `library.json`
-  for an empty body — verified).
+  for an empty body — verified). So is a value the app's own controls would not
+  allow: a blank title or artist, energy, people or rank outside 0–5, a BPM
+  outside 40–250 (issue #57).
 - **`playlist_add` checks first.** `POST /api/playlists/{id}/songs` accepts a
   nonexistent playlist and a nonexistent song (`201`):
   `library_store.add_playlist_song` (`:231-243`) validates nothing. The tool
-  verifies the playlist and the song exist before writing.
+  verifies the playlist and the song exist before writing, and a track already
+  in the playlist is answered as it is — a retry never adds it twice. There is
+  no `position` argument: the store does not move the other rows, so an insert
+  position did nothing useful.
 - **`link_tracks` validates the type** against the eight the app knows
   (`src/lib/storage.ts:84`): remix, same_sample, cover, mashup, edit, bootleg,
   in_playlist, transition. The API takes any string.
 - **`create_tag` defaults the colour** to `#A1A2B3` (the palette's
   `FALLBACK_COLOR`, `src/lib/palette.ts:38`). The app's name hash
   (`colorForName`, `:41-45`) is not ported; the user recolours in Settings.
-- **`export_library` writes outside the library only.** Without `output_path`
-  it returns format, version, `exported_at` and the entity counts, never the
-  3.4 MB envelope. With a path it streams the envelope there and returns
-  `{path, bytes, counts}`. A path inside `~/.klangkurator/` is refused.
+- **`export_library` creates new files in one folder only.** Without
+  `output_path` it returns format, version, `exported_at` and the entity
+  counts, never the multi-megabyte envelope. With a path it writes the envelope
+  to a **new `.json` file inside the export folder** (`KLANGKURATOR_EXPORT_DIR`,
+  default `~/klangkurator-exports`; a relative path is taken inside it) and
+  returns `{path, bytes, counts}`. It refuses a path outside that folder, a
+  name that is not `.json`, an existing file (it never replaces one), and an
+  export folder inside `~/.klangkurator/`. A failed write removes only the file
+  it created. (Issue #57: the first version wrote and overwrote any path.)
 
 ## Contract (REQ-34-CT)
 
@@ -106,9 +118,10 @@ Rules that belong to the tool layer, not the backend:
   pins `mcp>=2.3,<3` and declares `httpx2>=2.10` (the HTTP client the server
   imports directly; it arrives transitively with `mcp`, which is not a
   contract).
-- **Configuration** (read at import, no I/O):
+- **Configuration** (read when used, no I/O):
   `KLANGKURATOR_URL` (default `http://127.0.0.1:8000`) ·
-  `KLANGKURATOR_TIMEOUT` (default 30 s, per request) ·
+  `KLANGKURATOR_TIMEOUT` (default 30 s, per request; 0 or less falls back to 30) ·
+  `KLANGKURATOR_EXPORT_DIR` (default `~/klangkurator-exports`, where `export_library` writes) ·
   `KLANGKURATOR_READ_ONLY` (`1` refuses the 13 tools that change the library;
   unset or empty is off) ·
   `KLANGKURATOR_ROOTS` (`os.pathsep`-separated allowlist for `scan_library`
@@ -117,30 +130,36 @@ Rules that belong to the tool layer, not the backend:
 - **Annotations.** All 24 tools carry `openWorldHint: false` — the domain is
   one local library. The 10 read tools carry `readOnlyHint: true`. The other
   14 carry `readOnlyHint: false` and, because `destructiveHint` defaults to
-  **true** when omitted, an explicit `destructiveHint: false`. (13 of the 14
-  change the library; `export_library` does not, which is why read-only mode
-  gates the 13 and not it.)
+  **true** when omitted, an explicit `destructiveHint: false` — true for
+  `export_library` too, since it never replaces a file.
   `idempotentHint: true` only where a repeat call leaves the same state:
-  `update_track`, `tag_track` (a second insert is a no-op — 201 both times)
-  and `set_library_root`. Not on `untag_track` (a second call is a 404), on
+  `update_track`, `tag_track` (a second insert is a no-op — 201 both times),
+  `playlist_add` (a track already there is not added again) and
+  `set_library_root`. Not on `untag_track` (a second call is a 404), on
   `scan_library`/`analyze_all` (a second call while one runs is a 409), on
-  `playlist_add`/`link_tracks`/`create_*` (they append a row) or on
-  `export_library` (`exported_at` moves).
+  `link_tracks`/`create_*` (they append a row) or on `export_library` (a second
+  call with the same name is refused).
 - **Errors.** One `ToolError` per failure, never a bare raise — a bare
   exception reaches the client as "Error executing tool <name>" with no
-  detail. An unreachable backend is one message naming the URL and `./run.sh`.
+  detail. An unreachable backend is one message naming the URL and `./run.sh`;
+  a timeout says the app did not answer in time (it is up, so `./run.sh` would
+  be the wrong advice); a body that is not JSON is one message naming the URL.
   An HTTP 4xx/5xx carries the status and the API's own `detail`.
+- **Ids never leave their route.** Every id is checked before it goes into a
+  path — letters, digits, `-` and `_` only — and the client refuses any path
+  with a `.`/`..` segment or `? # % \`. An id such as `../../<song-id>` once
+  reached `DELETE /api/songs/<id>` (issue #57).
 - **Read-only mode.** With `KLANGKURATOR_READ_ONLY=1` the **13 tools that
   change the library** fail before any HTTP request; reads still work.
-  `export_library` stays available: it never writes `~/.klangkurator/`, and a
-  read-only session being unable to back the library up would be the opposite
-  of safe. It still refuses an `output_path` inside the data directory.
+  `export_library` still gives its summary, but writing the export file is
+  refused like every other write: a read-only session writes nothing.
 - **Roots allowlist.** `scan_library` and `set_library_root` resolve the path,
   compare it against the allowlist, and refuse a path outside it **before**
-  making any request. The allowlist default is the configured root, so a
+  making any request. They send the resolved folder, so what was checked is
+  what the app receives. The allowlist default is the configured root, so a
   fresh install can scan its own root and nothing else.
-- **The widened browse sandbox** (REQ-10-BW) exists so an agent can see the
-  folders it may scan: `GET /api/library/browse` allows `$HOME` **and** the
+- **The widened browse sandbox** (REQ-10-BW) serves the app's folder dialog
+  and any client of the HTTP API; no MCP tool calls it: `GET /api/library/browse` allows `$HOME` **and** the
   configured root, and reports `parent: null` at either boundary.
 
 ## Acceptance (REQ-34-AX)
@@ -161,7 +180,7 @@ Checked by a reviewer with `curl` and an MCP client, without reading the diff:
 | AX-10 | `get_track(<id>)` returns `waveform_peaks`: a list of 200 floats |
 | AX-11 | `update_track(<id>, energy=3.5)` changes only `energy` and `updated_at`; a second call leaves the same values |
 | AX-12 | `update_track(<id>)` with no fields is refused with a clear message and writes nothing |
-| AX-13 | `KLANGKURATOR_READ_ONLY=1` makes each of the 13 library-writing tools fail with `library.json`'s mtime unchanged; reads and `export_library` still work |
+| AX-13 | `KLANGKURATOR_READ_ONLY=1` makes each of the 13 library-writing tools fail with `library.json`'s mtime unchanged; reads and the export summary still work, the export file is refused |
 | AX-14 | `KLANGKURATOR_URL=http://127.0.0.1:9/` → every tool returns one message naming the URL and `./run.sh`, no traceback, no hang past the timeout |
 | AX-15 | With the backend stopped the server still starts and lists its 24 tools |
 | AX-16 | `scan_library(<path outside the allowlist>)` is refused and no request is made (proved by pointing `KLANGKURATOR_URL` at a dead port and getting the roots message, not the unreachable one) |

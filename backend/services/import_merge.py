@@ -226,7 +226,16 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     """Execute a planned import. resolutions = [{song_id, field, overwrite}].
 
     Absent resolution ⇒ local value wins (fail-safe default, MC-4).
-    Returns the human-facing summary.
+
+    Args:
+        envelope (dict): The validated export envelope.
+        resolutions (list[dict]): The user's per-field conflict answers.
+        library: The library store.
+        blocks: The blocks store.
+        sets: The sets store.
+
+    Returns:
+        dict: The human-facing summary.
     """
     error = _envelope_error(envelope)
     if error:
