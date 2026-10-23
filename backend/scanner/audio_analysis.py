@@ -207,6 +207,8 @@ def analyze_all_missing_bpm(
     library_store,
     limit: int | None = None,
     progress_cb=None,
+    songs: list[dict] | None = None,
+    should_stop=None,
 ) -> dict:
     """Analyze all songs that are missing BPM and update them.
 
@@ -214,71 +216,122 @@ def analyze_all_missing_bpm(
         library_store: LibraryStore instance.
         limit: Max number of songs to analyze (None = all).
         progress_cb: Optional callable(done, total, current_title).
-            Called with the 1-based index of the track that is about to
-            start (before analysis), and again with the same index after
-            it completes — so the final call has done == total (all
-            tracks finished).
+            Called with the number of tracks finished **before** the track
+            about to start, and again with that track counted as done after
+            it — on every path, including a skipped or failed track. The
+            first call is therefore `0 / N` and the last `N / N`.
+        songs: The tracks to analyze, when the caller already picked them. The
+            route counts its `total` this way, so its status and this loop can
+            never disagree. None means "every song without a BPM".
+        should_stop: Optional callable() -> bool. Checked before each track;
+            when it answers True the loop breaks and the summary says
+            `cancelled`. A stop asked for during the last track ends the run
+            normally instead.
 
     Returns:
-        dict with: analyzed, updated, skipped, errors
+        dict with: analyzed, updated, skipped, errors, cancelled.
     """
-    songs = library_store.get_songs()
-    to_analyze = [s for s in songs if s.get("bpm") is None]
-
-    if limit:
-        to_analyze = to_analyze[:limit]
-
-    analyzed = 0
-    updated = 0
-    skipped = 0
-    errors = []
-
+    to_analyze = _tracks_to_analyze(library_store, songs, limit)
     total = len(to_analyze)
+    summary = {"analyzed": 0, "updated": 0, "skipped": 0, "errors": [], "cancelled": False}
+
     # The table edits songs while this runs (3-5s per track); a BPM or key set
     # by hand in the meantime wins over the analysed one. `song` is the live dict.
     keys_at_start = {s["id"]: s.get("musical_key") for s in to_analyze}
 
     for idx, song in enumerate(to_analyze, start=1):
-        done = idx  # 1-based index of the track that is about to start
-        title = song.get("title", "Unknown")
+        if should_stop is not None and should_stop():
+            summary["cancelled"] = True
+            logger.info("Analysis stopped after %d of %d tracks", idx - 1, total)
+            break
 
-        if progress_cb is not None:
-            progress_cb(done, total, title)
+        _report_progress(progress_cb, idx - 1, total, song)
+        _record_track(library_store, song, keys_at_start, summary)
+        _report_progress(progress_cb, idx, total, song)
 
-        file_path = song.get("file_path")
-        if not file_path or not Path(file_path).exists():
-            skipped += 1
-            continue
+    return summary
 
-        try:
-            result = analyze_track(file_path)
-        except Exception as e:
-            errors.append(f"{song.get('title', 'Unknown')}: {e}")
-            skipped += 1
-            if progress_cb is not None:
-                progress_cb(done, total, title)
-            continue
 
-        updates = {}
-        if result.get("bpm") is not None and song.get("bpm") is None:
-            updates["bpm"] = result["bpm"]
-        if result.get("musical_key") is not None and song.get("musical_key") == keys_at_start[song["id"]]:
-            updates["musical_key"] = result["musical_key"]
-        if result.get("duration") is not None and song.get("duration") is None:
-            updates["duration"] = result["duration"]
+def _tracks_to_analyze(
+    library_store, songs: list[dict] | None, limit: int | None
+) -> list[dict]:
+    """The tracks this run is responsible for, in library order."""
+    if songs is None:
+        songs = [s for s in library_store.get_songs() if s.get("bpm") is None]
+    return songs[:limit] if limit else songs
 
-        if updates:
-            library_store.update_song(song["id"], updates)
-            updated += 1
 
-        analyzed += 1
+def _report_progress(progress_cb, done: int, total: int, song: dict) -> None:
+    """Publish progress for `song`, when the caller asked for it."""
+    if progress_cb is not None:
+        progress_cb(done, total, song.get("title", "Unknown"))
 
-        if progress_cb is not None:
-            progress_cb(done, total, title)
 
-    return {
-        "analyzed": analyzed,
-        "updated": updated,
-        "skipped": skipped,
-        "errors": errors,
-    }
+def _record_track(
+    library_store, song: dict, keys_at_start: dict, summary: dict
+) -> None:
+    """Analyze one track, save what it found and count it in `summary`."""
+    outcome, updated, error = _analyze_one_track(library_store, song, keys_at_start)
+    summary[outcome] += 1
+    summary["updated"] += updated
+    if error is not None:
+        summary["errors"].append(error)
+
+
+def _analyze_one_track(
+    library_store, song: dict, keys_at_start: dict
+) -> tuple[str, int, str | None]:
+    """Analyze one track and write the result onto it.
+
+    Args:
+        library_store: LibraryStore instance.
+        song (dict): The live song dict; a value set by hand during the run
+            wins over the detected one.
+        keys_at_start (dict): Song id -> its key before the run.
+
+    Returns:
+        tuple[str, int, str | None]: the counter to advance ("analyzed" or
+        "skipped" — a failed track is skipped too), 1 when values changed else
+        0, and the error text for a failed track (None otherwise).
+    """
+    file_path = song.get("file_path")
+    if not file_path or not Path(file_path).exists():
+        return "skipped", 0, None
+
+    try:
+        result = analyze_track(file_path)
+    except Exception as exc:  # noqa: BLE001 — one bad file never stops the run
+        logger.warning("Analysis failed for %s: %s", file_path, exc)
+        return "skipped", 0, f"{song.get('title', 'Unknown')}: {exc}"
+
+    updates = _detected_updates(song, result, keys_at_start)
+    if not updates:
+        return "analyzed", 0, None
+
+    library_store.update_song(song["id"], updates)
+    return "analyzed", 1, None
+
+
+def _detected_updates(song: dict, result: dict, keys_at_start: dict) -> dict:
+    """The fields this run may write onto one song.
+
+    BPM and duration only fill what is missing. The key is written whenever the
+    song's key still equals the one it had when the run started — so a key set
+    by hand during the run wins, but a key the track always had does not block
+    the detector.
+
+    Args:
+        song (dict): The live song.
+        result (dict): What `analyze_track` detected.
+        keys_at_start (dict): Song id -> its key before the run.
+
+    Returns:
+        dict: The fields to write on the song (empty when nothing applies).
+    """
+    updates: dict = {}
+    for field in ("bpm", "duration"):
+        if result.get(field) is not None and song.get(field) is None:
+            updates[field] = result[field]
+    if result.get("musical_key") is not None and song.get("musical_key") == keys_at_start[song["id"]]:
+        updates["musical_key"] = result["musical_key"]
+    return updates

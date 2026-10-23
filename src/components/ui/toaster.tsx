@@ -1,7 +1,18 @@
+import type { ReactNode } from "react";
+
 import { useToast } from "@/hooks/use-toast";
 import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from "@/components/ui/toast";
 
-export function Toaster() {
+interface ToasterProps {
+  /**
+   * Extra toasts inside this provider. They must live here: Radix portals
+   * every `<Toast>` into the nearest provider's viewport, so a controlled
+   * toast rendered outside would have nowhere to appear (issue #46).
+   */
+  children?: ReactNode;
+}
+
+export function Toaster({ children }: ToasterProps) {
   const { toasts } = useToast();
 
   return (
@@ -18,6 +29,7 @@ export function Toaster() {
           </Toast>
         );
       })}
+      {children}
       <ToastViewport />
     </ToastProvider>
   );
