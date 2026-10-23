@@ -7,7 +7,8 @@ Last Updated: 2026-10-23
 
 Four specs from Tim's requests — #46, #47, #48, #49 — written before the code,
 plan-reviewed, with a technical plan and a behavior contract each in
-`docs/plans/`. All are planned; none is built yet.
+`docs/plans/`. All three were built the same day (PRs #52–#54), next to the
+MCP server (#47, PR #55); the release review's fixes are below (#57).
 
 ### MCP server for local agents (#47, PF-85)
 
@@ -39,7 +40,7 @@ field) and refuses an empty body, which the backend would accept and write.
 Two backend changes this spec now requires, both measured on the real library:
 
 - **`GET /api/songs?slim=true`** (REQ-10-SL) returns the same rows without
-  `waveform_peaks`. Peaks are 200 floats per track and **67.1 %** of the body
+  `waveform_peaks`. Peaks are 200 floats per track and most (62–71 % across the measurements on record) of the body
   (3,735,141 bytes at 1,907 tracks, 1,187 bytes per track — the issue's 62 %
   was a 499-track sample). The projection runs after validation, so model
   defaults a legacy row lacks are still filled. The app keeps the full rows;
@@ -49,6 +50,21 @@ Two backend changes this spec now requires, both measured on the real library:
   unreachable — `403` on `/media/tim/Extreme SSD/#MUSIC` — while `POST /scan`
   and `PUT /root` took the same path. `parent` is `null` at home and at the
   root; everything else still gets a 403.
+
+### Release review fixes (#57)
+
+A stage-7 review of `int` before the release found, and this change fixes:
+- **Import dropped every added track's main genre**: it kept only the model's
+  field names, and rows store the alias `mainGenre`.
+- **The export carried the retired `danceability`/`social_acceptance`** keys of
+  old rows; they are left out (11_SONG_MODEL: never written).
+- **MCP ids could leave their route** (`../../<id>` reached
+  `DELETE /api/songs/<id>`), and **`export_library` could overwrite any file**,
+  also in read-only mode. Ids are checked, and export creates only new `.json`
+  files in one folder (34_MCP_SERVER).
+- **The Import page could not see a job started elsewhere**, a vanished run
+  read as finished, a dead backend froze the bar, and Escape closed the
+  progress toast for the whole run (REQ-10-AP).
 
 ### Scan and analysis progress (#46, PF-86)
 

@@ -66,7 +66,7 @@ const USAGE = `Write a sandbox library.json for one track-map cluster fixture.
   --no-genre           leave the genre out entirely (the fallback fixtures)
   --no-bpm             leave the BPM out entirely
   --no-energy          leave the energy out entirely
-  --no-ratings         leave both ratings out entirely
+  --no-ratings         leave the People rating out (energy has --no-energy)
 `;
 
 /** The number after a flag, or undefined when the flag is absent. */

@@ -5,9 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Toast, ToastAction, ToastClose, ToastDescription, ToastTitle } from "@/components/ui/toast";
 import { useBackgroundJobs } from "@/lib/BackgroundJobsContext";
-
-/** The Import page shows the same progress inline, so the toast stays off it. */
-const IMPORT_PATH = "/load-files";
+import { isImportPage } from "@/lib/jobProgress";
 
 interface Shown {
   kind: "scan" | "analysis";
@@ -29,8 +27,9 @@ interface Shown {
  * made that way would be evicted by the next edit's notice (BC-14). Radix
  * portals every `<Toast>` into the shared viewport, so it stacks with them.
  *
- * It closes on X, swipe or Escape, and stays closed for that run: progress
- * and Abort remain on the Import page (BC-4, BC-8). While the toast animates
+ * It stays off the Import page, which shows the same progress inline. It
+ * closes on X or swipe — not on Escape (BC-18) — and stays closed for that
+ * run: progress and Abort remain on the Import page (BC-4, BC-8). While the toast animates
  * out it holds the last progress it showed, so the exit is not an empty box.
  */
 export function JobProgressToast() {
@@ -74,7 +73,7 @@ export function JobProgressToast() {
   if (!view) return null;
 
   const closed = view.kind === "scan" ? scanToastClosed : analysisToastClosed;
-  const open = shown !== null && pathname !== IMPORT_PATH && !closed;
+  const open = shown !== null && !isImportPage(pathname) && !closed;
 
   const handleOpenChange = (next: boolean) => {
     if (next) return;
@@ -83,7 +82,15 @@ export function JobProgressToast() {
   };
 
   return (
-    <Toast open={open} duration={Infinity} onOpenChange={handleOpenChange} className="block pr-10">
+    <Toast
+      open={open}
+      duration={Infinity}
+      onOpenChange={handleOpenChange}
+      // Radix closes a toast on Escape pressed anywhere; closing this one hides
+      // the progress for the whole run, so only its own close button does that.
+      onEscapeKeyDown={(event) => event.preventDefault()}
+      className="block pr-10"
+    >
       <div className="min-w-0 space-y-2">
         <ToastTitle className="flex items-center gap-2">
           {!view.stopping && (

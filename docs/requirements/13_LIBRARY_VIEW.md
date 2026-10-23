@@ -40,7 +40,7 @@ removed earlier — the table handles all of it.
   Library item stays active on both. It is left out below 768 px, where the
   table is the way to browse and `/map` shows its own notice (TM-E1, TM-E4)
 
-## Crate Tabs (REQ-13-CT, PF-88; issue #49 — planned)
+## Crate Tabs (REQ-13-CT, PF-88; built 2026-10-23, issue #49)
 
 The tabs are a shortcut to the Crate filter, which already holds several
 crates (Filtering, multi-select). They follow that filter both ways: every
@@ -115,7 +115,7 @@ unchanged ("A, B" for two crates, "N selected" beyond).
 | Time | duration | m:ss (minutes unpadded) |
 | Subgenres | text | Up to three, "+N" beyond; a click opens the subgenre checklist |
 | Energy | rating (0–5) | Five rising bars; decimals floor on display (3.8 → 3 bars), tooltip keeps the exact value; a click on a bar sets the rating |
-| People | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating. Replaces the former Dance and Social columns (issue #48, planned) |
+| People | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating. Replaces the former Dance and Social columns (issue #48) |
 | Rank | rank (1–5) | Five stars; a click on a star sets the rank |
 | Album | text | Edited in place |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |

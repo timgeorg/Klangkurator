@@ -30,12 +30,20 @@ DATA_KEYS = (
 )
 DURATION_TOLERANCE_S = 2.0
 
-# User-authored, conflict-resolvable song fields (MC-3). Ratings count as
+#: Every key a stored song row may carry: the model's field names plus their
+#: aliases. Rows store `mainGenre`, the alias of `main_genre`; matching on the
+#: field names alone dropped every imported main genre.
+_SONG_KEYS = frozenset(
+    key for name, field in SongBase.model_fields.items() for key in (name, field.alias) if key
+)
+
+# User-authored, conflict-resolvable song fields (MC-3), by their stored key:
+# `mainGenre` is how rows hold the main genre (the model's alias). Ratings count as
 # empty when 0 (0 = unrated across the app), strings when None/"", arrays
 # when []. file_path is deliberately absent: paths are machine-truth (MC-2).
 CONFLICT_FIELDS = (
     "energy", "people", "rank", "bpm",
-    "musical_key", "year", "main_genre", "drum_notes", "element_notes",
+    "musical_key", "year", "mainGenre", "drum_notes", "element_notes",
     "mixing_notes", "transition_notes", "lyrics", "phase_tags", "vibe_tags",
 )
 
@@ -219,7 +227,16 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     """Execute a planned import. resolutions = [{song_id, field, overwrite}].
 
     Absent resolution ⇒ local value wins (fail-safe default, MC-4).
-    Returns the human-facing summary.
+
+    Args:
+        envelope (dict): The validated export envelope.
+        resolutions (list[dict]): The user's per-field conflict answers.
+        library: The library store.
+        blocks: The blocks store.
+        sets: The sets store.
+
+    Returns:
+        dict: The human-facing summary.
     """
     error = _envelope_error(envelope)
     if error:
@@ -248,7 +265,7 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
             # Keys the model no longer has are dropped too: an export made
             # before a field was retired would otherwise write the dead key
             # into library.json, where it would ride into every later export.
-            new_song = {k: v for k, v in s.items() if k in SongBase.model_fields}
+            new_song = {k: v for k, v in s.items() if k in _SONG_KEYS}
             for f in CONFLICT_FIELDS:
                 if _empty(f, new_song.get(f)):
                     new_song.pop(f, None)

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 
 import { toast } from "@/hooks/use-toast";
 import { api, apiStatus, describeApiError } from "@/lib/api";
+import { POLL_FAILURE_LIMIT, runEnd } from "@/lib/jobProgress";
 
 /** How often a running job's status is read (REQ-10-SP, REQ-10-AP). */
 const POLL_MS = 500;
@@ -86,7 +87,7 @@ interface AnalyzeAllResponse {
 export interface BackgroundJobsContextValue {
   scan: ScanProgress;
   analysis: AnalysisProgress;
-  /** True while either job runs — the Import page disables its starts then. */
+  /** True while either job runs or one is being started — the Import page disables its starts then. */
   busy: boolean;
   /** Start a scan of `root`. Throws when the backend refuses it. */
   startScan: (root: string) => Promise<void>;
@@ -168,6 +169,9 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
   const [analysisRun, setAnalysisRun] = useState(0);
   const [closedScanRun, setClosedScanRun] = useState<number | null>(null);
   const [closedAnalysisRun, setClosedAnalysisRun] = useState<number | null>(null);
+  // Between a start click and the backend's answer (the scan walks the folder
+  // first), so a second click cannot race the first into a false error.
+  const [starting, setStarting] = useState(false);
 
   // The last status applied, so a run's end is noticed exactly once.
   const scanRunning = useRef(false);
@@ -184,8 +188,15 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
     if (!wasRunning || status.running) return;
     if (!announce) return;
     window.dispatchEvent(new Event("klangkurator:library-changed"));
-    if (status.error) {
-      toast({ variant: "destructive", title: "Scan failed", description: status.error });
+    const end = runEnd(status);
+    if (end === "failed") {
+      toast({ variant: "destructive", title: "Scan failed", description: status.error ?? undefined });
+    } else if (end === "vanished") {
+      toast({
+        variant: "destructive",
+        title: "The scan stopped",
+        description: "The app restarted while it ran. Tracks imported before that are kept; scan again for the rest.",
+      });
     } else {
       // BC-5: the notice says it finished, and nothing more.
       toast({ title: "Scan finished" });
@@ -207,22 +218,40 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
   }, []);
 
   /**
-   * Read the given statuses. A failed read is swallowed: a transient backend
-   * hiccup must not end the polling, and the next tick tries again.
+   * Read the given statuses; true when every read succeeded. A failed read is
+   * not an error by itself — a short backend hiccup must not end the polling —
+   * but the poll counts failures in a row (POLL_FAILURE_LIMIT).
    */
   const refresh = useCallback(
-    async (jobs: { scan?: boolean; analysis?: boolean }, announce = true) => {
+    async (jobs: { scan?: boolean; analysis?: boolean }, announce = true): Promise<boolean> => {
+      let ok = true;
       if (jobs.scan) {
         const status = await api.get<ScanStatusResponse>("/library/scan-status").catch(() => null);
         if (status) applyScan(status, announce);
+        else ok = false;
       }
       if (jobs.analysis) {
         const status = await api.get<AnalysisStatusResponse>("/library/analyze-status").catch(() => null);
         if (status) applyAnalysis(status, announce);
+        else ok = false;
       }
+      return ok;
     },
     [applyScan, applyAnalysis],
   );
+
+  /** The backend stopped answering: stop showing progress that cannot move. */
+  const loseContact = useCallback(() => {
+    scanRunning.current = false;
+    analysisRunning.current = false;
+    setScan(IDLE_SCAN);
+    setAnalysis(IDLE_ANALYSIS);
+    toast({
+      variant: "destructive",
+      title: "Lost contact with the app",
+      description: "The backend stopped answering, so the progress stopped. Start it with ./run.sh and reload.",
+    });
+  }, []);
 
   const anyRunning = scan.running || analysis.running;
   const scanRunningNow = scan.running;
@@ -240,27 +269,61 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
     if (!anyRunning) return;
     const jobs = { scan: scanRunningNow, analysis: analysisRunningNow };
     let cancelled = false;
+    let failures = 0;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
-      await refresh(jobs);
-      if (!cancelled) timer = setTimeout(tick, POLL_MS);
+      const ok = await refresh(jobs);
+      if (cancelled) return;
+      failures = ok ? 0 : failures + 1;
+      // Terminal-event guard: a dead backend must not leave the bar spinning.
+      if (failures >= POLL_FAILURE_LIMIT) {
+        loseContact();
+        return;
+      }
+      timer = setTimeout(tick, POLL_MS);
     };
     timer = setTimeout(tick, POLL_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [anyRunning, scanRunningNow, analysisRunningNow, refresh]);
+  }, [anyRunning, scanRunningNow, analysisRunningNow, refresh, loseContact]);
 
-  const startScan = useCallback(async (root: string) => {
-    const res = await api.post<{ started: boolean; total: number }>("/library/scan", { root_path: root });
-    scanRunning.current = true;
-    setScanRun((run) => run + 1);
-    setScan({ ...IDLE_SCAN, running: true, total: res?.total ?? 0 });
-  }, []);
+  /**
+   * Run one start request. A 409 means another job holds the slot — maybe one
+   * an agent or a second tab started, which this page has never seen — so both
+   * statuses are read before the error goes on, and its progress shows here.
+   */
+  const startJob = useCallback(
+    async <T,>(request: () => Promise<T>): Promise<T> => {
+      setStarting(true);
+      try {
+        return await request();
+      } catch (error) {
+        // Announcing is safe: only a run this page saw end is announced.
+        if (apiStatus(error) === 409) await refresh({ scan: true, analysis: true });
+        throw error;
+      } finally {
+        setStarting(false);
+      }
+    },
+    [refresh],
+  );
+
+  const startScan = useCallback(
+    async (root: string) => {
+      const res = await startJob(() =>
+        api.post<{ started: boolean; total: number }>("/library/scan", { root_path: root }),
+      );
+      scanRunning.current = true;
+      setScanRun((run) => run + 1);
+      setScan({ ...IDLE_SCAN, running: true, total: res?.total ?? 0 });
+    },
+    [startJob],
+  );
 
   const startAnalysis = useCallback(async () => {
-    const res = await api.post<AnalyzeAllResponse>("/library/analyze-all");
+    const res = await startJob(() => api.post<AnalyzeAllResponse>("/library/analyze-all"));
     if (res?.started === true) {
       analysisRunning.current = true;
       setAnalysisRun((run) => run + 1);
@@ -277,7 +340,7 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
     };
     setAnalysis({ ...IDLE_ANALYSIS, result });
     toast({ title: "Analysis complete", description: describeAnalysisResult(result) });
-  }, []);
+  }, [startJob]);
 
   const abortAnalysis = useCallback(async () => {
     try {
@@ -300,7 +363,7 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
     () => ({
       scan,
       analysis,
-      busy: scan.running || analysis.running,
+      busy: scan.running || analysis.running || starting,
       startScan,
       startAnalysis,
       abortAnalysis,
@@ -309,7 +372,7 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
       closeScanToast: () => setClosedScanRun(scanRun),
       closeAnalysisToast: () => setClosedAnalysisRun(analysisRun),
     }),
-    [scan, analysis, startScan, startAnalysis, abortAnalysis, closedScanRun, closedAnalysisRun, scanRun, analysisRun],
+    [scan, analysis, starting, startScan, startAnalysis, abortAnalysis, closedScanRun, closedAnalysisRun, scanRun, analysisRun],
   );
 
   return <BackgroundJobsContext.Provider value={value}>{children}</BackgroundJobsContext.Provider>;
@@ -317,11 +380,19 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
 
 /** The BPM/key analysis ending notice: stopped or complete, with its counts. */
 function announceAnalysisEnd(status: AnalysisStatusResponse): void {
-  if (status.error) {
-    toast({ variant: "destructive", title: "Analysis failed", description: status.error });
+  const end = runEnd(status);
+  if (end === "failed") {
+    toast({ variant: "destructive", title: "Analysis failed", description: status.error ?? undefined });
     return;
   }
-  if (!status.result) return;
+  if (end === "vanished" || !status.result) {
+    toast({
+      variant: "destructive",
+      title: "The analysis stopped",
+      description: "The app restarted while it ran. Tracks analyzed before that keep their BPM and key.",
+    });
+    return;
+  }
   toast({
     title: status.result.cancelled ? "Analysis stopped" : "Analysis complete",
     description: describeAnalysisResult(status.result),

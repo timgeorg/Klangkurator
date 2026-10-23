@@ -19,3 +19,5 @@ tags:
 - [[storage.ts]] — Data model types (Song, Tag, Block, DJSet, SongPatch, BpmRange, ReanalyzeResult …) and the storage layer the components call: the backend API implementation plus a legacy localStorage one.
 - [[trackFormat.ts]] — Track display and input rules shared across views: duration, BPM (format and parse), keys (names, the 24-key list), crate, shown genre.
 - [[utils.ts]] — Tailwind class name merging utility combining clsx and twMerge.
+- [[jobProgress.ts]] — The pure rules of the background jobs (Import-page match, how a run ended, the failed-read limit), apart from the provider so they are testable without a DOM.
+- [[jobProgress.test.ts]] — Tests for those rules: the trailing-slash Import page and the finished / failed / vanished run ends (issue #57).

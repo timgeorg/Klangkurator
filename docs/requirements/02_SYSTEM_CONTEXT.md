@@ -31,19 +31,13 @@ Source: Requirements.md sections 2, 13
 - Could be hosted on a home server / VPS for remote access
 - The FastAPI architecture makes this a deployment change, not a rewrite
 
-## Data Service Abstraction
+## Data Access
 
-Two interchangeable services behind a common interface (`DataService`):
-
-| Service | Mode | Behavior |
-|---|---|---|
-| `MockupDataService` | Dev | Ships rich sample tracks/tags/relationships; idempotent upserts (stable IDs) |
-| `RemoteDataService` | Desktop + Browser | Calls FastAPI backend via `fetch()`; replaces localStorage |
-
-`DataServiceFactory` selects per environment:
-- If `window.pywebview` exists and FastAPI is on localhost → `RemoteDataService` (desktop)
-- If running in a browser with a reachable backend URL → `RemoteDataService` (browser/mobile)
-- Otherwise → `MockupDataService` (dev/demo)
+The frontend reads and writes through `src/lib/storage.ts`, whose `storage`
+object calls the FastAPI backend (`RemoteStorageImpl`) in the desktop window
+and in a browser alike. There is no sample-data mode: the earlier mock layer
+(`MockupDataService`, `LocalDataService`, `DataServiceFactory` under
+`src/services/`) had no caller and was removed on 2026-10-23 (issue #57).
 
 ## Backend Data Files (Phase 2)
 

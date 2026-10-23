@@ -24,7 +24,7 @@ Depends on #46 (the scan job).
 - **`slim` must project after validation.** `GET /api/songs` has a response
   model (`songs.py:12`) that fills defaults a legacy row lacks — 29 keys out of
   a 21-key stored row, gaining `rank: 0`, `phase_tags: []`, `vibe_tags: []`;
-  raw dicts would drop `rank` from 1,907 rows. **The share is 67.1 %, not 62 %**:
+  raw dicts would drop `rank` from 1,907 rows. **The share is 62–71 % depending on the measurement, not a fixed 62 %**:
   3,735,141 B full / 1,110,193 B slim at 1,907 tracks, 1,187 B of peaks each
   (the issue's figure was a 499-track sample). 200 floats per row
   (`backend/scanner/waveform.py:4`); 27 crates, 107 tracks with a BPM.
@@ -112,7 +112,7 @@ Nothing outside this list. Paths are relative to the repo root.
 4. **Two gates, both before any request.** *Roots:* `KLANGKURATOR_ROOTS` if set,
    else one lazy `GET /api/library/root`; a resolved target must equal or sit
    inside an allowed root. *Read-only:* one decorator on the 13 library-writing
-   tools; `export_library` is not gated, it never touches `~/.klangkurator/`. A
+   tools; `export_library` keeps its summary in read-only mode and refuses the file (#57). A
    gated tool stays **listed** and fails on call.
 5. **The tools.** Thin functions: build params, call, project; every
    track-bearing result drops `waveform_peaks`. `search_tracks` fetches
@@ -120,7 +120,8 @@ Nothing outside this list. Paths are relative to the repo root.
    `missing_bpm` is `bpm is None` and excludes the BPM bounds. `update_track`
    sends only non-`None` arguments and refuses `{}`. `list_playlists` joins
    `/api/playlists` with `/api/playlist-songs`. `export_library` returns a
-   summary, or streams the envelope to a path outside `~/.klangkurator/`.
+   summary, or writes the envelope to a new `.json` file in the export folder
+   (`KLANGKURATOR_EXPORT_DIR`; #57 replaced "any path outside the data folder").
 6. **Tests and docs.** Tests live in `backend/tests/`, so `conftest.py`'s
    throwaway `HOME` applies: `pytest.importorskip("mcp")`, tools driven through
    the `MCPServer` object, HTTP via a `transport=` seam in `client.py` pointed

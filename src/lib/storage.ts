@@ -98,7 +98,7 @@ export interface Playlist {
   description?: string;
   color: string;
   is_smart_playlist: boolean;
-  search_criteria?: any;
+  search_criteria?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -450,5 +450,5 @@ export function switchToLocal() { _instance = new LocalStorageImpl(); }
 
 // Backward-compatible export — components call `storage.method()` and it just works.
 export const storage = new Proxy({} as StorageInterface, {
-  get(_, prop) { const s = resolve(); return (s as any)[prop]; },
+  get(_, prop) { return Reflect.get(resolve(), prop); },
 });

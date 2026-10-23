@@ -33,8 +33,7 @@ class PickFolderResponse(BaseModel):
 # The scan, the library-wide analysis and the per-track re-analyze exclude each
 # other; `_job` names the run that holds the slot. The lock only guards the
 # check-and-set — a job is not "busy" by holding it, because the batch jobs
-# return as soon as their thread is spawned. `_analyze_lock` is the same lock
-# under the name the per-track route and its tests already use.
+# return as soon as their thread is spawned.
 
 _JOB_MESSAGES = {
     "scan": "A scan is running",
@@ -43,7 +42,6 @@ _JOB_MESSAGES = {
 }
 
 _job_lock = threading.Lock()
-_analyze_lock = _job_lock
 _job: str | None = None
 
 
@@ -70,9 +68,8 @@ def _claim_job(kind: str, start=None) -> None:
     if not _job_lock.acquire(blocking=False):
         raise HTTPException(409, _job_message(_job))
     try:
-        running = _job or ("analysis" if _analyze_state["running"] else None)
-        if running is not None:
-            raise HTTPException(409, _job_message(running))
+        if _job is not None:
+            raise HTTPException(409, _job_message(_job))
         _job = kind
         if start is not None:
             start()
@@ -288,9 +285,11 @@ def _crate_name(root: Path, file_path: Path) -> str:
 
 
 def _finish_scan() -> None:
-    """End the scan job: publish its result (or error) and free the slot."""
-    _scan_state["running"] = False
-    _scan_state["finished"] = True
+    """End the scan job: publish its result (or error), then mark it stopped.
+
+    `running` goes False last: a status read in between must never see a run
+    that stopped without its result, which the views would report as vanished.
+    """
     if _scan_state["error"] is None:
         _scan_state["result"] = {
             "total": _scan_state["total"],
@@ -298,6 +297,8 @@ def _finish_scan() -> None:
             "skipped": _scan_state["skipped"],
             "errors": list(_scan_state["errors"]),
         }
+    _scan_state["finished"] = True
+    _scan_state["running"] = False
     _release_job("scan")
 
 
@@ -699,8 +700,9 @@ def _run_analysis(store, to_analyze: list[dict]) -> None:
         logger.exception("Analysis job failed")
         _analyze_state["error"] = str(exc)
     finally:
-        _analyze_state["running"] = False
+        # `running` last, as in _finish_scan: a read in between sees the result.
         _analyze_state["finished"] = True
+        _analyze_state["running"] = False
         _release_job("analysis")
 
 

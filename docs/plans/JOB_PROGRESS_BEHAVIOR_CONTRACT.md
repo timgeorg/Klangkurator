@@ -77,6 +77,20 @@ edit) **then** both are visible and the progress toast keeps updating.
 **Given** a job fails mid-run **then** it ends with an error message and no
 progress keeps spinning.
 
+### BC-16 — a job started elsewhere shows here (#57)
+**Given** a scan started outside this page (an agent, a second tab) **when** I
+press Re-scan or Analyze **then** a notice names the running job, and its
+progress appears without a reload.
+
+### BC-17 — a dead backend does not freeze the progress (#57)
+**Given** a job runs **when** the backend stops answering **then** within about
+10 s the progress ends with "Lost contact with the app". **When** the backend
+restarted mid-run **then** the notice says the job stopped, not that it finished.
+
+### BC-18 — Escape does not close the progress toast (#57)
+**Given** a progress toast shows **when** I press Escape **then** it stays; only
+its close button closes it.
+
 ## Out of scope
 
 Stopping a scan · numbers in the "Scan finished" notice · elapsed or remaining

@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { api, describeApiError } from "@/lib/api";
+import { api, apiStatus, describeApiError } from "@/lib/api";
 import { useBackgroundJobs, type AnalysisResult, type ScanResult } from "@/lib/BackgroundJobsContext";
 
 interface Crate {
@@ -79,7 +79,10 @@ export default function LoadFiles() {
     try {
       await startScan(root);
     } catch (error) {
-      toast({ title: "Scan failed", description: describeApiError(error), variant: "destructive" });
+      // 409: another job already runs; the context has picked up its progress,
+      // so this is information, not a failure.
+      if (apiStatus(error) === 409) toast({ title: describeApiError(error) });
+      else toast({ title: "Scan failed", description: describeApiError(error), variant: "destructive" });
     }
   };
 
@@ -115,6 +118,8 @@ export default function LoadFiles() {
 
   // Manual path entry — fallback only (headless/SSH setups).
   const saveManualPath = async (alsoScan: boolean) => {
+    // Enter in the field reaches here too; no root change while a job runs.
+    if (busy) return;
     const path = manualPath.trim();
     if (!path) {
       setManualError("Type the full path of the folder, e.g. /home/you/Music.");
@@ -140,13 +145,15 @@ export default function LoadFiles() {
    *
    * The context handles both answers: `{started, total}` for a job, or the
    * summary the route returns when nothing is missing a BPM. A 409 means
-   * another job holds the slot; the context's status already says which.
+   * another job holds the slot: the context reads both statuses then, so that
+   * job's progress shows here, and the message says which job it is.
    */
   const handleAnalyzeAll = async () => {
     try {
       await startAnalysis();
     } catch (error) {
-      toast({ title: "The analysis did not start", description: describeApiError(error), variant: "destructive" });
+      if (apiStatus(error) === 409) toast({ title: describeApiError(error) });
+      else toast({ title: "The analysis did not start", description: describeApiError(error), variant: "destructive" });
     }
   };
 

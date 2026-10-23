@@ -75,7 +75,7 @@ from loose file picks.
 4. Show stats: total, added, skipped, errors
 5. User can then browse, tag, and annotate the imported tracks
 
-### Scan progress (REQ-10-SP, PF-86; issue #46 — planned)
+### Scan progress (REQ-10-SP, PF-86; built 2026-10-23, issue #46)
 A scan decodes every file for its waveform peaks (~1.4 s per file measured),
 so a large folder takes minutes. It must never be a silent blocking request.
 - The scan runs as a **background job**. `POST /api/library/scan` returns at
@@ -107,7 +107,8 @@ so a large folder takes minutes. It must never be a silent blocking request.
 ### Slim library listing (REQ-10-SL; issue #47)
 `GET /api/songs` carries each track's 200-float `waveform_peaks`, which is the
 bulk of the body and something no list view needs: measured 3,735,141 bytes at
-1,907 tracks, of which **67.1 %** is peaks (1,187 bytes per track).
+1,907 tracks, of which the peaks are most (62–71 % across the measurements on
+record, about 1.2 KB per track).
 - `?slim=true` returns the same rows with the `waveform_peaks` key absent —
   not null. Everything else is identical for value, including the model
   defaults a legacy row lacks (`rank: 0`, `phase_tags: []`, `vibe_tags: []`),
@@ -168,13 +169,21 @@ Access denied: … is outside your home directory (/home/tim)`.
   starting one while another runs is refused with 409 and a message naming the
   running job (checked and claimed under one lock). The Import page disables
   folder pick, Re-scan and Analyze while any job runs, including a job it
-  picked back up on load.
+  picked back up on load, and while a start request is still on its way. A
+  start refused with 409 reads both statuses, so a job started elsewhere (an
+  MCP agent, a second tab) shows its progress here too, and the message is a
+  notice, not a failure.
 - The job is per-run (in-memory), not persisted to JSON — if the backend
   restarts mid-job, progress is simply gone and the user can restart.
 - When a job (analysis or scan) ends, the app fires
   `klangkurator:library-changed`, so the library table refreshes.
+- **No progress spins forever.** A run that vanished in a backend restart
+  (neither a result nor an error) ends with "The scan stopped" or "The
+  analysis stopped", never "finished". If the backend stops answering for
+  about 10 s (20 failed reads in a row), the progress ends with "Lost contact
+  with the app".
 
-#### Where progress shows, and Abort (PF-86; issue #46 — planned)
+#### Where progress shows, and Abort (PF-86; built 2026-10-23, issue #46)
 The same rule as the scan (REQ-10-SP), so both jobs behave alike:
 - On the **Import page**: the progress bar, `done / total`, the current title,
   and an **Abort** button.
@@ -182,6 +191,9 @@ The same rule as the scan (REQ-10-SP), so both jobs behave alike:
   total` songs, the current title and **Abort**. It stacks with the regular
   toasts and is never replaced by them. It can be closed; once closed it stays
   closed for that run, and progress and Abort remain on the Import page.
+  Escape does not close it (only its close button does), and the Import page
+  counts with or without a trailing slash. Below 640 px toasts sit under the
+  mobile header, and their close button is always visible on touch screens.
 - **Abort** stops the job **after the track it is on** (3–5 s). Tracks already
   analyzed keep their BPM/key, because every track is saved as it finishes.
   While stopping, the progress reads "Stopping after this track…" and Abort is

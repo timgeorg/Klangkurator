@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 def list_songs(search: str | None = Query(None), slim: bool = Query(False)):
     """List every song, optionally without the waveform envelope.
 
-    The envelope is 200 floats per track — 62 % of a listing at 499 tracks and
-    67 % at 1,907 — which is most of the payload for a caller that cannot draw
+    The peaks are 200 floats per track — 62–71 % of a listing across the
+    measurements on record — which is most of the payload for a caller that cannot draw
     a waveform (REQ-10-SL). `slim=true` is a projection, not pagination: the
     app's own client keeps the default full rows.
 

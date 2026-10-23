@@ -22,9 +22,9 @@ tags:
 - [[package-lock.json]] — Locked dependency versions for reproducible installs.
 - [[postcss.config.js]] — PostCSS configuration; chains Tailwind into the CSS build.
 - [[public/]] — Static assets served as-is: robots.txt and any files that bypass the build pipeline.
-- [[requirements.txt]] — Python dependencies for the backend (FastAPI, Uvicorn, Pydantic, Mutagen for tags, PyWebView for the desktop window, librosa for BPM/key analysis).
+- [[requirements.txt]] — Python dependencies for the backend (FastAPI, Uvicorn, Pydantic, Mutagen for tags, PyWebView for the desktop window, librosa for BPM/key analysis), plus `mcp` and `httpx2` for the optional MCP server.
 - [[run.sh]] — Launcher script supporting dev (backend + Vite dev server), server (backend only, serves dist), desktop (PyWebView), and stop/status commands.
-- [[src/]] — Frontend source code: React components, pages, hooks, utilities, services layer, and styling.
+- [[src/]] — Frontend source code: React components, pages, hooks, utilities and styling.
 - [[tailwind.config.ts]] — Tailwind configuration; applies design-system token presets and theme overrides.
 - [[tsconfig.json]] — Root TypeScript configuration that references the app and tooling configs and sets the @/ path alias.
 - [[tsconfig.app.json]] — TypeScript config for the frontend in src/; the typecheck gate runs against it.

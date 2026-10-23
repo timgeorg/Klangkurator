@@ -141,7 +141,8 @@ project folder and the venv's interpreter are the only two things to fill in:
         "KLANGKURATOR_URL": "http://127.0.0.1:8000",
         "KLANGKURATOR_TIMEOUT": "30",
         "KLANGKURATOR_READ_ONLY": "",
-        "KLANGKURATOR_ROOTS": ""
+        "KLANGKURATOR_ROOTS": "",
+        "KLANGKURATOR_EXPORT_DIR": ""
       }
     }
   }
@@ -156,9 +157,10 @@ folder: `python -m mcp_server` (the venv that runs the backend; needs `mcp` from
 | Variable | Default | Meaning |
 |---|---|---|
 | `KLANGKURATOR_URL` | `http://127.0.0.1:8000` | Where the backend listens. `BACKEND_PORT` in `run.sh` changes it. |
-| `KLANGKURATOR_TIMEOUT` | `30` | Seconds per request. Analysis and scans are jobs, so no call waits for them. |
-| `KLANGKURATOR_READ_ONLY` | unset (empty = off) | `1` refuses the 13 tools that change the library, before any request. Reads and `export_library` keep working. |
+| `KLANGKURATOR_TIMEOUT` | `30` | Seconds per request (0 or less means 30). The library-wide scan and analysis are jobs, so those calls return at once; `analyze_track` and `scan_artwork` wait for their result. |
+| `KLANGKURATOR_READ_ONLY` | unset (empty = off) | `1` refuses the 13 tools that change the library, before any request, and the export file. Reads and the export summary keep working. |
 | `KLANGKURATOR_ROOTS` | the configured root (empty = that default) | `:`-separated folders `scan_library` and `set_library_root` may touch. |
+| `KLANGKURATOR_EXPORT_DIR` | `~/klangkurator-exports` | The one folder `export_library` creates files in; it never replaces a file. |
 
 A stopped backend gives one message naming the URL and `./run.sh`, not a traceback. With
 `mcp` uninstalled the app still runs — `backend/` never imports it.

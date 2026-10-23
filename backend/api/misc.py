@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from backend.services.import_merge import (
     ENVELOPE_FORMAT, ENVELOPE_VERSION, apply_import, plan_import,
 )
+from backend.models.song import RETIRED_SONG_KEYS
 from backend.storage import get_library_store, get_blocks_store, get_sets_store
 
 router = APIRouter(tags=["misc"])
@@ -75,7 +76,12 @@ def export_data():
         "version": ENVELOPE_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "data": {
-            "songs": library.get_songs(),
+            # Rows saved before #48 still hold the retired ratings; a backup
+            # must not carry them on (11_SONG_MODEL: never written).
+            "songs": [
+                {k: v for k, v in song.items() if k not in RETIRED_SONG_KEYS}
+                for song in library.get_songs()
+            ],
             "tags": library.get_tags(),
             "song_tags": library.get_song_tags(),
             "song_relationships": library.get_relationships(),

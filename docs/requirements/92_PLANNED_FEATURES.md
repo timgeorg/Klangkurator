@@ -30,7 +30,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-15 | Column reorder via drag and drop | Swap columns in the table by dragging headers, persisted like visibility/widths |
 | PF-16 | Media player | Actually play songs from the library — transport controls, current-track indicator |
 | PF-17 | Song detail view | Click a track → dedicated view with full metadata, notes, tags, relationships, waveform |
-| PF-88 | Crate tabs: collapse past 10, Shift+click for several | Planned (issue #49, Tim 2026-10-23). More than 10 crates: the tab bar collapses to the first 10 plus every selected crate and a "+N more" toggle; the choice is remembered per browser. Shift+click adds a crate to or removes it from the selection (A+B+C), feeding the existing multi-select Crate filter the table and the map share. Spec: `13_LIBRARY_VIEW.md` REQ-13-CT; plan: `docs/plans/CRATE_TABS_PLAN.md` |
+| PF-88 | Crate tabs: collapse past 10, Shift+click for several | **Built 2026-10-23** (issue #49, PR #54; review fixes #57). More than 10 crates: the tab bar collapses to the first 10 plus every selected crate and a "+N more" toggle; the choice is remembered per browser. Shift+click adds a crate to or removes it from the selection (A+B+C), feeding the existing multi-select Crate filter the table and the map share. Spec: `13_LIBRARY_VIEW.md` REQ-13-CT; plan: `docs/plans/CRATE_TABS_PLAN.md` |
 
 ## Player
 
@@ -93,9 +93,9 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the three 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |
+| PF-77 | Track rank (1–5 stars) | A per-track quality score, independent of the 0–5 ratings; sortable column, `≥ N` filter, detail-page display and Edit-dialog slider (issue #4) |
 | PF-78 | Decimal ratings | The three 0–5 ratings (`energy`, `danceability`, `social_acceptance`) take one decimal (step 0.1 in the dialog); the 5-bar meter stays and floors on display (stored 3.8 → 3 bars) (issue #7). `danceability` and `social_acceptance` give way to `people` in PF-87 |
-| PF-87 | People rating | Planned (issue #48, Tim 2026-10-23). One 0–5 rating, `people` ("People"), replaces `danceability` and `social_acceptance`, which measured the same thing. No compatibility: the old values are dropped and re-entered by hand; old keys in an existing library are ignored. Table, edit dialog, filters, sort, track map (one input at weight 1), export/import. Spec: `11_SONG_MODEL.md`; plan: `docs/plans/PEOPLE_RATING_PLAN.md` |
+| PF-87 | People rating | **Built 2026-10-23** (issue #48, PR #53; review fixes #57). One 0–5 rating, `people` ("People"), replaces `danceability` and `social_acceptance`, which measured the same thing. No compatibility: the old values are dropped and re-entered by hand; old keys in an existing library are ignored. Table, edit dialog, filters, sort, track map (one input at weight 1), export/import. Spec: `11_SONG_MODEL.md`; plan: `docs/plans/PEOPLE_RATING_PLAN.md` |
 | PF-83 | Library export / import | Export the whole store as one versioned JSON envelope (`klangkurator-library-<date>.json`); import merges — fill-empty silently, conflicts resolved in a popup (per-conflict overwrite yes/no + apply-to-all). Track identity: file_path → artist+title+duration ±2 s → artist+title. Replaces the old wholesale-replace import. Finishes NFR-2 (issue #10) |
 
 ## Audio Analysis & Repair
@@ -103,13 +103,13 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | ID | Feature | Notes |
 |---|---|---|
 | PF-79 | Per-track re-analyze with an optional BPM range | A `Re-analyze` action on a track (popup, song detail page) that re-runs BPM/key and **overrides** the library-wide "only fill missing" rule for that one track — the repair path for a wrong BPM, which is otherwise unfixable. Optional BPM min/max steers the estimate (a bounded prior, not a hard filter); if the result cannot honestly sit in the given range it is reported and the stored BPM is left unchanged (issue #6) |
-| PF-86 | Scan and analysis progress | Planned (issue #46, Tim 2026-10-23). Both long jobs run in the background, one at a time (409 otherwise). Progress (bar, done / total, current track) shows on the Import page and, outside it, in a closable toast; analysis adds Abort (stops after the current track). A finished scan says only "Scan finished". Spec: `10_LIBRARY_AND_FILE_LOADING.md` REQ-10-SP, REQ-10-AP; plan: `docs/plans/JOB_PROGRESS_PLAN.md` |
+| PF-86 | Scan and analysis progress | **Built 2026-10-23** (issue #46, PR #52; review fixes #57). Both long jobs run in the background, one at a time (409 otherwise). Progress (bar, done / total, current track) shows on the Import page and, outside it, in a closable toast; analysis adds Abort (stops after the current track). A finished scan says only "Scan finished". Spec: `10_LIBRARY_AND_FILE_LOADING.md` REQ-10-SP, REQ-10-AP; plan: `docs/plans/JOB_PROGRESS_PLAN.md` |
 
 ## Agent Access
 
 | ID | Feature | Notes |
 |---|---|---|
-| PF-85 | MCP server | Planned (issue #47, Tim 2026-10-23). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (67 % of the payload), and a browse sandbox that also allows the configured root (an external drive is unreachable today). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
+| PF-85 | MCP server | **Built 2026-10-23** (issue #47, PR #55; review fixes #57). A local agent (Claude Desktop, Copilot, Cursor) reads and edits the library through 24 curated tools over stdio, as a thin HTTP client of the running backend — no second writer to `~/.klangkurator/`, no deletion, no audio. Needs three backend prerequisites: the scan job (#46), a `slim` listing without `waveform_peaks` (most of the payload: 62–71 % across the measurements on record), and a browse sandbox that also allows the configured root (before it, an external drive was unreachable). Spec: `34_MCP_SERVER.md`; plan: `docs/plans/MCP_SERVER_PLAN.md` |
 
 ## Track Map
 

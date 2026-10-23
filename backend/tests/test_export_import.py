@@ -9,6 +9,7 @@ removal of the old wholesale-replace import (the footgun regression).
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.storage import get_library_store
 
 client = TestClient(app)
 
@@ -330,3 +331,26 @@ def test_import_summary_round_trip_counts():
     res = client.post("/api/import", json={"envelope": env, "resolutions": []})
     s = res.json()["summary"]
     assert s["matched"] == 1 and s["added"] == 0
+
+
+def test_a_matched_track_gets_its_main_genre_filled_and_conflicts_on_it():
+    """`mainGenre` is a conflict field by its stored key: a matched track with
+    none gets it filled, one with another genre gets a conflict to resolve."""
+    empty = _song(title="Empty", file_path="/m/empty.mp3")
+    house = _song(title="House", file_path="/m/house.mp3", mainGenre="House")
+    env = _envelope(songs=[
+        {"id": "a", "title": "Empty", "artist": empty["artist"], "file_path": "/m/empty.mp3", "mainGenre": "Techno"},
+        {"id": "b", "title": "House", "artist": house["artist"], "file_path": "/m/house.mp3", "mainGenre": "Techno"},
+    ])
+
+    plan = client.post("/api/import/preview", json=env).json()
+    assert [(c["song_id"], c["field"]) for c in plan["conflicts"]] == [(house["id"], "mainGenre")]
+
+    res = client.post("/api/import", json={
+        "envelope": env,
+        "resolutions": [{"song_id": house["id"], "field": "mainGenre", "overwrite": True}],
+    })
+    assert res.status_code == 200
+    store = get_library_store()
+    assert store.get_song(empty["id"])["mainGenre"] == "Techno"
+    assert store.get_song(house["id"])["mainGenre"] == "Techno"

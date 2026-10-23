@@ -1,17 +1,17 @@
 # Constraints And Invariants
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-23
 Source: Requirements.md section 2.4
 
 ## Invariant Table
 
 | ID | Constraint | Enforcement Points |
 |---|---|---|
-| INV-1 | Song IDs are UUIDs assigned once on first creation and never regenerated | MockupDataService upsert, LocalDataService create, UI never re-assigns |
+| INV-1 | Song IDs are UUIDs assigned once on first creation and never regenerated | The backend store mints them (`library_store._new_id`); import gives added tracks fresh ids; the UI never re-assigns |
 | INV-2 | Tag IDs are UUIDs assigned once on first creation | Tag creation flow, no regeneration on edit |
-| INV-3 | Mockup initialization is idempotent — upsert by natural key (artist + title), never wipe | MockupDataService.initializeData() |
-| INV-4 | `clearData()` must clear all dependent stores (songs, tags, relationships, playlists, blocks, sets) | DataService.clearData() |
+| INV-3 | *Retired 2026-10-23 (#57).* It guarded the mock data layer's sample seeding, which was removed; nothing seeds sample data | — |
+| INV-4 | *Retired 2026-10-23 (#57).* It bound the mock layer's `clearData()`, which was removed; the app has no clear-all operation | — |
 | INV-5 | Re-scanning a root folder never overwrites existing song data (notes, tags, ratings) | FileLoader import flow — check by file_path or artist+title |
 | INV-6 | Deleting a song cascades to its relationships and playlist/block/set references (placeholder, not deletion) | Storage layer delete cascade |
 | INV-7 | Sets reference songs/blocks by ID only — never embed full song data | SetItem schema enforcement |
