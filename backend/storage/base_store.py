@@ -37,7 +37,11 @@ class BaseStore:
             return
         try:
             self._data = json.loads(self._file_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            # UnicodeDecodeError is a ValueError, not a JSONDecodeError: a file
+            # with a truncated multi-byte sequence (a disk hiccup, an editor
+            # saving Latin-1, bit rot) must be preserved too, or every endpoint
+            # 500s and the app cannot start.
             self._data = {}
             self._preserve_corrupt_file(exc)
 

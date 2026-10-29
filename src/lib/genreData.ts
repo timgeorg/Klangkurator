@@ -1,5 +1,5 @@
 import { FALLBACK_COLOR } from './palette';
-import { getGenres, setGenres, subscribeSettings } from './settings';
+import { genresLoaded, getGenres, setGenres, subscribeSettings } from './settings';
 
 // Main genres with their subgenres and colors
 
@@ -83,10 +83,15 @@ export const DEFAULT_GENRES: GenreConfig[] = [
 // copy in `settings.ts` is the one source; these getters keep their signatures
 // so the nine importing modules did not change.
 
-/** The genre list: the stored one, or the defaults on a library that has none. */
+/**
+ * The genre list: the stored one, or the defaults when nothing was ever stored.
+ *
+ * An **emptied** list stays empty — the user deleting every genre in Settings
+ * must not see thirteen defaults come back and then overwrite the file
+ * (review of #51). The defaults seed a library that has no genre document yet.
+ */
 export function getGenreConfig(): GenreConfig[] {
-  const stored = getGenres();
-  return stored.length > 0 ? stored : DEFAULT_GENRES;
+  return genresLoaded() ? getGenres() : DEFAULT_GENRES;
 }
 
 /** Replace the genre list; it reaches `library.json` about 300 ms later. */

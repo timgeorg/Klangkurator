@@ -82,6 +82,27 @@ export function getGenres(): GenreConfig[] {
   return genres ?? [];
 }
 
+/** Whether the genre document has ever been loaded (it is `null` before that). */
+export function genresLoaded(): boolean {
+  return genres !== null;
+}
+
+/**
+ * Re-read the genre list from the backend without writing it back.
+ *
+ * An import merges genres server-side, and `PUT /api/genres` replaces the whole
+ * list — so a stale in-memory copy would delete the imported genres on the next
+ * edit (review of #51).
+ */
+export async function refreshGenres(): Promise<void> {
+  try {
+    genres = (await api.get<GenreConfig[]>("/genres")) ?? [];
+    notify();
+  } catch {
+    // A failed refresh leaves the current copy; the next edit still works.
+  }
+}
+
 /**
  * Read one preference. The generic keeps each caller's own type, because the
  * document stores each key in the shape `localStorage` used to hold.
