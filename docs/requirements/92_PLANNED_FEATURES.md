@@ -11,7 +11,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-1 | Visual Fabric.js canvas editor for Sets | Drag blocks as nodes, draw connections as flowchart |
 | PF-2 | BPM & key compatibility hints when building blocks/sets | Show green/yellow/red when adjacent tracks are compatible |
 | PF-3 | Bulk-tag multiple selected songs | Select rows → apply tag to all |
-| PF-4 | Persist column order/visibility/widths to localStorage | |
+| PF-4 | Persist column order/visibility/widths | Done: first `localStorage`, and since #51 in `~/.klangkurator/settings.json` (PF-89) |
 | PF-5 | "Clear All Filters" button + keyboard shortcuts (Ctrl+F, Esc) | |
 | PF-6 | Inline editing of subgenres in the table | |
 | PF-7 | Auto-size Subgenres column | |

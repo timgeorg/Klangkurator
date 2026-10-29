@@ -188,7 +188,7 @@ Transition notes are the connective tissue of a set:
 
 ## Persistence
 
-- Sets are saved to `sets.json` (Phase 2) or `localStorage` (Phase 1)
+- Sets are saved to `sets.json` (built; the Phase 1 `localStorage` variant is gone)
 - Saving a set does NOT modify the songs — it references them by ID
 - If a song is deleted from the library, sets referencing it show a
   "missing track" placeholder with the last known title

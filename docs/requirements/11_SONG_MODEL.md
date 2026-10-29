@@ -1,7 +1,7 @@
 # Song Model
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-29
 Source: Requirements.md section 3
 
 ## Song Entity
@@ -86,3 +86,23 @@ re-listen to it before a gig. Notes must be:
 - **Visible in set planning** — notes appear alongside the track in the set
   builder, so the DJ can see "dark, long intro, clean mix point at 2:06"
   while deciding what to play next
+
+## Editing a song (built; the Edit dialog)
+
+Two ways to change a track, and they cover different jobs:
+
+- **Inline in the table** (NFR-11): title, artist, album, BPM, key, main genre,
+  subgenres, energy, people, rank, notes and tags change in place. The core
+  asset, the notes, never needs a dialog.
+- **The Edit dialog** (`EditSongDialog`, opened from a row's Edit action) is the
+  complete form, in five sections: **Basics** (title, artist, album, year),
+  **Musical properties** (BPM, key, main genre, subgenres), **Ratings** (energy
+  and people at step 0.1, rank in whole stars), **Notes** (mixing, drum,
+  element) and **Lyrics and relationships**, which opens the dedicated lyrics
+  dialog and the relationships dialog.
+  - Title and artist are required; the save is refused while either is blank.
+  - Cancel discards every change. A field emptied in the dialog is sent as an
+    explicit clear, so a value is removed rather than left stale.
+  - Ratings snap to one decimal on save; rank stays a whole number.
+  - The ratings grid is two wide: energy and people side by side, rank on its
+    own row (one rating fewer since #48).

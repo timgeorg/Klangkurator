@@ -134,8 +134,9 @@ and keep their own order.
   Column Settings dialog
 - **Auto-grow**: the Tags column widens with the widest tag list, until the user resizes it by hand (that choice is saved with the layout)
 - **Right edge**: while columns lie beyond the visible area, a cut column showing less than 120px is covered (a wider one fades), so the table ends on a whole column, and a "more columns" button scrolls right. The button only shows where it has room of its own (on the covered strip, over a wide faded column, or in an empty gap of at least 28px after the last whole column), never on a column's header; elsewhere the table's scrollbar is the hint. It is a mouse convenience outside the tab order; each press snaps so a column starts on the covered strip, which keeps the button available until the table's end. Keyboard focus inside the table scrolls the table itself, clear of the edge and below the sticky header (also when walking backwards with Shift+Tab); mouse clicks never scroll the control away from the pointer. On touch screens (coarse pointer) the button is left out (it would be a target under 44px) and the edge always fades, the usual "swipe for more" hint
-- Layout (order, visibility, widths) persists in localStorage
-  (`klangkurator.columnConfig.v1`)
+- Layout (order, visibility, widths) persists in `settings.json` under
+  `columns` (issue #51, PF-89). It was `localStorage` before; the settings
+  migration copies an old value once.
 
 ## Sorting
 

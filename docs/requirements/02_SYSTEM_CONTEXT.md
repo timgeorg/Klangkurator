@@ -6,9 +6,11 @@ Source: Requirements.md sections 2, 13
 
 ## Runtime Architecture
 
-### Phase 1 (current): Web App
+### Phase 1 (historical): Web App, browser only
 - React + Vite + TypeScript + Tailwind + shadcn/ui
-- Browser `localStorage` persistence
+- Browser `localStorage` persistence — **retired**: all state is in
+  `~/.klangkurator/*.json` since Phase 2, and UI preferences moved there too in
+  issue #51 (PF-89)
 - File loading via browser File System Access API (or `<input webkitdirectory>`)
 - No backend — all data in the browser
 

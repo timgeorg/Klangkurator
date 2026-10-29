@@ -44,5 +44,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 ## Data Contract
 
 - [20_DATA_MODEL_OVERVIEW.md](20_DATA_MODEL_OVERVIEW.md) — entities and their relationships
-- [21_DATA_MODEL_LIBRARY_JSON.md](21_DATA_MODEL_LIBRARY_JSON.md) — library.json schema (songs, tags, relationships)
+- [21_DATA_MODEL_LIBRARY_JSON.md](21_DATA_MODEL_LIBRARY_JSON.md) — library.json schema (songs, tags, genres, relationships)
 - [22_DATA_MODEL_BLOCKS_AND_SETS.md](22_DATA_MODEL_BLOCKS_AND_SETS_JSON.md) — blocks.json and sets.json schemas
+- [33_TRACK_MAP.md](33_TRACK_MAP.md) — the track map: every track placed by a user-weighted similarity
+- [34_MCP_SERVER.md](34_MCP_SERVER.md) — the MCP server: the library for a local agent over stdio
