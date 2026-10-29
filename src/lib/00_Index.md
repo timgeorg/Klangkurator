@@ -21,3 +21,5 @@ tags:
 - [[utils.ts]] — Tailwind class name merging utility combining clsx and twMerge.
 - [[jobProgress.ts]] — The pure rules of the background jobs (Import-page match, how a run ended, the failed-read limit), apart from the provider so they are testable without a DOM.
 - [[jobProgress.test.ts]] — Tests for those rules: the trailing-slash Import page and the finished / failed / vanished run ends (issue #57).
+- [[settings.ts]] — the preferences and genre documents as files (issue #51): one load before the first paint, synchronous getters, a 300 ms debounced save per document, and the one-time copy out of `localStorage`.
+- [[settings.test.ts]] — tests for that module: the migration copies every legacy key once and never overwrites a file value, unchanged values are not re-sent, a burst debounces to one request, and a genre write and a preference write both land.

@@ -7,6 +7,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/compon
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { addSubgenre, getGenreConfig, getMainGenreColor, getSubgenresForMainGenre } from "@/lib/genreData";
+import { useSettingsTick } from "@/lib/settings";
 import type { Song, SongPatch } from "@/lib/storage";
 import { isMinorKey, keyName, MUSICAL_KEYS, trackGenre } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
@@ -424,6 +425,8 @@ export function SubgenresCell({ song, onPatch }: { song: Song; onPatch: PatchSon
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [order, setOrder] = useState<string[]>([]);
+  // The genre list lives in library.json (issue #51); follow it when it changes.
+  useSettingsTick();
   const genre = trackGenre(song);
   const subgenres = song.subgenres ?? [];
   const color = genre ? getMainGenreColor(genre) : undefined;

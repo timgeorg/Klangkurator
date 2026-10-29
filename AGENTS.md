@@ -1,6 +1,6 @@
 # AGENTS.md — Klangkurator
 
-Local-first DJ library organizer: React + Vite + TypeScript + Tailwind (shadcn/ui) on a FastAPI backend with JSON storage in `~/.klangkurator/`. Runs as a PyWebView desktop window or in a browser, offline.
+Local-first DJ library organizer: React + Vite + TypeScript + Tailwind (shadcn/ui) on a FastAPI backend with JSON storage in `~/.klangkurator/` (`library.json`, `blocks.json`, `sets.json`, `settings.json`). Runs as a PyWebView desktop window or in a browser, offline.
 
 ## Where the truth lives
 

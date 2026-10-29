@@ -1,4 +1,5 @@
 import { FALLBACK_COLOR } from './palette';
+import { getGenres, setGenres, subscribeSettings } from './settings';
 
 // Main genres with their subgenres and colors
 
@@ -77,24 +78,25 @@ export const DEFAULT_GENRES: GenreConfig[] = [
   }
 ];
 
-const STORAGE_KEY = 'dj_database_genre_config';
+// Genres live in `library.json` as of issue #51: they are library vocabulary
+// like tags, so they travel with the folder and join the backup. The in-memory
+// copy in `settings.ts` is the one source; these getters keep their signatures
+// so the nine importing modules did not change.
 
-// Get genre configuration from localStorage or use defaults
+/** The genre list: the stored one, or the defaults on a library that has none. */
 export function getGenreConfig(): GenreConfig[] {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return DEFAULT_GENRES;
-    }
-  }
-  return DEFAULT_GENRES;
+  const stored = getGenres();
+  return stored.length > 0 ? stored : DEFAULT_GENRES;
 }
 
-// Save genre configuration to localStorage
+/** Replace the genre list; it reaches `library.json` about 300 ms later. */
 export function saveGenreConfig(config: GenreConfig[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  setGenres(config);
+}
+
+/** Run `listener` whenever the genre list changes; returns the unsubscribe. */
+export function subscribeGenres(listener: () => void): () => void {
+  return subscribeSettings(listener);
 }
 
 // Get all main genre names

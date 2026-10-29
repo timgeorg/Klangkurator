@@ -1,7 +1,34 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-29
+
+## 2026-10-29
+
+### Settings and genres into the data folder (#51, PF-89)
+
+Tim: *"I'd also like a file or something that saves all these thigs so they can
+be portable as well."*
+
+- **Preferences moved into `~/.klangkurator/settings.json`**, a fourth data file
+  beside `library.json`, `blocks.json` and `sets.json` (spec:
+  `17_SETTINGS.md`). They used to live only in the browser, so they did not
+  travel with the library, vanished when site data was cleared, and the desktop
+  window could not keep them. Two endpoints: `GET`/`PUT /api/settings`, the
+  latter validating keys and types and refusing a bad write with 422.
+- **The genre list moved into `library.json` as `genres`.** Genres are library
+  vocabulary like tags, so they belong with the library and inside the backup
+  (`12_TAGS_AND_GENRES.md`, `21_DATA_MODEL_LIBRARY_JSON.md`, NFR-2). Importing
+  them merges by name; an existing genre keeps its colour.
+- **A one-time migration** copies an existing browser's values, genres
+  included, before anything renders. A value already in a file wins.
+- **An unreadable data file is preserved**, renamed to
+  `<name>.corrupt-<timestamp>.json` and logged, instead of being replaced by the
+  empty state that followed a read error. This covers every data file.
+- **The desktop window keeps its storage** (`private_mode=False` with a storage
+  path under the data folder), so it behaves like a browser tab.
+- `13_LIBRARY_VIEW.md` REQ-13-CT now stores the crate bar's collapse choice in
+  `settings.json` rather than in `localStorage`.
 
 ## 2026-10-23
 

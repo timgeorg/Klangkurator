@@ -56,7 +56,7 @@ def test_export_has_the_envelope_and_excludes_config():
     assert d["version"] == 1
     assert "exported_at" in d
     assert set(d["data"].keys()) == {
-        "songs", "tags", "song_tags", "song_relationships",
+        "songs", "tags", "genres", "song_tags", "song_relationships",
         "playlists", "playlist_songs", "blocks", "sets",
     }
     assert "_config" not in d["data"]
@@ -354,3 +354,75 @@ def test_a_matched_track_gets_its_main_genre_filled_and_conflicts_on_it():
     store = get_library_store()
     assert store.get_song(empty["id"])["mainGenre"] == "Techno"
     assert store.get_song(house["id"])["mainGenre"] == "Techno"
+
+
+# ── Genres in the envelope (issue #51) ──────────────────
+
+
+def _envelope_with(data: dict) -> dict:
+    """A minimal valid envelope carrying `data`."""
+    return {
+        "format": "klangkurator-library",
+        "version": 1,
+        "exported_at": "2026-10-29T00:00:00Z",
+        "data": {
+            "songs": [], "tags": [], "song_tags": [], "song_relationships": [],
+            "playlists": [], "playlist_songs": [], "blocks": [], "sets": [],
+            **data,
+        },
+    }
+
+
+def test_the_export_carries_genres():
+    """Genres are library vocabulary, so a backup includes them (NFR-2)."""
+    client.put("/api/genres", json=[{"name": "Techno", "color": "#6B5BD6", "subgenres": ["Peak Time"]}])
+
+    exported = client.get("/api/export").json()["data"]["genres"]
+
+    assert exported == [{"name": "Techno", "color": "#6B5BD6", "subgenres": ["Peak Time"]}]
+
+
+def test_importing_genres_adds_the_missing_ones():
+    """A library without them gains them; nothing is replaced."""
+    client.put("/api/genres", json=[{"name": "House", "color": "#4E9A2A", "subgenres": []}])
+    envelope = _envelope_with({
+        "genres": [
+            {"name": "Techno", "color": "#6B5BD6", "subgenres": ["Peak Time"]},
+        ],
+    })
+
+    body = client.post("/api/import", json={"envelope": envelope, "resolutions": []}).json()
+
+    assert body["summary"]["genres_added"] == 1
+    names = [g["name"] for g in client.get("/api/genres").json()]
+    assert names == ["House", "Techno"]
+
+
+def test_an_existing_genre_keeps_its_colour_and_gains_subgenres():
+    """Default local wins: the user's colour is not overwritten."""
+    client.put("/api/genres", json=[{"name": "Techno", "color": "#111111", "subgenres": ["Peak Time"]}])
+    envelope = _envelope_with({
+        "genres": [
+            {"name": "techno", "color": "#999999", "subgenres": ["peak time", "Hard"]},
+        ],
+    })
+
+    client.post("/api/import", json={"envelope": envelope, "resolutions": []})
+
+    genres = client.get("/api/genres").json()
+    assert len(genres) == 1
+    assert genres[0]["color"] == "#111111"
+    assert genres[0]["subgenres"] == ["Peak Time", "Hard"]
+
+
+def test_an_envelope_without_genres_still_imports():
+    """Exports made before this change have no `genres` key."""
+    envelope = _envelope_with({"songs": [{
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "title": "Old", "artist": "A", "file_path": "/m/old.mp3",
+    }]})
+
+    body = client.post("/api/import", json={"envelope": envelope, "resolutions": []}).json()
+
+    assert body["valid"] is True
+    assert body["summary"]["genres_added"] == 0

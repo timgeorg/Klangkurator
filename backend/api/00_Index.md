@@ -10,7 +10,8 @@ tags:
 - [[artwork.py]] — `GET /api/artwork/{song_id}`: serves the extracted cover thumbnail from `~/.klangkurator/artwork/` with 1-day cache headers; 404 when absent (PF-14).
 - [[blocks.py]] — Blocks/sets-of-songs grouping CRUD endpoints.
 - [[library.py]] — Library-wide endpoints (rescan, stats, library file access); scan computes waveform peaks at import time (PF-13).
-- [[misc.py]] — Miscellaneous endpoints (health, config, system info).
+- [[misc.py]] — Export/import of the library envelope (`/api/export`, `/api/import`, `/api/import/preview`), the playlist routes, and the flat song-tags and playlist-songs listings.
+- [[settings.py]] — `GET`/`PUT /api/settings` (the preferences document, validated on write) and `GET`/`PUT /api/genres` (the genre list in `library.json`); issue #51.
 - [[relationships.py]] — Song-to-song relationship/transition CRUD endpoints.
 - [[sets.py]] — DJ set CRUD and set-song membership endpoints.
 - [[songs.py]] — Songs CRUD plus song-tag, related, transition-suggestions, playlist sub-resources.

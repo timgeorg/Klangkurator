@@ -11,6 +11,7 @@ import { LibraryFilterProvider } from "@/lib/LibraryFilterContext";
 import { THEME_STORAGE_KEY } from "@/lib/appearance";
 import { JobProgressToast } from "@/components/dj/JobProgressToast";
 import { DJLayout } from "@/components/layout/DJLayout";
+import { SettingsGate } from "@/components/layout/SettingsGate";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
 import SongDetailPage from "./pages/SongDetailPage";
@@ -30,6 +31,9 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
+    // Settings and genres are files now (issue #51), so the app waits for them
+    // once, before the first paint, instead of rendering defaults and jumping.
+    <SettingsGate>
     <ThemeProvider
       attribute="class"
       defaultTheme="dark"
@@ -80,6 +84,7 @@ function App() {
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
+    </SettingsGate>
   );
 }
 

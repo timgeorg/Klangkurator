@@ -60,7 +60,7 @@ A DJ who:
 | P3 | Structure follows the DJ's mental model | Folders → crates → blocks → sets mirrors how DJs actually think; the tool matches that, not the other way around |
 | P4 | Set planning is phase-based, not flat | A set has temporal arcs (energy, mood, genre); the tool must support planning by phase, not just drag-and-drop ordering |
 | P5 | Explicit over automatic | Track analysis (BPM detection, key detection) is user-triggered or imported, not auto-guessed silently |
-| P6 | Graceful degradation | Without PyWebView/Python backend, the web app still works with localStorage; without audio metadata extraction, manual entry works |
+| P6 | Graceful degradation | Without audio metadata extraction, manual entry works; a missing or unreadable data file never blocks the app (the file is preserved, `settings.json` and the genres fall back to defaults, issue #51) |
 | P7 | Rekordbox is the performance engine, not the competitor | Klangkurator reads from and writes to Rekordbox (cue points, playlists). It plays tracks to curate them: hearing how tracks fit together is curation, so the player previews a track and steps through a set, a block or the library one track after another (PF-80). It never performs: no decks, no mixing, no crossfader, no beat-matching (OOS-4) |
 | P8 | Transitions are first-class entities | Transitions between tracks are mined, stored, rated, and surfaced — they are the DJ's craft knowledge, not an afterthought |
 | P9 | AI augments curation, doesn't replace it | AI skills (transition suggestions, spectral clustering, set planning) propose options; the DJ always decides |

@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { WIDE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { isMapRoute } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
+import { readSetting, saveSettings } from "@/lib/settings";
 import type { Song } from "@/lib/storage";
 import { splitTitle } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
@@ -23,14 +24,19 @@ const formatTime = (seconds: number) => {
 };
 
 // Volume persists across sessions (player-level setting, not per-track)
-const VOLUME_KEY = "klangkurator.player.volume.v1";
-
+/**
+ * The saved volume, from `settings.json` as of issue #51. A browser value is
+ * read only when the file has none yet.
+ */
 function loadVolume(): number {
+  const stored = readSetting<number | undefined>("volume", undefined);
+  if (typeof stored === "number" && Number.isFinite(stored) && stored >= 0 && stored <= 1) return stored;
   try {
-    const raw = localStorage.getItem(VOLUME_KEY);
-    if (raw === null) return 1;
-    const v = parseFloat(raw);
-    if (isFinite(v) && v >= 0 && v <= 1) return v;
+    const raw = localStorage.getItem("klangkurator.player.volume.v1");
+    if (raw !== null) {
+      const v = parseFloat(raw);
+      if (isFinite(v) && v >= 0 && v <= 1) return v;
+    }
   } catch {
     /* private mode etc. */
   }
@@ -109,12 +115,13 @@ export function NowPlaying() {
     if (!audio) return;
     audio.volume = volume;
     audio.muted = muted;
-    try {
-      localStorage.setItem(VOLUME_KEY, String(volume));
-    } catch {
-      /* ignore */
-    }
   });
+
+  // Persist the level only when it actually changes: the effect above runs on
+  // every render, and writing settings there would send a request per frame.
+  useEffect(() => {
+    saveSettings({ volume });
+  }, [volume]);
 
   if (!current) return null;
 
