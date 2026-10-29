@@ -13,8 +13,7 @@ export type MapInput =
   | "subgenre"
   | "key"
   | "energy"
-  | "danceability"
-  | "social_acceptance"
+  | "people"
   | "year"
   | "duration";
 
@@ -27,8 +26,7 @@ export const MAP_INPUTS: readonly MapInput[] = [
   "subgenre",
   "key",
   "energy",
-  "danceability",
-  "social_acceptance",
+  "people",
   "year",
   "duration",
 ];
@@ -50,8 +48,7 @@ export const DEFAULT_INPUTS: MapInputs = {
   subgenre: { enabled: true, weight: 2 },
   key: { enabled: true, weight: 0.5 },
   energy: { enabled: true, weight: 1 },
-  danceability: { enabled: true, weight: 1 },
-  social_acceptance: { enabled: true, weight: 1 },
+  people: { enabled: true, weight: 1 },
   year: { enabled: false, weight: 1 },
   duration: { enabled: false, weight: 1 },
 };
@@ -72,8 +69,7 @@ export interface TrackFeatures {
   subgenres: string[]; // lowercased; [0] is the cluster key
   tagIds: string[];
   energy?: number; // missing when 0 (unrated)
-  danceability?: number;
-  social_acceptance?: number;
+  people?: number; // missing when 0 (unrated)
   year?: number;
   duration?: number; // seconds
 }
@@ -201,8 +197,7 @@ export type TrackMapSong = Pick<
   | "subgenres"
   | "year"
   | "artwork_url"
-  | "danceability"
   | "energy"
-  | "social_acceptance"
+  | "people"
   | "root_folder"
 >;

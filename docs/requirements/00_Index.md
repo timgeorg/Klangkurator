@@ -7,7 +7,7 @@ tags:
 
 - [[00_INDEX.md]] — alternate uppercase index linking to all domain files (legacy, kept for link compatibility).
 - [[01_VISION_AND_PRINCIPLES.md]] — product vision, design principles, target user.
-- [[02_SYSTEM_CONTEXT.md]] — runtime architecture, data service abstraction, PyWebView plan, design system.
+- [[02_SYSTEM_CONTEXT.md]] — runtime architecture, data access, PyWebView plan, design system.
 - [[10_LIBRARY_AND_FILE_LOADING.md]] — root folder as the unit of import, native picker, auto-scan, crate mapping, file scanning, empty-library redirect.
 - [[11_SONG_MODEL.md]] — song entity: identity, musical properties, ratings, notes, phase/vibe tags.
 - [[12_TAGS_AND_GENRES.md]] — centralized tags, genre hierarchy, color management.
@@ -28,3 +28,4 @@ tags:
 - [[31_TRANSITION_MINING.md]] — transition mining, suggestion engine, transition library (planned).
 - [[32_AI_CURATION.md]] — AI-assisted curation: set planning, transition suggestions, spectral clustering (planned).
 - [[33_TRACK_MAP.md]] — the track map (PF-81, issue #8; **Active** since phase 7): every track placed by a user-weighted similarity, with clusters and relationship/transition layers.
+- [[34_MCP_SERVER.md]] — the MCP server (PF-85, issue #47): 24 curated tools over stdio as a thin client of the backend, its config env vars, annotations, error mapping and read-only mode.

@@ -61,10 +61,8 @@ export function inputSimilarity(
       return jaccardInput(a.tagIds, b.tagIds);
     case "energy":
       return both(a.energy, b.energy, ratingSimilarity);
-    case "danceability":
-      return both(a.danceability, b.danceability, ratingSimilarity);
-    case "social_acceptance":
-      return both(a.social_acceptance, b.social_acceptance, ratingSimilarity);
+    case "people":
+      return both(a.people, b.people, ratingSimilarity);
     case "year":
       return both(a.year, b.year, (x, y) => Math.max(0, 1 - Math.abs(x - y) / 10));
     case "duration":

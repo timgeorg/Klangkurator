@@ -196,23 +196,13 @@ function SongTableRowImpl({
           <RatingCell field="Energy" track={song.title} value={song.energy} onChange={(energy) => onPatch(song.id, { energy })} />
         );
 
-      case "danceability":
+      case "people":
         return (
           <RatingCell
-            field="Dance"
+            field="People"
             track={song.title}
-            value={song.danceability}
-            onChange={(danceability) => onPatch(song.id, { danceability })}
-          />
-        );
-
-      case "social":
-        return (
-          <RatingCell
-            field="Social"
-            track={song.title}
-            value={song.social_acceptance}
-            onChange={(social_acceptance) => onPatch(song.id, { social_acceptance })}
+            value={song.people ?? 0}
+            onChange={(people) => onPatch(song.id, { people })}
           />
         );
 

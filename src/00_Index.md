@@ -13,4 +13,3 @@ tags:
 - [[hooks/]] — React hooks: the library column layout, media queries, the mobile breakpoint and toasts.
 - [[lib/]] — Data access and shared logic: the API client and storage layer, appearance preferences, player state, genre config, the entity palette, relationship line styles, track display formatting, class-name helper.
 - [[pages/]] — Route components: Index (library table), LoadFiles (import and scan), SongDetailPage (track metadata and edit), Sets (set planner), Settings (library and UI preferences), NotFound (404).
-- [[services/]] — Legacy data service layer with factory pattern; not currently used by the app (replaced by direct API calls to backend).

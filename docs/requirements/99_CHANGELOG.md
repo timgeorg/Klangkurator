@@ -1,7 +1,105 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-15
+Last Updated: 2026-10-23
+
+## 2026-10-23
+
+Four specs from Tim's requests — #46, #47, #48, #49 — written before the code,
+plan-reviewed, with a technical plan and a behavior contract each in
+`docs/plans/`. All three were built the same day (PRs #52–#54), next to the
+MCP server (#47, PR #55); the release review's fixes are below (#57).
+
+### MCP server for local agents (#47, PF-85)
+
+Tim: *"Would you need MCP to better interact with Klangkurator? What would MCP
+need for that tool?"* A local agent (Claude Desktop, Copilot, Cursor) now has a
+spec'd way in: new `34_MCP_SERVER.md` (REQ-34-PR, -TS, -CT, -AX) with a curated
+**24-tool** surface over **stdio**, as a thin HTTP client of the running
+backend. It holds no state and opens no file under `~/.klangkurator/`, because
+`BaseStore._save` writes one shared `.tmp` file — two writers lose data. No
+`delete_*` tool: removal stays in the app, where the user sees it. Config
+through `KLANGKURATOR_URL`, `KLANGKURATOR_TIMEOUT`, `KLANGKURATOR_READ_ONLY`
+and `KLANGKURATOR_ROOTS`; the 10 read tools carry `readOnlyHint`, the 14
+others `destructiveHint: false`, all `openWorldHint: false`. Two new
+`requirements.txt` entries (`mcp`, `httpx2`), and `backend/` still imports
+neither — the app runs with `mcp` absent.
+
+Three backend prerequisites, each useful without MCP: the scan job (#46), the
+`slim` listing below, and the widened browse sandbox below.
+
+**Decisions:** `scan_library` has no dry run — an honest preview needs a
+backend count-only path, and walking in the server would duplicate the import
+rules; the server ships as a top-level `mcp_server/` package in this repo, not
+a separate distribution, because the app must run without `mcp`; `update_track`
+keeps the existing partial `PUT` (`_CLEARABLE` + `exclude_unset` never blanks a
+field) and refuses an empty body, which the backend would accept and write.
+
+### Slim library listing and a browse sandbox that reaches the music (#47)
+
+Two backend changes this spec now requires, both measured on the real library:
+
+- **`GET /api/songs?slim=true`** (REQ-10-SL) returns the same rows without
+  `waveform_peaks`. Peaks are 200 floats per track and most (62–71 % across the measurements on record) of the body
+  (3,735,141 bytes at 1,907 tracks, 1,187 bytes per track — the issue's 62 %
+  was a 499-track sample). The projection runs after validation, so model
+  defaults a legacy row lacks are still filled. The app keeps the full rows;
+  only an agent asks for slim.
+- **`GET /api/library/browse` also allows the configured root** (REQ-10-BW).
+  The browser was sandboxed to `$HOME`, so an external-drive library was
+  unreachable — `403` on `/media/tim/Extreme SSD/#MUSIC` — while `POST /scan`
+  and `PUT /root` took the same path. `parent` is `null` at home and at the
+  root; everything else still gets a 403.
+
+### Release review fixes (#57)
+
+A stage-7 review of `int` before the release found, and this change fixes:
+- **Import dropped every added track's main genre**: it kept only the model's
+  field names, and rows store the alias `mainGenre`.
+- **The export carried the retired `danceability`/`social_acceptance`** keys of
+  old rows; they are left out (11_SONG_MODEL: never written).
+- **MCP ids could leave their route** (`../../<id>` reached
+  `DELETE /api/songs/<id>`), and **`export_library` could overwrite any file**,
+  also in read-only mode. Ids are checked, and export creates only new `.json`
+  files in one folder (34_MCP_SERVER).
+- **The Import page could not see a job started elsewhere**, a vanished run
+  read as finished, a dead backend froze the bar, and Escape closed the
+  progress toast for the whole run (REQ-10-AP).
+
+### Scan and analysis progress (#46, PF-86)
+
+- **Both long jobs run in the background, one at a time.** The folder scan was
+  one blocking request with a spinner as its only feedback; it becomes a job
+  with `GET /api/library/scan-status` (REQ-10-SP). Scan, library-wide analysis
+  and per-track re-analyze now exclude each other in the backend (409).
+- **Where progress shows:** on the Import page, and outside it in a closable
+  toast (Tim: *"yes, outside, toas with loading bar on library page, if clicked
+  away only on the import page"*). Analysis gets **Abort**, which stops after
+  the current track (`POST /api/library/analyze-cancel`). A finished scan says
+  only "Scan finished" (Tim: *"no, just that it finished, no stats"*).
+- **Counters count finished items**, so a job starts at `0 / N` and ends at
+  `N / N` (the old analysis counter started at `1 / N`). The never-built
+  "elapsed/remaining feel" is dropped from REQ-10-AP.
+
+### People replaces Dance and Social (#48, PF-87)
+
+Tim: *"Dance/Social is too much and add the end means the same."* One 0–5
+rating, `people`, replaces `danceability` and `social_acceptance` in the song
+model (`11_SONG_MODEL.md`), the JSON example (`21_DATA_MODEL_LIBRARY_JSON.md`),
+the library table, filters, sort and keyboard rules (`13_LIBRARY_VIEW.md`), set
+planning sort (`16_SET_PLANNING.md`), NFR-11 (`90_NFRS.md`) and the track map,
+where it is one input at weight 1 (`33_TRACK_MAP.md`; the TM-M4 contract
+clause in `docs/plans/TRACK_MAP_BEHAVIOR_CONTRACT.md` is marked superseded). No
+compatibility: the old values are dropped and Tim re-enters them by hand.
+`Requirements.md` is frozen as a historical document.
+
+### Crate tabs: collapse and multi-select (#49, PF-88)
+
+New REQ-13-CT in `13_LIBRARY_VIEW.md`. With more than 10 crates, the tab bar
+collapses to the first 10 plus every selected crate and a "+N more" toggle.
+Shift+click adds a crate to the selection or removes it (A+B+C), using the
+Crate filter that was already multi-select underneath. Touch screens get
+44 px tabs.
 
 ## 2026-10-15
 

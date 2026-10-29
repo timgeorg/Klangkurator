@@ -3,6 +3,11 @@
 from pydantic import BaseModel, Field, ConfigDict
 
 
+#: Song keys the model no longer has (issue #48: `people` replaced both). Rows
+#: saved before keep them; nothing reads them, and the export leaves them out.
+RETIRED_SONG_KEYS = frozenset({"danceability", "social_acceptance"})
+
+
 class SongBase(BaseModel):
     """Fields that can be set at creation time (excludes id/timestamps)."""
     title: str
@@ -18,10 +23,9 @@ class SongBase(BaseModel):
     year: int | None = None
     file_path: str
     artwork_url: str | None = None
-    # The three 0–5 ratings take one decimal (issue #7); rank stays a whole number.
-    danceability: float = 0
+    # The 0–5 ratings take one decimal (issue #7, #48); rank stays a whole number.
     energy: float = 0
-    social_acceptance: float = 0
+    people: float = 0
     rank: int = 0
     drum_notes: str | None = None
     element_notes: str | None = None
@@ -57,9 +61,8 @@ class SongUpdate(BaseModel):
     year: int | None = None
     file_path: str | None = None
     artwork_url: str | None = None
-    danceability: float | None = None
     energy: float | None = None
-    social_acceptance: float | None = None
+    people: float | None = None
     rank: int | None = None
     drum_notes: str | None = None
     element_notes: str | None = None

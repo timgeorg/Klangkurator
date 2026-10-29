@@ -8,14 +8,12 @@ interface RatingProps {
   max?: number;
   size?: 'sm' | 'md' | 'lg';
   readonly?: boolean;
-  variant?: 'default' | 'energy' | 'danceability' | 'social';
+  variant?: 'default' | 'energy';
 }
 
 const variantColors = {
   default: 'text-primary',
   energy: 'text-energy-high',
-  danceability: 'text-accent',
-  social: 'text-secondary',
 };
 
 const sizes = {

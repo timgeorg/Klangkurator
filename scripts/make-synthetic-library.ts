@@ -66,7 +66,7 @@ const USAGE = `Write a sandbox library.json for one track-map cluster fixture.
   --no-genre           leave the genre out entirely (the fallback fixtures)
   --no-bpm             leave the BPM out entirely
   --no-energy          leave the energy out entirely
-  --no-ratings         leave all three ratings out entirely
+  --no-ratings         leave the People rating out (energy has --no-energy)
 `;
 
 /** The number after a flag, or undefined when the flag is absent. */
@@ -153,9 +153,8 @@ function libraryJson(flags: Flags): LibraryFile {
     genres: track.genres,
     year: track.year,
     artwork_url: track.artwork_url,
-    danceability: track.danceability,
     energy: track.energy,
-    social_acceptance: track.social_acceptance,
+    people: track.people,
     root_folder: track.root_folder,
     created_at: stamp,
     updated_at: stamp,

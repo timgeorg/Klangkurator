@@ -44,8 +44,7 @@ function coverageOf(features: readonly TrackFeatures[]): Coverage {
     subgenre: features.filter((feature) => feature.subgenres.length > 0).length,
     tags: features.filter((feature) => feature.tagIds.length > 0).length,
     ratings: features.filter(
-      (feature) =>
-        feature.energy !== undefined && feature.danceability !== undefined && feature.social_acceptance !== undefined,
+      (feature) => feature.energy !== undefined && feature.people !== undefined,
     ).length,
   };
 }

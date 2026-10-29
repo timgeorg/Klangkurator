@@ -29,7 +29,10 @@ import {
   INITIAL_FILTERS,
   RangeValue,
   SortState,
+  clickCrate,
   filterSongs,
+  toggleCrate,
+  visibleCrates,
 } from "./libraryTable";
 import { LyricsDialog } from "./LyricsDialog";
 import { SongTableHeader } from "./SongTableHeader";
@@ -43,13 +46,36 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
   bpm: (s) => s.bpm,
   key: (s) => s.musical_key,
   energy: (s) => s.energy,
-  danceability: (s) => s.danceability,
-  social: (s) => s.social_acceptance,
+  people: (s) => s.people ?? 0,
   rank: (s) => s.rank || undefined,
   duration: (s) => s.duration,
 };
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** Where the crate bar's expand choice is kept; a stored "1" means expanded. */
+const CRATES_EXPANDED_KEY = "klangkurator.crates.expanded";
+
+/** How many crate tabs fit before the bar collapses and hides the rest (issue #49). */
+const CRATE_TAB_LIMIT = 10;
+
+/** The stored expand choice for the crate tabs; without storage, collapsed. */
+function readCratesExpanded(): boolean {
+  try {
+    return localStorage.getItem(CRATES_EXPANDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Stores the crate tabs' expand choice; private mode keeps it for the session. */
+function writeCratesExpanded(expanded: boolean): void {
+  try {
+    localStorage.setItem(CRATES_EXPANDED_KEY, expanded ? "1" : "0");
+  } catch {
+    /* private mode: the choice lasts for this session */
+  }
+}
 
 /** A patch applied the way the backend applies it: null clears the field. */
 function applyPatch(song: Song, patch: SongPatch): Song {
@@ -85,6 +111,13 @@ export function SongLibrary() {
   const songsRef = useRef(songs);
   songsRef.current = songs;
   const [sort, setSort] = useState<SortState>(null);
+
+  // The crate bar shows ten tabs and collapses the rest (issue #49). The
+  // choice is read once, lazily, from storage; a browser without storage
+  // starts collapsed.
+  const [cratesExpanded, setCratesExpanded] = useState(readCratesExpanded);
+  const cratesToggleRef = useRef<HTMLButtonElement>(null);
+  const allTracksTabRef = useRef<HTMLButtonElement>(null);
 
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -398,7 +431,43 @@ export function SongLibrary() {
       : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}` +
         (crateTotal > 0 ? ` · ${crateTotal} ${crateTotal === 1 ? "crate" : "crates"}` : "");
 
-  const activeCrate = filters.rootFolder.length === 1 ? filters.rootFolder[0] : null;
+  const crateNames = crateCounts.map(([crate]) => crate);
+  // Which tabs show, and how many stay hidden (issue #49). Pure: recomputed
+  // per render, cheap enough to stay out of a memo.
+  const { shown: shownCrates, hidden: hiddenCrates } = visibleCrates(
+    crateNames,
+    filters.rootFolder,
+    cratesExpanded,
+    CRATE_TAB_LIMIT,
+  );
+
+  // A crate tab: a plain click selects that crate alone, Shift adds it to or
+  // removes it from the selection (issue #49). A tab deselected while
+  // collapsed disappears, so when it had focus the toggle takes it (BC-15):
+  // whether it survives is decided from the next selection, before the filter
+  // changes.
+  const handleCrateClick = (crate: string, additive: boolean, tab: HTMLButtonElement) => {
+    const next = additive ? toggleCrate(filters.rootFolder, crate) : clickCrate(filters.rootFolder, crate);
+    const hadFocus = document.activeElement === tab;
+    const { shown } = visibleCrates(crateNames, next, cratesExpanded, CRATE_TAB_LIMIT);
+    updateFilter("rootFolder", next);
+    if (!hadFocus || shown.includes(crate)) return;
+    requestAnimationFrame(() => (cratesToggleRef.current ?? allTracksTabRef.current)?.focus());
+  };
+
+  // Expand or collapse the crate tabs, remember the choice, and keep focus on
+  // the toggle that made the change (BC-3). Collapsing hides nothing when every
+  // hidden crate is selected, so the toggle unmounts: focus then goes to the
+  // first tab, which is always there.
+  const handleToggleCrates = () => {
+    const next = !cratesExpanded;
+    setCratesExpanded(next);
+    writeCratesExpanded(next);
+    const toggleSurvives =
+      crateNames.length > CRATE_TAB_LIMIT &&
+      (next || visibleCrates(crateNames, filters.rootFolder, next, CRATE_TAB_LIMIT).hidden > 0);
+    requestAnimationFrame(() => (toggleSurvives ? cratesToggleRef.current : allTracksTabRef.current)?.focus());
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -444,22 +513,37 @@ export function SongLibrary() {
         {(crateCounts.length > 0 || activeFilterKeys.length > 0) && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {crateCounts.length > 0 && (
-              <div role="group" aria-label="Crates" className="-ml-1 flex flex-wrap items-center gap-1">
+              <div role="group" aria-label="Crates" className="-ml-1 flex select-none flex-wrap items-center gap-1">
                 <CrateTab
+                  ref={allTracksTabRef}
                   label="All tracks"
                   count={songs.length}
                   active={filters.rootFolder.length === 0}
                   onClick={() => updateFilter("rootFolder", [])}
                 />
-                {crateCounts.map(([crate, count]) => (
-                  <CrateTab
-                    key={crate}
-                    label={crate}
-                    count={count}
-                    active={activeCrate === crate}
-                    onClick={() => updateFilter("rootFolder", activeCrate === crate ? [] : [crate])}
-                  />
-                ))}
+                {crateCounts
+                  .filter(([crate]) => shownCrates.includes(crate))
+                  .map(([crate, count]) => (
+                    <CrateTab
+                      key={crate}
+                      label={crate}
+                      count={count}
+                      active={filters.rootFolder.includes(crate)}
+                      title="Shift+click to add or remove"
+                      onClick={(additive, tab) => handleCrateClick(crate, additive, tab)}
+                    />
+                  ))}
+                {crateNames.length > CRATE_TAB_LIMIT && (cratesExpanded || hiddenCrates > 0) && (
+                  <button
+                    ref={cratesToggleRef}
+                    type="button"
+                    onClick={handleToggleCrates}
+                    aria-expanded={cratesExpanded}
+                    className="inline-flex h-8 items-center rounded-chip px-3.5 text-[13px] font-medium text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
+                  >
+                    {cratesExpanded ? "Show fewer" : `+${hiddenCrates} more`}
+                  </button>
+                )}
               </div>
             )}
             {activeFilterKeys.length > 0 && (
@@ -631,14 +715,27 @@ export function SongLibrary() {
 
 const EMPTY_TAGS: Tag[] = [];
 
-function CrateTab({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+const CrateTab = React.forwardRef<
+  HTMLButtonElement,
+  {
+    label: string;
+    count: number;
+    active: boolean;
+    /** The tooltip naming the Shift+click shortcut on the crate tabs (REQ-13-CT). */
+    title?: string;
+    /** The click that picked this tab; `additive` is Shift held (issue #49). */
+    onClick: (additive: boolean, tab: HTMLButtonElement) => void;
+  }
+>(function CrateTab({ label, count, active, title, onClick }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
-      onClick={onClick}
+      onClick={(e) => onClick(e.shiftKey, e.currentTarget)}
       aria-pressed={active}
+      title={title}
       className={cn(
-        "inline-flex h-8 max-w-[16rem] items-center gap-2 rounded-chip px-3.5 text-[13px] font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-8 max-w-[16rem] items-center gap-2 rounded-chip px-3.5 text-[13px] font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11",
         active ? "bg-signal-soft text-signal-text" : "text-muted-foreground hover:text-foreground",
       )}
     >
@@ -646,7 +743,7 @@ function CrateTab({ label, count, active, onClick }: { label: string; count: num
       <span className={cn("k-num text-[11px]", active ? "text-signal-text/80" : "text-muted-foreground/80")}>{count}</span>
     </button>
   );
-}
+});
 
 function FilterChip({ label, value, onRemove }: { label: string; value: string; onRemove: () => void }) {
   return (

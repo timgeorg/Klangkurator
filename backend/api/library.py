@@ -1,5 +1,6 @@
-"""API package — library scan + crate listing endpoints."""
+"""API package — library scan, analysis jobs and crate listing endpoints."""
 
+import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,12 +8,15 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.config import BPM_MAX, BPM_MIN, SUPPORTED_AUDIO_EXTENSIONS
+from backend.config import BPM_MAX, BPM_MIN
+from backend.scanner.file_scanner import scan_directory
 from backend.scanner.metadata import extract_metadata
 from backend.scanner.waveform import compute_peaks
 from backend.scanner.artwork import extract_artwork
 from backend.scanner.audio_analysis import analyze_track, analyze_all_missing_bpm
 from backend.storage import get_library_store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -25,109 +29,312 @@ class PickFolderResponse(BaseModel):
     path: str | None = None
 
 
+# ── One background job at a time (REQ-10-SP, REQ-10-AP) ──
+# The scan, the library-wide analysis and the per-track re-analyze exclude each
+# other; `_job` names the run that holds the slot. The lock only guards the
+# check-and-set — a job is not "busy" by holding it, because the batch jobs
+# return as soon as their thread is spawned.
+
+_JOB_MESSAGES = {
+    "scan": "A scan is running",
+    "analysis": "An analysis is running",
+    "reanalyze": "An analysis is running",
+}
+
+_job_lock = threading.Lock()
+_job: str | None = None
+
+
+def _claim_job(kind: str, start=None) -> None:
+    """Take the one job slot for `kind`, or raise 409 naming the running job.
+
+    `start`, when given, runs **inside** the same locked section, so a fresh
+    run's state and Abort event are armed before anything else can see the
+    claim. That is what keeps an early cancel from being lost or applied to
+    the run it was not meant for.
+
+    The lock is taken non-blocking and released at once: a job is marked by
+    `_job`, not by holding the lock, so a 3–5 s per-track run never makes
+    another request wait.
+
+    Args:
+        kind (str): "scan", "analysis" or "reanalyze".
+        start (callable | None): Setup to run while the slot is held.
+
+    Raises:
+        HTTPException: 409 when another job holds the slot.
+    """
+    global _job
+    if not _job_lock.acquire(blocking=False):
+        raise HTTPException(409, _job_message(_job))
+    try:
+        if _job is not None:
+            raise HTTPException(409, _job_message(_job))
+        _job = kind
+        if start is not None:
+            start()
+    finally:
+        _job_lock.release()
+
+
+def _release_job(kind: str) -> None:
+    """Free the job slot if this kind still holds it."""
+    global _job
+    with _job_lock:
+        if _job == kind:
+            _job = None
+
+
+def _job_message(kind: str | None) -> str:
+    """The 409 text naming the job in the way."""
+    return _JOB_MESSAGES.get(kind, "Another job is running")
+
+
+# ── Scan — background job + status polling ───────────────
+
+_scan_state: dict = {
+    "running": False,
+    "done": 0,
+    "total": 0,
+    "current_file": "",
+    "current_crate": "",
+    "added": 0,
+    "skipped": 0,
+    "errors": [],
+    "started_at": None,
+    "finished": False,
+    "result": None,
+    "error": None,
+}
+
+
 @router.post("/scan")
 def scan_library(body: ScanRequest):
-    """Scan a root folder recursively for audio files and import them."""
-    root = Path(body.root_path).expanduser().resolve()
+    """Start a background import of every audio file under a root folder.
 
+    Decoding a file for its waveform peaks takes about a second, so a large
+    folder would otherwise be a silent blocking request (REQ-10-SP). Returns
+    at once; poll GET /scan-status for progress.
+
+    Args:
+        body (ScanRequest): The root folder to scan.
+
+    Returns:
+        dict: `{started: True, total: N}`.
+
+    Raises:
+        HTTPException: 400 when the folder does not exist, 409 when another
+            job is running.
+    """
+    root = Path(body.root_path).expanduser().resolve()
     if not root.is_dir():
         raise HTTPException(400, f"Not a directory: {root}")
 
-    # Walk the tree
-    audio_files = []
-    for ext in SUPPORTED_AUDIO_EXTENSIONS:
-        audio_files.extend(root.rglob(f"*{ext}"))
-        audio_files.extend(root.rglob(f"*{ext.upper()}"))
-
-    audio_files = sorted(set(audio_files))
-
+    audio_files = scan_directory(str(root))
     store = get_library_store()
-    added = 0
-    skipped = 0
-    errors = []
+    _claim_job("scan", lambda: _reset_scan_state(len(audio_files)))
+    try:
+        _start_scan(root, audio_files, store)
+    except BaseException:
+        # The thread never ran, so its `finally` will never free the slot:
+        # release it here or every later job answers 409 for the session.
+        _release_job("scan")
+        _scan_state["running"] = False
+        _scan_state["finished"] = True
+        raise
+    return {"started": True, "total": len(audio_files)}
 
-    for file_path in audio_files:
-        file_path_str = str(file_path)
 
-        # Check if already exists
-        if store.find_song_by_path(file_path_str):
-            skipped += 1
-            continue
-
-        # Extract metadata
-        try:
-            meta = extract_metadata(file_path_str)
-        except Exception as e:
-            errors.append(f"{file_path.name}: {e}")
-            continue
-
-        # Derive root_folder from parent folder name relative to root
-        try:
-            rel_parent = file_path.parent.relative_to(root)
-            root_folder = str(rel_parent) if str(rel_parent) != "." else root.name
-        except ValueError:
-            root_folder = root.name
-
-        # Build song record
-        title = meta.get("title") or file_path.stem
-        artist = meta.get("artist") or "Unknown Artist"
-
-        # Idempotent: also check by artist+title (in case file was moved)
-        if store.find_song_by_artist_title(artist, title):
-            skipped += 1
-            continue
-
-        # PF-13: peaks are computed at scan time and persisted on the song
-        # (may be None — the lazy /api/audio/waveform endpoint backfills).
-        peaks = compute_peaks(file_path_str)
-
-        song_data = {
-            "title": title,
-            "artist": artist,
-            "album": meta.get("album"),
-            "year": meta.get("year"),
-            "bpm": meta.get("bpm"),
-            "musical_key": meta.get("musical_key"),
-            "duration": meta.get("duration"),
-            "genre": meta.get("genre"),
-            "file_path": file_path_str,
-            "root_folder": root_folder,
-            "waveform_peaks": peaks,
-            "artwork_url": None,
-            "danceability": 0,
-            "energy": 0,
-            "social_acceptance": 0,
-        }
-
-        song = store.add_song(song_data)
-
-        # PF-14: extract artwork after add_song — add_song overwrites any
-        # client-supplied id (id is generated inside the store), so the real
-        # id only exists on the returned dict. Artwork is a separate update
-        # so a failed extraction never blocks the import.
-        art = extract_artwork(file_path_str, song["id"])
-        if art:
-            store.update_song(song["id"], {"artwork_url": art})
-
-        added += 1
-
-    return {
-        "total": len(audio_files),
-        "added": added,
-        "skipped": skipped,
-        "errors": errors,
+def _reset_scan_state(total: int) -> None:
+    """Replace the scan state with a fresh, running one for `total` files."""
+    global _scan_state
+    _scan_state = {
+        "running": True,
+        "done": 0,
+        "total": total,
+        "current_file": "",
+        "current_crate": "",
+        "added": 0,
+        "skipped": 0,
+        "errors": [],
+        "started_at": _now_iso(),
+        "finished": False,
+        "result": None,
+        "error": None,
     }
+
+
+def _start_scan(root: Path, audio_files: list[Path], store) -> None:
+    """Spawn the scan's thread; its state was armed with the claim."""
+    thread = threading.Thread(target=_run_scan, args=(root, audio_files, store), daemon=True)
+    thread.start()
+
+
+def _run_scan(root: Path, audio_files: list[Path], store) -> None:
+    """Import every file in turn, publishing progress; the job's only writer."""
+    logger.info("Scan started: %d files under %s", len(audio_files), root)
+    try:
+        for file_path in audio_files:
+            _scan_state["current_file"] = file_path.name
+            _scan_state["current_crate"] = _crate_name(root, file_path)
+            _scan_one(store, root, file_path)
+    except Exception as exc:  # noqa: BLE001 — the job must never end silently
+        logger.exception("Scan job failed under %s", root)
+        _scan_state["error"] = str(exc)
+    finally:
+        _finish_scan()
+
+
+def _scan_one(store, root: Path, file_path: Path) -> None:
+    """Import one file and count it — added, skipped or failed — before moving on."""
+    try:
+        outcome = _import_file(store, root, file_path)
+    except Exception as exc:  # noqa: BLE001 — one bad file never stops the scan
+        logger.exception("Scan failed for %s", file_path)
+        _scan_state["errors"].append(f"{file_path.name}: {exc}")
+    else:
+        _scan_state[outcome] += 1
+    finally:
+        _scan_state["done"] += 1
+
+
+def _import_file(store, root: Path, file_path: Path) -> str:
+    """Add one file to the library unless it is already there.
+
+    Args:
+        store: The library store.
+        root (Path): The scan's root folder, which names the crate.
+        file_path (Path): The audio file to import.
+
+    Returns:
+        str: "added" or "skipped".
+
+    Raises:
+        Exception: Whatever metadata or artwork extraction throws; the caller
+            records it against the file.
+    """
+    file_path_str = str(file_path)
+    if store.find_song_by_path(file_path_str):
+        return "skipped"
+
+    meta = extract_metadata(file_path_str)
+    title = meta.get("title") or file_path.stem
+    artist = meta.get("artist") or "Unknown Artist"
+
+    # Idempotent: also check by artist+title (in case file was moved)
+    if store.find_song_by_artist_title(artist, title):
+        return "skipped"
+
+    # PF-13: peaks are computed at scan time and persisted on the song
+    # (may be None — the lazy /api/audio/waveform endpoint backfills).
+    peaks = compute_peaks(file_path_str)
+    song = store.add_song(_song_data(root, file_path, meta, title, artist, peaks))
+
+    # PF-14: extract artwork after add_song — add_song overwrites any
+    # client-supplied id (id is generated inside the store), so the real
+    # id only exists on the returned dict. Artwork is a separate update
+    # so a failed extraction never blocks the import.
+    art = extract_artwork(file_path_str, song["id"])
+    if art:
+        store.update_song(song["id"], {"artwork_url": art})
+
+    return "added"
+
+
+def _song_data(
+    root: Path, file_path: Path, meta: dict, title: str, artist: str, peaks: list[float] | None
+) -> dict:
+    """The song record a new file becomes, with every field the scan sets.
+
+    Args:
+        root (Path): The scan's root folder, which names the crate.
+        file_path (Path): The audio file.
+        meta (dict): What `extract_metadata` read from the file.
+        title (str): The metadata title, or the file name without suffix.
+        artist (str): The metadata artist, or "Unknown Artist".
+        peaks (list[float] | None): The waveform envelope, when it could be read.
+
+    Returns:
+        dict: The record to hand to the store.
+    """
+    return {
+        "title": title,
+        "artist": artist,
+        "album": meta.get("album"),
+        "year": meta.get("year"),
+        "bpm": meta.get("bpm"),
+        "musical_key": meta.get("musical_key"),
+        "duration": meta.get("duration"),
+        "genre": meta.get("genre"),
+        "file_path": str(file_path),
+        "root_folder": _crate_name(root, file_path),
+        "waveform_peaks": peaks,
+        "artwork_url": None,
+        "energy": 0,
+        "people": 0,
+    }
+
+
+def _crate_name(root: Path, file_path: Path) -> str:
+    """The crate a file belongs to: its folder below `root`, else the root's name."""
+    try:
+        rel_parent = file_path.parent.relative_to(root)
+    except ValueError:
+        return root.name
+    return str(rel_parent) if str(rel_parent) != "." else root.name
+
+
+def _finish_scan() -> None:
+    """End the scan job: publish its result (or error), then mark it stopped.
+
+    `running` goes False last: a status read in between must never see a run
+    that stopped without its result, which the views would report as vanished.
+    """
+    if _scan_state["error"] is None:
+        _scan_state["result"] = {
+            "total": _scan_state["total"],
+            "added": _scan_state["added"],
+            "skipped": _scan_state["skipped"],
+            "errors": list(_scan_state["errors"]),
+        }
+    _scan_state["finished"] = True
+    _scan_state["running"] = False
+    _release_job("scan")
+
+
+@router.get("/scan-status")
+def scan_status():
+    """Poll the current (or last) scan job: progress + result/error.
+
+    Returns:
+        dict: a copy of the job state, so a caller never sees it change under
+            its feet mid-serialisation.
+    """
+    state = dict(_scan_state)
+    state["errors"] = list(state["errors"])
+    state["result"] = dict(state["result"]) if state["result"] else None
+    return state
 
 
 @router.get("/crates")
 def list_crates():
-    """List distinct root_folder values with track counts."""
+    """List the library's crates with their track counts.
+
+    The crate rule is the app's `crateOf` (`src/lib/trackFormat.ts`): the
+    stored `root_folder`, else the file's parent folder, else "Unknown". It
+    used to count a row without `root_folder` under "Unknown" while the filter
+    (and the table) called it by its parent folder, so one track belonged to
+    three different crates depending on who asked.
+
+    Returns:
+        list[dict]: `{name, track_count}` per crate, sorted by name.
+    """
     store = get_library_store()
     songs = store.get_songs()
 
     crate_counts: dict[str, int] = {}
     for song in songs:
-        folder = song.get("root_folder") or "Unknown"
+        folder = crate_of(song)
         crate_counts[folder] = crate_counts.get(folder, 0) + 1
 
     crates = [
@@ -144,30 +351,29 @@ def list_crates():
 def browse_directory(path: str | None = None):
     """List subdirectories of `path` for the client-side folder dialog.
 
+    Two boundaries are reachable (REQ-10-BW): the home folder, and the
+    configured root even when it sits outside home. An external drive holding
+    the music was unreachable here while `POST /scan` and `PUT /root` accepted
+    it, so a browser tab could not pick the folder the app already read.
+
     - `path` omitted or "~" → the user's home directory
     - Only directories are returned (no files)
     - Hidden entries (dot-prefixed) are skipped
-    - Access outside the user's home directory is rejected
+    - A path outside both boundaries is rejected
+
+    Args:
+        path (str | None): The folder to list; omitted or "~" is home.
+
+    Returns:
+        dict: `path`, `parent` (None at either boundary) and `directories`.
+
+    Raises:
+        HTTPException: 400 when the path is not a directory, 403 outside both
+            boundaries or on a permission error.
     """
     home = Path.home().resolve()
-    raw = (path or "").strip()
-
-    if raw in ("", "~", "/"):
-        target = home
-    else:
-        target = Path(raw).expanduser()
-        if not target.is_absolute():
-            target = home / target
-        target = target.resolve()
-
-        # Sandboxed to the home directory — this endpoint exists so a browser
-        # tab can pick a music folder on the same machine; nothing beyond
-        # ~ should be reachable through it.
-        if target != home and home not in target.parents:
-            raise HTTPException(
-                403,
-                f"Access denied: {target} is outside your home directory ({home})",
-            )
+    boundaries = _browse_boundaries(home)
+    target = _browse_target(path, home, boundaries)
 
     if not target.is_dir():
         raise HTTPException(400, f"Not a directory: {target}")
@@ -183,12 +389,86 @@ def browse_directory(path: str | None = None):
 
     return {
         "path": str(target),
-        "parent": str(target.parent) if target != home else None,
+        "parent": None if target in boundaries else str(target.parent),
         "directories": [
             {"name": d.name, "path": str(d), "has_children": _has_subdirs(d)}
             for d in dirs
         ],
     }
+
+
+def crate_of(song: dict) -> str:
+    """The crate a song belongs to: its `root_folder`, else its file's folder.
+
+    Args:
+        song (dict): A song row.
+
+    Returns:
+        str: The crate name, or "Unknown" when the row carries no path.
+    """
+    if song.get("root_folder"):
+        return str(song["root_folder"])
+    path = song.get("file_path")
+    if path:
+        parent = Path(str(path)).parent.name
+        if parent:
+            return parent
+    return "Unknown"
+
+
+def _browse_boundaries(home: Path) -> tuple[Path, ...]:
+    """The folders browsing may reach: home, plus the configured root.
+
+    Args:
+        home (Path): The resolved home folder.
+
+    Returns:
+        tuple[Path, ...]: Home first, then the configured root when it is a
+        different folder.
+    """
+    boundaries = [home]
+    try:
+        configured = get_library_store().get_config("root_path")
+    except Exception:  # noqa: BLE001 — an unreadable store must not break browsing
+        return tuple(boundaries)
+    if configured:
+        root = Path(configured).expanduser().resolve()
+        if root != home:
+            boundaries.append(root)
+    return tuple(boundaries)
+
+
+def _browse_target(raw: str | None, home: Path, boundaries: tuple[Path, ...]) -> Path:
+    """The folder a browse request names, refused when it is outside `boundaries`.
+
+    Args:
+        raw (str | None): The requested path; empty or "~" is home.
+        home (Path): The resolved home folder, for relative paths.
+        boundaries (tuple[Path, ...]): The folders browsing may reach.
+
+    Returns:
+        Path: The resolved folder to list.
+
+    Raises:
+        HTTPException: 403 when the folder is outside every boundary.
+    """
+    requested = (raw or "").strip()
+    if requested in ("", "~", "/"):
+        return home
+
+    target = Path(requested).expanduser()
+    if not target.is_absolute():
+        target = home / target
+    target = target.resolve()
+
+    if any(target == b or b in target.parents for b in boundaries):
+        return target
+
+    allowed = " or ".join(str(b) for b in boundaries)
+    raise HTTPException(
+        403,
+        f"Access denied: {target} is outside your home directory or music folder ({allowed})",
+    )
 
 
 def _has_subdirs(d: Path) -> bool:
@@ -241,17 +521,10 @@ def pick_folder():
 # Single in-process job (single-user app): POST /analyze-all starts one
 # daemon thread and returns immediately; the frontend polls
 # GET /analyze-status for progress. No persistence across restarts.
-# (AnalyzeResponse is kept for backward compatibility / OpenAPI schema.)
-
-class AnalyzeResponse(BaseModel):
-    analyzed: int
-    updated: int
-    skipped: int
-    errors: list[str]
-
 
 _analyze_state: dict = {
     "running": False,
+    "stopping": False,
     "done": 0,
     "total": 0,
     "current_title": "",
@@ -260,7 +533,9 @@ _analyze_state: dict = {
     "result": None,
     "error": None,
 }
-_analyze_lock = threading.Lock()
+
+# Abort: asked to stop, the loop breaks before the *next* track (REQ-10-AP).
+_analyze_stop = threading.Event()
 
 
 class ReanalyzeRequest(BaseModel):
@@ -330,8 +605,19 @@ def scan_artwork():
 def analyze_all_songs():
     """Start a background analysis of all songs missing BPM/key.
 
-    Returns immediately — poll GET /analyze-status for progress.
-    Uses librosa — runs locally, ~3-5s per track on CPU.
+    Returns immediately — poll GET /analyze-status for progress. Uses librosa,
+    about 3–5 s per track on CPU.
+
+    The list is counted **once**, here, and handed to the loop, so the status'
+    `total` and the loop's own count can never disagree. The track list also
+    lets a track disappear from under the run without shifting the count.
+
+    Returns:
+        dict: `{started: True, total: N}`, or the all-zero summary when
+            nothing is missing a BPM.
+
+    Raises:
+        HTTPException: 409 when a scan or another analysis is running.
 
     Notes:
         The job thread mutates the library store while the rest of the
@@ -339,64 +625,85 @@ def analyze_all_songs():
         app (matches the existing design where scan/analyze already
         mutate from request handlers).
     """
-    global _analyze_state
-
     store = get_library_store()
+    to_analyze = _songs_missing_bpm(store)
 
-    # Non-blocking, like the per-track route: a per-track run can hold this
-    # lock, and waiting it out would hang the Import page with no message.
-    if not _analyze_lock.acquire(blocking=False):
-        raise HTTPException(409, "An analysis is already running")
+    # Claim first, decide after: the one-job rule (REQ-10-AP) holds even for a
+    # run with nothing to do. The state and the Abort event are armed with the
+    # claim, under the lock `analyze-cancel` also takes.
+    if not to_analyze:
+        _claim_job("analysis")
+        _release_job("analysis")
+        return analyze_all_missing_bpm(store, songs=[])
+
+    _claim_job("analysis", lambda: _reset_analysis_state(len(to_analyze)))
     try:
-        if _analyze_state["running"]:
-            raise HTTPException(409, "Analysis already running")
+        thread = threading.Thread(target=_run_analysis, args=(store, to_analyze), daemon=True)
+        thread.start()
+    except BaseException:
+        # Same as the scan: no thread means no `finally` to free the slot.
+        _release_job("analysis")
+        _analyze_state["running"] = False
+        _analyze_state["finished"] = True
+        raise
+    return {"started": True, "total": len(to_analyze)}
 
-        # Compute total synchronously: songs missing BPM whose file exists.
-        songs = store.get_songs()
-        to_analyze = [
-            s for s in songs
-            if s.get("bpm") is None
-            and s.get("file_path")
-            and Path(s["file_path"]).exists()
-        ]
-        total = len(to_analyze)
 
-        if total == 0:
-            # Nothing to analyze — return the summary directly, no thread
-            # (analyze_all_missing_bpm returns the all-zero summary).
-            return analyze_all_missing_bpm(store)
+def _songs_missing_bpm(store) -> list[dict]:
+    """The songs the job would fill: no BPM, with a file still on disk."""
+    songs = store.get_songs()
+    return [
+        s for s in songs
+        if s.get("bpm") is None
+        and s.get("file_path")
+        and Path(s["file_path"]).exists()
+    ]
 
-        _analyze_state = {
-            "running": True,
-            "done": 0,
-            "total": total,
-            "current_title": "",
-            "started_at": _now_iso(),
-            "finished": False,
-            "result": None,
-            "error": None,
-        }
+
+def _reset_analysis_state(total: int) -> None:
+    """Arm the analysis state and clear its Abort event, before the thread exists.
+
+    Cleared here rather than in the thread: a cancel that arrived between the
+    claim and a later reset would otherwise make the fresh run stop at once.
+    Running inside the claim's locked section is what makes that ordering safe.
+
+    Args:
+        total (int): The number of tracks the run was handed.
+    """
+    global _analyze_state
+    _analyze_stop.clear()
+    _analyze_state = {
+        "running": True,
+        "stopping": False,
+        "done": 0,
+        "total": total,
+        "current_title": "",
+        "started_at": _now_iso(),
+        "finished": False,
+        "result": None,
+        "error": None,
+    }
+
+
+def _run_analysis(store, to_analyze: list[dict]) -> None:
+    """Analyze the handed tracks, publishing progress; the job's only writer."""
+    logger.info("Analysis started: %d tracks", len(to_analyze))
+    try:
+        summary = analyze_all_missing_bpm(
+            store,
+            progress_cb=_update_progress,
+            songs=to_analyze,
+            should_stop=_analyze_stop.is_set,
+        )
+        _analyze_state["result"] = summary
+    except Exception as exc:  # noqa: BLE001 — job must never crash silently
+        logger.exception("Analysis job failed")
+        _analyze_state["error"] = str(exc)
     finally:
-        _analyze_lock.release()
-
-    def _run_analysis():
-        global _analyze_state
-        try:
-            summary = analyze_all_missing_bpm(
-                store,
-                progress_cb=_update_progress,
-            )
-            _analyze_state["result"] = summary
-        except Exception as e:  # noqa: BLE001 — job must never crash silently
-            _analyze_state["error"] = str(e)
-        finally:
-            _analyze_state["running"] = False
-            _analyze_state["finished"] = True
-
-    thread = threading.Thread(target=_run_analysis, daemon=True)
-    thread.start()
-
-    return {"started": True, "total": total}
+        # `running` last, as in _finish_scan: a read in between sees the result.
+        _analyze_state["finished"] = True
+        _analyze_state["running"] = False
+        _release_job("analysis")
 
 
 def _update_progress(done: int, total: int, current_title: str) -> None:
@@ -412,10 +719,35 @@ def _now_iso() -> str:
 
 @router.get("/analyze-status")
 def analyze_status():
-    """Poll the current (or last) analysis job: progress + result/error."""
+    """Poll the current (or last) analysis job: progress + result/error.
+
+    Returns:
+        dict: a copy of the job state with `stopping` derived from the Abort
+            event, so the flag can never outlive the run that set it.
+    """
     state = dict(_analyze_state)
+    state["stopping"] = bool(state["running"]) and _analyze_stop.is_set()
     state["result"] = dict(state["result"]) if state["result"] else None
     return state
+
+
+@router.post("/analyze-cancel")
+def cancel_analysis():
+    """Ask the running analysis to stop after the track it is on.
+
+    Returns:
+        dict: `{stopping: True}`.
+
+    Raises:
+        HTTPException: 409 when no analysis is running — the app then only
+            refreshes the status instead of reporting an error.
+    """
+    with _job_lock:
+        if _job != "analysis" or not _analyze_state["running"]:
+            raise HTTPException(409, "No analysis is running")
+        _analyze_stop.set()
+    logger.info("Analysis stopped after the current track was requested")
+    return {"stopping": True}
 
 
 @router.post("/analyze/{song_id}", response_model=ReanalyzeResponse)
@@ -430,6 +762,19 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
     The optional ``bpm_min``/``bpm_max`` is a hint, not a filter: the tempo
     estimate is biased toward the window, and when the detected BPM does not
     land inside it the stored BPM is left unchanged and ``bpm_fit`` is False.
+
+    Args:
+        song_id (str): The track to analyze.
+        body (ReanalyzeRequest | None): An optional BPM range hint.
+
+    Returns:
+        ReanalyzeResponse: what the detector read, whether it fit the range,
+        and the fields that were actually written.
+
+    Raises:
+        HTTPException: 404 for an unknown song or a file that is gone, 400 for
+            a song without a file path, 409 while another job runs, 422 for a
+            malformed range, 500 when the detector fails.
     """
     bpm_range = _validate_bpm_range(body)
 
@@ -442,45 +787,7 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
     if not file_path:
         raise HTTPException(400, "Song has no file_path")
 
-    # One analysis at a time, in both directions. Two guards are needed, not
-    # one: the batch job releases this lock as soon as it has spawned its
-    # thread, so an in-flight batch is visible only through `running`, while an
-    # in-flight per-track run is visible only through the lock (it never sets
-    # `running`). Refuse rather than wait, so the caller gets a message instead
-    # of a silent 3-5 second hang (REQ-10-AP).
-    if not _analyze_lock.acquire(blocking=False):
-        raise HTTPException(409, "An analysis is already running")
-    try:
-        if _analyze_state["running"]:
-            raise HTTPException(409, "An analysis is already running")
-
-        try:
-            result = analyze_track(file_path, bpm_range=bpm_range)
-        except FileNotFoundError:
-            raise HTTPException(404, f"Audio file not found: {file_path}")
-        except Exception as e:
-            raise HTTPException(500, f"Analysis failed: {e}")
-
-        # Re-read under the lock: the 3-5 s run is plenty of time for an inline
-        # edit, and `changed` must compare against what the song holds *now*.
-        current = store.get_song(song_id) or song
-
-        updates = {}
-        # A hint that did not fit the signal must not overwrite the stored BPM.
-        if result.get("bpm") is not None and result.get("bpm_fit", True):
-            updates["bpm"] = result["bpm"]
-        if result.get("musical_key") is not None:
-            updates["musical_key"] = result["musical_key"]
-        if result.get("duration") is not None and current.get("duration") is None:
-            updates["duration"] = result["duration"]
-
-        # `applied` means "changed", not "detected" — the popup must be able to
-        # say a run changed nothing without re-deriving it from a stale copy.
-        changed = {k: v for k, v in updates.items() if current.get(k) != v}
-        if updates:
-            store.update_song(song_id, updates)
-    finally:
-        _analyze_lock.release()
+    result, changed = _reanalyze(store, song_id, file_path, bpm_range, song)
 
     return ReanalyzeResponse(
         song_id=song_id,
@@ -490,6 +797,75 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
         bpm_fit=bool(result.get("bpm_fit", True)),
         applied=changed,
     )
+
+
+def _reanalyze(store, song_id: str, file_path: str, bpm_range, song: dict) -> tuple[dict, dict]:
+    """Claim the job slot, analyze one track and write what it found.
+
+    Args:
+        store: The library store.
+        song_id (str): The track.
+        file_path (str): Its file.
+        bpm_range (tuple[float, float] | None): The optional hint.
+        song (dict): The song as it was read before the run.
+
+    Returns:
+        tuple[dict, dict]: the detector's result and the fields that changed.
+
+    Raises:
+        HTTPException: 409 while another job runs, 404 when the file is gone,
+            500 when the detector fails.
+    """
+    # One analysis at a time, in both directions: a per-track run claims the
+    # same job slot the batch job and the scan use, and holds it for its 3–5 s.
+    # Refuse rather than wait, so the caller gets a message instead of a silent
+    # hang (REQ-10-AP).
+    _claim_job("reanalyze")
+    try:
+        try:
+            result = analyze_track(file_path, bpm_range=bpm_range)
+        except FileNotFoundError:
+            raise HTTPException(404, f"Audio file not found: {file_path}")
+        except Exception as e:
+            raise HTTPException(500, f"Analysis failed: {e}")
+
+        # Re-read after the run: the 3-5 s is plenty of time for an inline
+        # edit, and `changed` must compare against what the song holds *now*.
+        current = store.get_song(song_id) or song
+        updates, changed = _reanalyze_updates(song_id, current, result)
+        if updates:
+            store.update_song(song_id, updates)
+    finally:
+        _release_job("reanalyze")
+    return result, changed
+
+
+def _reanalyze_updates(song_id: str, current: dict, result: dict) -> tuple[dict, dict]:
+    """What one re-analysis would write, and which of it is a change.
+
+    Args:
+        song_id (str): The track, for the log line.
+        current (dict): The song as it is *now* — an inline edit during the
+            3–5 s run must win the comparison.
+        result (dict): What `analyze_track` detected.
+
+    Returns:
+        tuple[dict, dict]: the fields to write and the subset that differs from
+        `current` (`applied` means changed, not detected, so the popup can say
+        a run changed nothing without re-deriving it from a stale copy).
+    """
+    updates = {}
+    # A hint that did not fit the signal must not overwrite the stored BPM.
+    if result.get("bpm") is not None and result.get("bpm_fit", True):
+        updates["bpm"] = result["bpm"]
+    if result.get("musical_key") is not None:
+        updates["musical_key"] = result["musical_key"]
+    if result.get("duration") is not None and current.get("duration") is None:
+        updates["duration"] = result["duration"]
+
+    changed = {k: v for k, v in updates.items() if current.get(k) != v}
+    logger.debug("Re-analysis for %s would write %s", song_id, sorted(updates))
+    return updates, changed
 
 
 def _validate_bpm_range(body: ReanalyzeRequest | None) -> tuple[float, float] | None:

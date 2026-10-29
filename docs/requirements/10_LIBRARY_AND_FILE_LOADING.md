@@ -1,7 +1,7 @@
 # Library And File Loading
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-23
 Source: Requirements.md sections 4, 12; new set-planning workflow
 
 ## Root Folder Concept
@@ -75,16 +75,77 @@ from loose file picks.
 4. Show stats: total, added, skipped, errors
 5. User can then browse, tag, and annotate the imported tracks
 
+### Scan progress (REQ-10-SP, PF-86; built 2026-10-23, issue #46)
+A scan decodes every file for its waveform peaks (~1.4 s per file measured),
+so a large folder takes minutes. It must never be a silent blocking request.
+- The scan runs as a **background job**. `POST /api/library/scan` returns at
+  once with `{started: true, total: N}`.
+- `GET /api/library/scan-status` reports `running`, `finished`, `done`,
+  `total`, `current_file` (the file name, not the path), `current_crate`,
+  `added`, `skipped`, `errors` (a list of `"<file>: <reason>"` strings), and
+  once finished `result` (`{total, added, skipped, errors}`) or `error`.
+- `done` counts **files finished**: added, skipped or failed. The first status
+  reads `0 / N`, the last `N / N`; `current_file` is the file in progress.
+  Progress comes from these counts, never from a timer.
+- The job always ends with `running: false` and a `result` or an `error`, also
+  when a file throws, so no view spins forever.
+- **Where it shows** (Tim, 2026-10-23: *"yes, outside, toas with loading bar on
+  library page, if clicked away only on the import page"*):
+  - On the **Import page**: a progress bar, `done / total`, and the current
+    track with its crate. Leaving the page and coming back mid-scan shows it
+    again (the page reads the status on mount).
+  - **Outside the Import page** (the library page, and the other pages too —
+    the toast host is app-wide): a **progress toast** with the same bar, count
+    and current track. The toast can be closed; once closed it stays closed
+    for that scan, and the progress shows only on the Import page.
+- **When it finishes** (Tim: *"no, just that it finished, no stats"*): a toast
+  says **"Scan finished"**, without numbers, on whatever page is open. The
+  Import page shows the summary (added / skipped / errors) only for a scan that
+  finished while the page was open.
+- Stopping a scan is not part of this (not requested).
+
+### Slim library listing (REQ-10-SL; issue #47)
+`GET /api/songs` carries each track's 200-float `waveform_peaks`, which is the
+bulk of the body and something no list view needs: measured 3,735,141 bytes at
+1,907 tracks, of which the peaks are most (62–71 % across the measurements on
+record, about 1.2 KB per track).
+- `?slim=true` returns the same rows with the `waveform_peaks` key absent —
+  not null. Everything else is identical for value, including the model
+  defaults a legacy row lacks (`rank: 0`, `phase_tags: []`, `vibe_tags: []`),
+  because the projection runs after validation.
+- **The app keeps the full rows.** `GET /api/songs` without the parameter is
+  unchanged, so the library table, the track map and the player keep their
+  waveforms; nothing in the frontend sends `slim`.
+- This is a **projection, not pagination**: the same track count, the same
+  order, no filter applied.
+- `get_track` on the MCP side (`34_MCP_SERVER.md`) is the one read that asks
+  for the whole row, peaks included.
+
 ### Backend folder browsing (picker support)
 - `GET /api/library/browse?path=<dir>` lists a directory's subfolders for
   the client-side tree dialog
-- Only directories are returned; access outside the user's home directory
-  is rejected
+- Only directories are returned; access outside the home folder and the
+  configured root is rejected (REQ-10-BW below)
 - Used by the browser-mode folder dialog; desktop mode uses the PyWebView
   native dialog directly
 - In the dialog a folder opens on click or Enter (focus moves to its first
   subfolder); the use button takes the folder that is open. Paths inside the
   home folder show as `~/…`; a folder without subfolders says so
+
+#### The sandbox allows the configured root too (REQ-10-BW; issue #47)
+The browser was sandboxed to `$HOME` only, so a library on an external drive
+could not be reached — while `POST /api/library/scan` and `PUT
+/api/library/root` accepted the very same path. Measured on the real library:
+the root is `/media/tim/Extreme SSD/#MUSIC`, and browsing it answered `403
+Access denied: … is outside your home directory (/home/tim)`.
+- A path is allowed when it is the home directory, the **configured root**
+  (`_config.root_path`, resolved), or inside either. Everything else keeps the
+  403 and the same message shape, naming what was refused.
+- `parent` is `null` at both boundaries (home and root), so the dialog's "up"
+  control stops there.
+- A library with no root configured falls back to the home folder alone.
+- The widening is the browser's, not the scan's: neither `POST /scan` nor `PUT
+  /root` changes what it accepts.
 
 ### Re-scan
 - Re-scanning the same root folder only adds new files — existing songs are
@@ -92,21 +153,60 @@ from loose file picks.
 - Files that no longer exist on disk are flagged but NOT deleted (user confirms)
 
 ### Audio analysis progress (REQ-10-AP)
-- "Analyze BPM/Key" runs as a **background job with visible progress** —
-  the user sees `Analyzing (3/47)…` with the current track title, a
-  progress bar, and elapsed/remaining feel. A silent multi-minute
-  blocking request is not acceptable.
-- Backend: analysis runs async; progress is exposed at
-  `GET /api/library/analyze-status` (done / total / current_title /
-  running). The frontend polls it while a job is running.
-- Only one analysis job runs at a time; starting a new one while one is
-  running is rejected with a clear message. This holds in **both** directions:
-  the per-track re-analyze below refuses to start while a library-wide job
-  runs, and the library-wide job refuses to start while a per-track run is in
+- "Analyze BPM and key" runs as a **background job with visible progress**. A
+  silent multi-minute blocking request is not acceptable.
+- Backend: `POST /api/library/analyze-all` starts the job and returns
+  `{started: true, total: N}`. `GET /api/library/analyze-status` reports
+  `running`, `finished`, `stopping`, `done`, `total`, `current_title`, and once
+  finished `result` (`{analyzed, updated, skipped, errors, cancelled}`) or
+  `error`. `total` is counted once, at the start, and the status reports that
+  same number.
+- `done` counts **tracks finished** (analyzed, skipped or failed): the first
+  status reads `0 / N`, the last `N / N`; `current_title` is the track in
   progress.
+- **One background job at a time.** Library-wide analysis, per-track re-analyze
+  (below) and the folder scan (REQ-10-SP) exclude each other in the backend:
+  starting one while another runs is refused with 409 and a message naming the
+  running job (checked and claimed under one lock). The Import page disables
+  folder pick, Re-scan and Analyze while any job runs, including a job it
+  picked back up on load, and while a start request is still on its way. A
+  start refused with 409 reads both statuses, so a job started elsewhere (an
+  MCP agent, a second tab) shows its progress here too, and the message is a
+  notice, not a failure.
 - The job is per-run (in-memory), not persisted to JSON — if the backend
   restarts mid-job, progress is simply gone and the user can restart.
-- Final summary (analyzed/updated/skipped/errors) is shown on completion.
+- When a job (analysis or scan) ends, the app fires
+  `klangkurator:library-changed`, so the library table refreshes.
+- **No progress spins forever.** A run that vanished in a backend restart
+  (neither a result nor an error) ends with "The scan stopped" or "The
+  analysis stopped", never "finished". If the backend stops answering for
+  about 10 s (20 failed reads in a row), the progress ends with "Lost contact
+  with the app".
+
+#### Where progress shows, and Abort (PF-86; built 2026-10-23, issue #46)
+The same rule as the scan (REQ-10-SP), so both jobs behave alike:
+- On the **Import page**: the progress bar, `done / total`, the current title,
+  and an **Abort** button.
+- **Outside the Import page**: a **progress toast** with the bar, `done /
+  total` songs, the current title and **Abort**. It stacks with the regular
+  toasts and is never replaced by them. It can be closed; once closed it stays
+  closed for that run, and progress and Abort remain on the Import page.
+  Escape does not close it (only its close button does), and the Import page
+  counts with or without a trailing slash. Below 640 px toasts sit under the
+  mobile header, and their close button is always visible on touch screens.
+- **Abort** stops the job **after the track it is on** (3–5 s). Tracks already
+  analyzed keep their BPM/key, because every track is saved as it finishes.
+  While stopping, the progress reads "Stopping after this track…" and Abort is
+  disabled. `POST /api/library/analyze-cancel` asks the running job to stop; it
+  answers 409 when none runs, and the app then only refreshes the status (no
+  error message). A stop requested during the last track ends the job normally
+  (`cancelled: false`).
+- When the job ends, a toast gives the summary — "Analysis complete" or
+  "Analysis stopped", with analyzed / updated / skipped — and the Import page
+  keeps its "Last run" line.
+- A page reload (or a second tab) while a job runs picks it back up: the app
+  reads both statuses once on start. Closing the desktop window stops the
+  backend, and the job with it.
 
 ### Per-track re-analyze (REQ-10-RA, PF-79; issue #6)
 - A track's **detail page** offers `Re-analyze` next to Play / Edit /

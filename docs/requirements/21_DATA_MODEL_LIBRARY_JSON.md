@@ -1,7 +1,7 @@
 # Data Model: library.json
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-23
 Source: Requirements.md sections 2.3, 3, 5, 7
 
 ## Schema
@@ -24,9 +24,8 @@ Source: Requirements.md sections 2.3, 3, 5, 7
       "subgenres": ["Organic", "Atmospheric"],
       "genre": "Melodic Techno",
       "genres": ["Melodic Techno", "Organic"],
-      "danceability": 3,
       "energy": 2,
-      "social_acceptance": 2,
+      "people": 3,
       "drum_notes": "Soft four-on-the-floor, organic percussion",
       "element_notes": "Warm pads, piano lead at breakdown",
       "mixing_notes": "Start at breakdown in middle for opening sets",

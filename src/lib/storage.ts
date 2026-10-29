@@ -23,9 +23,10 @@ export interface Song {
   year?: number;
   file_path: string;
   artwork_url?: string;
-  danceability: number;
+  /** Energy and people are the two 0–5 ratings, one decimal each; 0 = unrated. */
   energy: number;
-  social_acceptance: number;
+  /** 0–5, one decimal; 0 or missing reads as unrated (issue #48). */
+  people?: number;
   rank?: number;
   drum_notes?: string;
   element_notes?: string;
@@ -97,7 +98,7 @@ export interface Playlist {
   description?: string;
   color: string;
   is_smart_playlist: boolean;
-  search_criteria?: any;
+  search_criteria?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -449,5 +450,5 @@ export function switchToLocal() { _instance = new LocalStorageImpl(); }
 
 // Backward-compatible export — components call `storage.method()` and it just works.
 export const storage = new Proxy({} as StorageInterface, {
-  get(_, prop) { const s = resolve(); return (s as any)[prop]; },
+  get(_, prop) { return Reflect.get(resolve(), prop); },
 });

@@ -123,33 +123,27 @@ def test_bpm_outside_the_range_is_reported_and_never_written(track):
     assert get_library_store().get_song(song_id)["bpm"] == 128.0
 
 
-def test_a_second_analysis_is_refused_while_one_runs(track):
-    """`blocking=False`: a held lock answers 409 at once rather than waiting."""
+def test_a_second_analysis_is_refused_while_one_runs(track, monkeypatch):
+    """A per-track run holds the one job slot; a second one answers 409 at once."""
     song_id, _ = track()
-    library_api._analyze_lock.acquire()
-    try:
-        res = client.post(f"/api/library/analyze/{song_id}")
-    finally:
-        library_api._analyze_lock.release()
-    assert res.status_code == 409
-
-
-def test_a_per_track_run_is_refused_while_a_batch_job_runs(track, monkeypatch):
-    """The batch job's lock is free once its thread is spawned, so `running` is
-    the guard that has to hold the per-track route back."""
-    song_id, _ = track()
-    monkeypatch.setitem(library_api._analyze_state, "running", True)
+    monkeypatch.setattr(library_api, "_job", "reanalyze")
     res = client.post(f"/api/library/analyze/{song_id}")
     assert res.status_code == 409
 
 
-def test_a_batch_start_is_refused_while_a_per_track_run_holds_the_lock(track):
+def test_a_per_track_run_is_refused_while_a_batch_job_runs(track, monkeypatch):
+    """The batch job keeps the slot while its thread runs, so the per-track
+    route is held back by the slot, not by a held lock."""
+    song_id, _ = track()
+    monkeypatch.setattr(library_api, "_job", "analysis")
+    res = client.post(f"/api/library/analyze/{song_id}")
+    assert res.status_code == 409
+
+
+def test_a_batch_start_is_refused_while_a_per_track_run_holds_the_slot(track, monkeypatch):
     """BC-7, both directions: the batch route refuses, it does not wait."""
-    library_api._analyze_lock.acquire()
-    try:
-        res = client.post("/api/library/analyze-all")
-    finally:
-        library_api._analyze_lock.release()
+    monkeypatch.setattr(library_api, "_job", "reanalyze")
+    res = client.post("/api/library/analyze-all")
     assert res.status_code == 409
 
 

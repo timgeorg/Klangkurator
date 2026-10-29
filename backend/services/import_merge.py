@@ -20,6 +20,8 @@ Principles (each carries its contract clause):
 
 from __future__ import annotations
 
+from backend.models.song import SongBase
+
 ENVELOPE_FORMAT = "klangkurator-library"
 ENVELOPE_VERSION = 1
 DATA_KEYS = (
@@ -28,12 +30,20 @@ DATA_KEYS = (
 )
 DURATION_TOLERANCE_S = 2.0
 
-# User-authored, conflict-resolvable song fields (MC-3). Ratings count as
+#: Every key a stored song row may carry: the model's field names plus their
+#: aliases. Rows store `mainGenre`, the alias of `main_genre`; matching on the
+#: field names alone dropped every imported main genre.
+_SONG_KEYS = frozenset(
+    key for name, field in SongBase.model_fields.items() for key in (name, field.alias) if key
+)
+
+# User-authored, conflict-resolvable song fields (MC-3), by their stored key:
+# `mainGenre` is how rows hold the main genre (the model's alias). Ratings count as
 # empty when 0 (0 = unrated across the app), strings when None/"", arrays
 # when []. file_path is deliberately absent: paths are machine-truth (MC-2).
 CONFLICT_FIELDS = (
-    "energy", "danceability", "social_acceptance", "rank", "bpm",
-    "musical_key", "year", "main_genre", "drum_notes", "element_notes",
+    "energy", "people", "rank", "bpm",
+    "musical_key", "year", "mainGenre", "drum_notes", "element_notes",
     "mixing_notes", "transition_notes", "lyrics", "phase_tags", "vibe_tags",
 )
 
@@ -41,7 +51,7 @@ CONFLICT_FIELDS = (
 def _empty(field: str, value) -> bool:
     if value is None:
         return True
-    if field in ("energy", "danceability", "social_acceptance", "rank"):
+    if field in ("energy", "people", "rank"):
         return value == 0
     if field in ("phase_tags", "vibe_tags"):
         return len(value) == 0
@@ -51,7 +61,7 @@ def _empty(field: str, value) -> bool:
 def _values_differ(field: str, a, b) -> bool:
     # Numbers compare numerically so a stored int 3 vs imported float 3.0 is
     # NOT a conflict (post-#13 ratings carry decimals).
-    if field in ("energy", "danceability", "social_acceptance", "rank", "bpm", "year"):
+    if field in ("energy", "people", "rank", "bpm", "year"):
         try:
             return float(a) != float(b)
         except (TypeError, ValueError):
@@ -217,7 +227,16 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     """Execute a planned import. resolutions = [{song_id, field, overwrite}].
 
     Absent resolution ⇒ local value wins (fail-safe default, MC-4).
-    Returns the human-facing summary.
+
+    Args:
+        envelope (dict): The validated export envelope.
+        resolutions (list[dict]): The user's per-field conflict answers.
+        library: The library store.
+        blocks: The blocks store.
+        sets: The sets store.
+
+    Returns:
+        dict: The human-facing summary.
     """
     error = _envelope_error(envelope)
     if error:
@@ -242,8 +261,11 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
         export_ids[s.get("id")] = local["id"] if local else None
         if local is None:
             # add_song mints a fresh machine-local id (MC-5) and returns it;
-            # a foreign "id" key is dropped so it can never leak through
-            new_song = {k: v for k, v in s.items() if k != "id"}
+            # a foreign "id" key is dropped so it can never leak through.
+            # Keys the model no longer has are dropped too: an export made
+            # before a field was retired would otherwise write the dead key
+            # into library.json, where it would ride into every later export.
+            new_song = {k: v for k, v in s.items() if k in _SONG_KEYS}
             for f in CONFLICT_FIELDS:
                 if _empty(f, new_song.get(f)):
                     new_song.pop(f, None)

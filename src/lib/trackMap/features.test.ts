@@ -10,9 +10,8 @@ function song(overrides: Partial<TrackMapSong> & { id: string }): TrackMapSong {
   return {
     title: overrides.id,
     artist: "Artist",
-    danceability: 0,
     energy: 0,
-    social_acceptance: 0,
+    people: 0,
     ...overrides,
   };
 }
@@ -102,10 +101,10 @@ describe("toFeatures", () => {
   });
 
   it("treats a rating of 0 as unrated and keeps the rated ones", () => {
-    const features = toFeatures(song({ id: "a", energy: 0, danceability: 3.5, social_acceptance: 5 }));
+    const features = toFeatures(song({ id: "a", energy: 0, people: 5 }));
     expect(features.energy).toBeUndefined();
-    expect(features.danceability).toBe(3.5);
-    expect(features.social_acceptance).toBe(5);
+    expect(features.people).toBe(5);
+    expect(toFeatures(song({ id: "a", people: 3.5 })).people).toBe(3.5);
   });
 
   it("drops 0 and non-finite years and durations", () => {

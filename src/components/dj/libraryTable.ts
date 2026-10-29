@@ -1,4 +1,4 @@
-/** Shared types and constants for the library table (header, rows, page). */
+/** Shared types, constants and helpers for the library table (header, rows, page, crate tabs). */
 
 import { crateOf } from "@/lib/trackFormat";
 import type { Song } from "@/lib/storage";
@@ -21,8 +21,7 @@ export interface FilterState {
   bpm: RangeValue;
   key: string[];
   energy: RangeValue;
-  danceability: RangeValue;
-  social: RangeValue;
+  people: RangeValue;
   rank: RangeValue;
   duration: RangeValue;
   tags: string[];
@@ -60,8 +59,7 @@ export const FILTER_CONFIG: Record<
   genre: { type: "multiselect", optionsKey: "mainGenres" },
   subgenres: { type: "multiselect", optionsKey: "subgenres" },
   energy: { type: "range", min: 0, max: 5 },
-  danceability: { type: "range", min: 0, max: 5 },
-  social: { type: "range", min: 0, max: 5 },
+  people: { type: "range", min: 0, max: 5 },
   rank: { type: "range", min: 1, max: 5 },
   duration: { type: "range", min: 0, max: 600 },
   tags: { type: "multiselect", optionsKey: "tags" },
@@ -78,8 +76,7 @@ export const INITIAL_FILTERS: FilterState = {
   bpm: {},
   key: [],
   energy: {},
-  danceability: {},
-  social: {},
+  people: {},
   rank: {},
   duration: {},
   tags: [],
@@ -134,10 +131,8 @@ export function filterSongs(
     if (filters.bpm.max !== undefined && (!song.bpm || song.bpm > filters.bpm.max)) return false;
     if (filters.energy.min !== undefined && song.energy < filters.energy.min) return false;
     if (filters.energy.max !== undefined && song.energy > filters.energy.max) return false;
-    if (filters.danceability.min !== undefined && song.danceability < filters.danceability.min) return false;
-    if (filters.danceability.max !== undefined && song.danceability > filters.danceability.max) return false;
-    if (filters.social.min !== undefined && song.social_acceptance < filters.social.min) return false;
-    if (filters.social.max !== undefined && song.social_acceptance > filters.social.max) return false;
+    if (filters.people.min !== undefined && (song.people ?? 0) < filters.people.min) return false;
+    if (filters.people.max !== undefined && (song.people ?? 0) > filters.people.max) return false;
     if (filters.rank.min !== undefined && (song.rank ?? 0) < filters.rank.min) return false;
     if (filters.duration.min !== undefined && (!song.duration || song.duration < filters.duration.min)) return false;
     if (filters.duration.max !== undefined && (!song.duration || song.duration > filters.duration.max)) return false;
@@ -147,6 +142,53 @@ export function filterSongs(
     }
     return true;
   });
+}
+
+/**
+ * The selection after a Shift+click on a crate tab: the crate leaves the
+ * selection when it is in it, and joins it at the end when it is not.
+ *
+ * @param selection - The selected crates, in the order they were picked.
+ * @param crate - The crate that was Shift+clicked.
+ * @returns The selection with `crate` added or removed; the others keep their order.
+ */
+export function toggleCrate(selection: string[], crate: string): string[] {
+  return selection.includes(crate) ? selection.filter((selected) => selected !== crate) : [...selection, crate];
+}
+
+/**
+ * The selection after a plain click on a crate tab: that crate alone, or none
+ * when it was the only one selected (the click clears back to All tracks).
+ *
+ * @param selection - The selected crates, in the order they were picked.
+ * @param crate - The crate that was clicked.
+ * @returns `[crate]`, or `[]` when `selection` was exactly `[crate]`.
+ */
+export function clickCrate(selection: string[], crate: string): string[] {
+  return selection.length === 1 && selection[0] === crate ? [] : [crate];
+}
+
+/**
+ * The crate tabs the bar shows and how many it still hides (issue #49). All of
+ * them when the bar is expanded or there are no more than `limit`; otherwise
+ * the first `limit` in tab order, then every selected crate beyond them in tab
+ * order, so a selection is never hidden.
+ *
+ * @param crates - Every crate, in tab order.
+ * @param selection - The crates the Crate filter holds, in pick order.
+ * @param expanded - Whether the bar shows every crate.
+ * @param limit - How many crates fit before the bar collapses (10).
+ * @returns The crates to show, in tab order, and the number still hidden.
+ */
+export function visibleCrates(
+  crates: string[],
+  selection: string[],
+  expanded: boolean,
+  limit = 10,
+): { shown: string[]; hidden: number } {
+  if (expanded || crates.length <= limit) return { shown: [...crates], hidden: 0 };
+  const shown = [...crates.slice(0, limit), ...crates.slice(limit).filter((crate) => selection.includes(crate))];
+  return { shown, hidden: crates.length - shown.length };
 }
 
 export function isFilterActive(type: FilterType, value: FilterValue): boolean {

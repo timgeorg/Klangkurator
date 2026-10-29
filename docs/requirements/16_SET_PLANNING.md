@@ -1,7 +1,7 @@
 # Set Planning
 
 Status: Active
-Last Updated: 2026-10-14
+Last Updated: 2026-10-23
 Source: New — based on set planning session 2026-08-08
 
 ## Vision
@@ -113,7 +113,7 @@ not used by the UI):
   - **Vibe Tags** column (dark, uplifting, tearjerker, banger, etc.)
   - **In Set** indicator (already assigned to a phase)
 - Filters: all library filters + phase tag filter + vibe tag filter
-- Sort by: BPM, energy, danceability, social, duration, artist, title
+- Sort by: BPM, energy, people, duration, artist, title
 - Search across notes
 
 ### Step 3 — Phase Board

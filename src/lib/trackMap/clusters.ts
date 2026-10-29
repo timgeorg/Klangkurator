@@ -287,8 +287,7 @@ export function clusterFeatures(id: string, members: readonly ClusterTrack[]): C
     subgenres: sharedValues(members.map((member) => member.subgenres)),
     tagIds: sharedValues(members.map((member) => member.tagIds)),
     energy: mean(members.map((member) => member.energy)),
-    danceability: mean(members.map((member) => member.danceability)),
-    social_acceptance: mean(members.map((member) => member.social_acceptance)),
+    people: mean(members.map((member) => member.people)),
     memberIds: members.map((member) => member.id),
   };
 }

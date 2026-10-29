@@ -113,6 +113,10 @@ each other, and a track Z that differs in all nine
 **then** Y is the first entry of X's nearest tracks, at 100 %, and Z is not
 before it.
 
+> **Superseded in part by issue #48 (2026-10-23):** danceability and social
+> acceptance became one input, `people`, so the defaults have eight inputs.
+> Read "energy, danceability and social acceptance 3" as "energy and people 3".
+
 ### TM-M5 — Play is a run of one
 **Given** a selected track
 **when** the user presses Play in its details

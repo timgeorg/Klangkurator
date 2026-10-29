@@ -1,7 +1,7 @@
 # Song Model
 
 Status: Active
-Last Updated: 2026-08-09
+Last Updated: 2026-10-23
 Source: Requirements.md section 3
 
 ## Song Entity
@@ -37,14 +37,20 @@ Each song stores:
 ### DJ Ratings (0–5 scale)
 | Field | Type | Description |
 |---|---|---|
-| `danceability` | number (0–5, one decimal) | How danceable the track is |
 | `energy` | number (0–5, one decimal) | Energy level |
-| `social_acceptance` | number (0–5, one decimal) | How well-known / crowd-pleasing the track is |
+| `people` | number (0–5, one decimal) | How well the track works on people: danceable and crowd-pleasing in one. Labelled **People** |
+
+`0` means unrated for both, and a song row without `people` reads as 0.
+**People replaces `danceability` and `social_acceptance`** (issue #48, PF-87 —
+built 2026-10-23): the two measured the same thing. No compatibility: nothing migrates,
+aliases or reads the old fields. Their values are dropped (Tim: *"just drop
+everything, I'll re-add those ratings"*); old keys still sitting in an existing
+`library.json` are ignored — never shown, never written.
 
 ### Track Rank (1–5 stars)
 | Field | Type | Description |
 |---|---|---|
-| `rank` | number (1–5) | A per-track quality score, whole stars only. Independent of the three ratings above — they say what a track *does*, the rank says *how good* it is. `0` means unranked (the default) |
+| `rank` | number (1–5) | A per-track quality score, whole stars only. Independent of the two ratings above — they say what a track *does*, the rank says *how good* it is. `0` means unranked (the default) |
 
 ### Sound Notes (free text — the core asset)
 | Field | Type | Description |

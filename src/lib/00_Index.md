@@ -9,6 +9,7 @@ tags:
 - [[appearance.ts]] — Manages cover art display preference (editorial/original) with React hook and localStorage persistence.
 - [[genreData.ts]] — Genre hierarchy configuration with main genres, subgenres, and their assigned colors.
 - [[LibraryFilterContext.tsx]] — The library's search and one set of column filters, shared for the session by the library table and the track map (phase 4a). Provided above the routes so they survive navigating between the two and the browser's Back; clearing in either place clears for both (TM-R11).
+- [[BackgroundJobsContext.tsx]] — The scan and the BPM/key analysis as one app-wide pair of background jobs (issue #46): both statuses, `startScan`, `startAnalysis`, `abortAnalysis`, a per-run "toast closed" flag, one resume read on mount, 500 ms polling while a job runs, `klangkurator:library-changed` when one ends, and the end notice ("Scan finished" without numbers; "Analysis complete"/"Analysis stopped" with them).
 - [[palette.ts]] — Color palette for user-facing entities (tags, genres, blocks, sets) with a stable deterministic color-picker.
 - [[mapRoute.ts]] — The `/map` route test (`isMapRoute`) the app shell reads: the player sits at the bottom and hides its dock buttons there without touching the saved dock preference (TM-M8), and the sidebar's Library item stays active (TM-M1).
 - [[PlayerContext.tsx]] — React context providing the player state across the app: the run Play was pressed in and the position in it (next / previous), play/pause, dock position.
@@ -18,3 +19,5 @@ tags:
 - [[storage.ts]] — Data model types (Song, Tag, Block, DJSet, SongPatch, BpmRange, ReanalyzeResult …) and the storage layer the components call: the backend API implementation plus a legacy localStorage one.
 - [[trackFormat.ts]] — Track display and input rules shared across views: duration, BPM (format and parse), keys (names, the 24-key list), crate, shown genre.
 - [[utils.ts]] — Tailwind class name merging utility combining clsx and twMerge.
+- [[jobProgress.ts]] — The pure rules of the background jobs (Import-page match, how a run ended, the failed-read limit), apart from the provider so they are testable without a DOM.
+- [[jobProgress.test.ts]] — Tests for those rules: the trailing-slash Import page and the finished / failed / vanished run ends (issue #57).

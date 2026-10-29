@@ -1,7 +1,7 @@
 # Library View
 
 Status: Active
-Last Updated: 2026-10-15
+Last Updated: 2026-10-23
 Source: Requirements.md sections 4, 8; editorial redesign (issue #1); inline editing (issue #3)
 
 ## Overview
@@ -29,7 +29,8 @@ removed earlier — the table handles all of it.
 - Search field (title, artist, genres, key), **Columns** (column settings),
   **Import** (goes to the Import page — the only import surface)
 - Crate tabs: "All tracks" plus one tab per crate with its count; a tab
-  sets the Crate filter to that crate
+  sets the Crate filter to that crate. Collapse and multi-select: REQ-13-CT
+  below
 - **Active-filter chips**: one chip per active column filter, each removable,
   plus "Clear all"
 - A **Table | Map** switch: the map (`/map`) is the other view
@@ -38,6 +39,55 @@ removed earlier — the table handles all of it.
   is a real destination and the browser's Back works; the app sidebar's
   Library item stays active on both. It is left out below 768 px, where the
   table is the way to browse and `/map` shows its own notice (TM-E1, TM-E4)
+
+## Crate Tabs (REQ-13-CT, PF-88; built 2026-10-23, issue #49)
+
+The tabs are a shortcut to the Crate filter, which already holds several
+crates (Filtering, multi-select). They follow that filter both ways: every
+crate in it shows as an active tab (`aria-pressed`), whether it was picked
+with the tabs or with the Crate column filter. The map shares the same filter
+(TM-R11), so a selection carries over to `/map`. The Crate filter chip is
+unchanged ("A, B" for two crates, "N selected" beyond).
+
+### Collapse past 10 crates
+- **10 crates or fewer**: all tabs show and there is no toggle. A stored
+  collapse choice is left as it is for when the count grows again.
+- **More than 10, collapsed (the default)**: "All tracks", the first 10 crates
+  in tab order (alphabetical), then **every selected crate outside those 10**,
+  in tab order — the selection is never hidden — then a toggle tab
+  **"+N more"**, N = the crates still hidden. When N is 0 (every hidden crate
+  is selected) there is no toggle.
+- **Expanded**: all crates, then a toggle tab **"Show fewer"**.
+- The toggle is one button with `aria-expanded`, styled like a crate tab, with
+  no count. Pressing it keeps focus on it. When a focused tab disappears (a
+  crate beyond the first 10 is deselected while collapsed), focus moves to the
+  toggle.
+- The choice is remembered per browser (`localStorage`, read and written inside
+  try/catch); without storage the bar starts collapsed. Known limit: the
+  desktop window does not keep `localStorage` between launches today
+  (pywebview private mode, `backend/pywebview_launcher.py`) — the same as the
+  saved column layout.
+- On touch screens (`pointer: coarse`) the tabs and the toggle are at least
+  44 px tall; with a mouse they stay 32 px.
+
+### Several crates: Shift+click
+- **Click** a crate: only that crate is selected, also when it was part of a
+  larger selection (A+C selected, click A → only A). Clicking the only selected
+  crate again clears back to All tracks.
+- **Shift+click** a crate: it is **added to or removed from** the selection;
+  the others stay. A, then Shift+B, then Shift+C gives A+B+C; Shift+B again
+  gives A+C. Removing the last one gives All tracks.
+- The table shows the tracks of any selected crate (A **or** B), and the header
+  count follows ("142 of 922 tracks").
+- **All tracks** clears the selection, with or without Shift.
+- Keyboard: Shift+Enter or Shift+Space on a focused tab equals Shift+click
+  (WebKit and Chromium copy the modifier onto the keyboard click, so no extra
+  key handler is needed; Space fires on key-up, with Shift still held).
+- A Shift+click never leaves a text selection across the tab bar (the tab group
+  is `select-none`).
+- The tab tooltip names the shortcut: "Shift+click to add or remove".
+- Not included: range selection (Shift+click selecting every crate between
+  two) and Ctrl/Cmd+click.
 
 ## Table Layout
 
@@ -65,8 +115,7 @@ removed earlier — the table handles all of it.
 | Time | duration | m:ss (minutes unpadded) |
 | Subgenres | text | Up to three, "+N" beyond; a click opens the subgenre checklist |
 | Energy | rating (0–5) | Five rising bars; decimals floor on display (3.8 → 3 bars), tooltip keeps the exact value; a click on a bar sets the rating |
-| Dance | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating |
-| Social | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating |
+| People | rating (0–5) | Five rising bars; decimals floor on display; a click on a bar sets the rating. Replaces the former Dance and Social columns (issue #48) |
 | Rank | rank (1–5) | Five stars; a click on a star sets the rank |
 | Album | text | Edited in place |
 | Crate | text | The track's crate (backend `root_folder`), full path as tooltip |
@@ -92,7 +141,7 @@ and keep their own order.
 ## Sorting
 
 - Clicking a sortable header (Title, Artist, Album, Crate, BPM, Key, Energy,
-  Dance, Social, Rank, Time) cycles ascending → descending → off; the header shows
+  People, Rank, Time) cycles ascending → descending → off; the header shows
   the direction and carries `aria-sort`
 - Missing values sort last in both directions; text sorts naturally
   ("Track 2" before "Track 10")
@@ -106,7 +155,7 @@ focus, and permanently while the filter is active):
 | Column | Filter Type |
 |---|---|
 | Title, Artist, Album | Text search |
-| BPM, Energy, Dance, Social, Time | Range (empty defaults — no auto-applied 0–200) |
+| BPM, Energy, People, Time | Range (empty defaults — no auto-applied 0–200) |
 | Rank | Range (`≥ N`, 1–5; empty means any, unranked tracks show) |
 | Genre, Subgenres, Key, Tags, Crate | Multi-select |
 
@@ -159,7 +208,7 @@ the Edit dialog stays for changing everything at once. Behavior contract:
   "Add “…” to this track"). Without a genre the list asks for one first. A
   genre read only from the file's tags becomes the main genre when subgenres
   are set (shown the same)
-- **Ratings (Energy, Dance, Social) and Rank**: mouse: hovering previews, a
+- **Ratings (Energy, People) and Rank**: mouse: hovering previews, a
   click on a bar (a star for Rank) sets that whole value, a click on the
   current one clears it. Keyboard: a slider (arrows ±1 keeping a decimal set
   in the dialog, Home or 0 clears, End sets 5, 1–5 directly; Enter or Space

@@ -12,7 +12,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 ## Core
 
 - [01_VISION_AND_PRINCIPLES.md](01_VISION_AND_PRINCIPLES.md) — product vision, design principles, target user
-- [02_SYSTEM_CONTEXT.md](02_SYSTEM_CONTEXT.md) — runtime architecture, data service abstraction, PyWebView plan
+- [02_SYSTEM_CONTEXT.md](02_SYSTEM_CONTEXT.md) — runtime architecture, data access, PyWebView plan
 - [90_NFRS.md](90_NFRS.md) — non-functional requirements (performance, portability, backup)
 - [91_INVARIANTS.md](91_INVARIANTS.md) — constraints and data-integrity invariants
 - [92_PLANNED_FEATURES.md](92_PLANNED_FEATURES.md) — future work: Rekordbox integration, transition mining, AI-assisted curation

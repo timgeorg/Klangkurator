@@ -9,6 +9,7 @@ removal of the old wholesale-replace import (the footgun regression).
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.storage import get_library_store
 
 client = TestClient(app)
 
@@ -85,23 +86,23 @@ def test_preview_rejects_an_unsupported_future_version():
 # ── MC-2/MC-3: fill-empty + matched tracks keep identity ──────
 
 def test_fill_empty_fills_missing_fields_without_clobbering():
-    local = _song(danceability=3)  # energy missing
+    local = _song(people=3)  # energy missing
     env = _envelope(songs=[{
         "id": "11111111-1111-1111-1111-111111111111",
         "title": local["title"], "artist": local["artist"],
         "file_path": "/other/machine/sequence.mp3",  # moved on disk
-        "energy": 3.8, "danceability": 9,  # 9 is nonsense but non-empty
+        "energy": 3.8, "people": 9,  # 9 is nonsense but non-empty
     }])
     plan = client.post("/api/import/preview", json=env).json()
     assert plan["summary"]["matched"] == 1
-    assert plan["summary"]["conflicts"] == 1  # danceability 3 vs 9 differs
+    assert plan["summary"]["conflicts"] == 1  # people 3 vs 9 differs
     assert plan["summary"]["filled"] >= 1     # energy was a silent fill
     # no overwrite resolution → local values kept; only the fill applies
     res2 = client.post("/api/import", json={"envelope": env, "resolutions": []})
     assert res2.status_code == 200
     after = client.get(f"/api/songs/{local['id']}").json()
     assert after["energy"] == 3.8          # filled from import
-    assert after["danceability"] == 3      # local kept (no resolution)
+    assert after["people"] == 3            # local kept (no resolution)
     # MC-2: the local path is never overwritten by a moved-file import
     assert after["file_path"] == local["file_path"]
 
@@ -330,3 +331,26 @@ def test_import_summary_round_trip_counts():
     res = client.post("/api/import", json={"envelope": env, "resolutions": []})
     s = res.json()["summary"]
     assert s["matched"] == 1 and s["added"] == 0
+
+
+def test_a_matched_track_gets_its_main_genre_filled_and_conflicts_on_it():
+    """`mainGenre` is a conflict field by its stored key: a matched track with
+    none gets it filled, one with another genre gets a conflict to resolve."""
+    empty = _song(title="Empty", file_path="/m/empty.mp3")
+    house = _song(title="House", file_path="/m/house.mp3", mainGenre="House")
+    env = _envelope(songs=[
+        {"id": "a", "title": "Empty", "artist": empty["artist"], "file_path": "/m/empty.mp3", "mainGenre": "Techno"},
+        {"id": "b", "title": "House", "artist": house["artist"], "file_path": "/m/house.mp3", "mainGenre": "Techno"},
+    ])
+
+    plan = client.post("/api/import/preview", json=env).json()
+    assert [(c["song_id"], c["field"]) for c in plan["conflicts"]] == [(house["id"], "mainGenre")]
+
+    res = client.post("/api/import", json={
+        "envelope": env,
+        "resolutions": [{"song_id": house["id"], "field": "mainGenre", "overwrite": True}],
+    })
+    assert res.status_code == 200
+    store = get_library_store()
+    assert store.get_song(empty["id"])["mainGenre"] == "Techno"
+    assert store.get_song(house["id"])["mainGenre"] == "Techno"

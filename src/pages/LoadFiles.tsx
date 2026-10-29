@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, FolderOpen, Loader2, RefreshCw, ScanLine } from "lucide-react";
 
 import { FolderBrowserDialog } from "@/components/dj/FolderBrowserDialog";
@@ -13,51 +13,18 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { api, apiStatus, describeApiError } from "@/lib/api";
-
-interface ScanResult {
-  total: number;
-  added: number;
-  skipped: number;
-  errors: string[];
-}
+import { useBackgroundJobs, type AnalysisResult, type ScanResult } from "@/lib/BackgroundJobsContext";
 
 interface Crate {
   name: string;
   track_count: number;
 }
 
-interface AnalysisSummary {
-  analyzed: number;
-  updated: number;
-  skipped: number;
-}
-
-interface AnalysisProgress {
-  running: boolean;
-  done: number;
-  total: number;
-  currentTitle: string;
-}
-
-/** POST /library/analyze-all returns either a started-job marker or a direct summary. */
-interface AnalyzeAllResponse {
-  started?: boolean;
-  total?: number;
-  analyzed?: number;
-  updated?: number;
-  skipped?: number;
-}
-
-const describeAnalysisResult = (r: AnalysisSummary): string =>
-  `Analyzed ${r.analyzed} tracks, updated ${r.updated} with BPM/key.` + (r.skipped > 0 ? ` Skipped ${r.skipped}.` : "");
-
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function LoadFiles() {
-  const [scanning, setScanning] = useState(false);
+  const { scan, analysis, busy, startScan, startAnalysis, abortAnalysis } = useBackgroundJobs();
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
-  const [analysis, setAnalysis] = useState<AnalysisProgress | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisSummary | null>(null);
   const [crates, setCrates] = useState<Crate[]>([]);
   const [currentRoot, setCurrentRoot] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -86,66 +53,36 @@ export default function LoadFiles() {
     loadCurrentState();
   }, [loadCurrentState]);
 
-  // Poll analysis status every 500ms while a job is running. The interval
-  // is cleaned up when `analysis` is cleared or the component unmounts;
-  // `cancelled` guards against setState after unmount.
+  // BC-5: the summary belongs to a scan that finished while this page was
+  // open. A scan that ended on another page, or before the reload, must not
+  // leave its numbers behind here. `sawScan` tells "finished now" from the
+  // status this page resumed with. The notice itself is the context's job.
+  const sawScan = useRef(false);
   useEffect(() => {
-    if (!analysis?.running) return;
-    let cancelled = false;
-    const interval = setInterval(async () => {
-      try {
-        const status = await api.get<{
-          running: boolean;
-          done: number;
-          total: number;
-          current_title: string;
-          finished: boolean;
-          result: (AnalysisSummary & { errors: string[] }) | null;
-          error: string | null;
-        }>("/library/analyze-status");
-        if (cancelled) return;
-        if (status.running) {
-          // `done` may briefly repeat between polls (backend fires the
-          // callback pre+post track) — harmless, the bar just pauses.
-          setAnalysis({ running: true, done: status.done, total: status.total, currentTitle: status.current_title });
-        } else if (status.error) {
-          setAnalysis(null);
-          toast({ title: "Analysis failed", description: status.error, variant: "destructive" });
-        } else if (status.finished && status.result) {
-          setAnalysisResult({
-            analyzed: status.result.analyzed,
-            updated: status.result.updated,
-            skipped: status.result.skipped,
-          });
-          setAnalysis(null);
-          loadCurrentState();
-          toast({ title: "Analysis complete", description: describeAnalysisResult(status.result) });
-        } else {
-          // Running flag went away without result or error — stop defensively.
-          setAnalysis(null);
-        }
-      } catch {
-        // Transient poll error (e.g. backend restart) — keep polling.
-      }
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [analysis?.running, loadCurrentState]);
+    if (scan.running) {
+      sawScan.current = true;
+      return;
+    }
+    if (!sawScan.current) return;
+    sawScan.current = false;
+    if (!scan.error && scan.result) setScanResult(scan.result);
+    loadCurrentState();
+  }, [scan.running, scan.result, scan.error, loadCurrentState]);
+
+  // A job's progress and its end notice live in BackgroundJobsContext, so
+  // every page shows the same numbers and the toast can never disagree with
+  // this page (issue #46). This page only starts the jobs and shows what the
+  // context reports.
 
   const scanRoot = async (root: string) => {
-    setScanning(true);
     setScanResult(null);
     try {
-      const result = await api.post<ScanResult>("/library/scan", { root_path: root });
-      setScanResult(result);
-      toast({ title: "Scan complete", description: `Found ${result.total} files, added ${result.added} tracks.` });
+      await startScan(root);
     } catch (error) {
-      toast({ title: "Scan failed", description: describeApiError(error), variant: "destructive" });
-    } finally {
-      setScanning(false);
-      loadCurrentState();
+      // 409: another job already runs; the context has picked up its progress,
+      // so this is information, not a failure.
+      if (apiStatus(error) === 409) toast({ title: describeApiError(error) });
+      else toast({ title: "Scan failed", description: describeApiError(error), variant: "destructive" });
     }
   };
 
@@ -180,7 +117,9 @@ export default function LoadFiles() {
   };
 
   // Manual path entry — fallback only (headless/SSH setups).
-  const saveManualPath = async (scan: boolean) => {
+  const saveManualPath = async (alsoScan: boolean) => {
+    // Enter in the field reaches here too; no root change while a job runs.
+    if (busy) return;
     const path = manualPath.trim();
     if (!path) {
       setManualError("Type the full path of the folder, e.g. /home/you/Music.");
@@ -191,7 +130,7 @@ export default function LoadFiles() {
       setCurrentRoot(path);
       setManualPath("");
       setManualError("");
-      if (scan) await scanRoot(path);
+      if (alsoScan) await scanRoot(path);
       else {
         toast({ title: "Music folder saved" });
         loadCurrentState();
@@ -202,39 +141,24 @@ export default function LoadFiles() {
   };
 
   /**
-   * Kick off analysis of all tracks missing BPM/key.
-   * Two outcomes:
-   * - `{started: true, total: N}` — job started, begin polling /analyze-status.
-   * - a direct summary — nothing to analyze, show the completion toast now.
-   * HTTP 409 means a job is already running (double-click protection).
+   * Kick off the analysis of all tracks missing BPM/key.
+   *
+   * The context handles both answers: `{started, total}` for a job, or the
+   * summary the route returns when nothing is missing a BPM. A 409 means
+   * another job holds the slot: the context reads both statuses then, so that
+   * job's progress shows here, and the message says which job it is.
    */
   const handleAnalyzeAll = async () => {
     try {
-      const result = await api.post<AnalyzeAllResponse>("/library/analyze-all");
-      if (result.started === true) {
-        setAnalysis({ running: true, done: 0, total: result.total ?? 0, currentTitle: "" });
-        return;
-      }
-      const summary: AnalysisSummary = {
-        analyzed: result.analyzed ?? 0,
-        updated: result.updated ?? 0,
-        skipped: result.skipped ?? 0,
-      };
-      setAnalysisResult(summary);
-      toast({ title: "Analysis complete", description: describeAnalysisResult(summary) });
+      await startAnalysis();
     } catch (error) {
-      if (apiStatus(error) === 409) {
-        toast({ title: "Analysis is already running", variant: "destructive" });
-      } else {
-        toast({ title: "Analysis failed", description: describeApiError(error), variant: "destructive" });
-      }
+      if (apiStatus(error) === 409) toast({ title: describeApiError(error) });
+      else toast({ title: "The analysis did not start", description: describeApiError(error), variant: "destructive" });
     }
   };
 
-  const analysisRunning = analysis?.running ?? false;
-  // Busy covers scan + analysis so folder-pick/rescan can't run mid-analysis.
-  const busy = scanning || analysisRunning;
   const trackTotal = crates.reduce((sum, crate) => sum + crate.track_count, 0);
+  const lastAnalysis: AnalysisResult | null = !analysis.running ? analysis.result : null;
 
   const advanced = (
     <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
@@ -282,8 +206,8 @@ export default function LoadFiles() {
         actions={
           status === "ready" && currentRoot ? (
             <Button variant="outline" onClick={handleRescan} disabled={busy}>
-              {scanning ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-              {scanning ? "Scanning…" : "Re-scan"}
+              {scan.running ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {scan.running ? "Scanning…" : "Re-scan"}
             </Button>
           ) : undefined
         }
@@ -319,8 +243,8 @@ export default function LoadFiles() {
                   Your files stay where they are.
                 </p>
                 <Button size="lg" className="mt-8" onClick={handlePickFolder} disabled={busy}>
-                  {scanning ? <Loader2 className="animate-spin" /> : <FolderOpen />}
-                  {scanning ? "Scanning…" : "Choose folder & scan"}
+                  {scan.running ? <Loader2 className="animate-spin" /> : <FolderOpen />}
+                  {scan.running ? "Scanning…" : "Choose folder & scan"}
                 </Button>
                 <p className="mt-3 text-xs text-muted-foreground">
                   The desktop app opens your system's folder dialog; in a browser tab a folder browser opens.
@@ -367,6 +291,25 @@ export default function LoadFiles() {
             <p className="mt-2.5 text-xs text-muted-foreground">
               Re-scan adds new files. Tracks already in the library keep their notes and tags.
             </p>
+            {scan.running && (
+              <div className="mt-4 max-w-xl space-y-2">
+                <Progress
+                  value={scan.total > 0 ? (scan.done / scan.total) * 100 : 0}
+                  aria-label="Scan progress"
+                />
+                <p className="flex min-w-0 gap-2 text-xs text-muted-foreground">
+                  <span className="k-num shrink-0">
+                    {scan.done} / {scan.total}
+                  </span>
+                  {scan.currentFile && (
+                    <span className="truncate" title={scan.currentFile}>
+                      {scan.currentFile}
+                      {scan.currentCrate && <span className="text-muted-foreground"> · {scan.currentCrate}</span>}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
             {scanResult && <ScanSummary result={scanResult} />}
           </PageSection>
 
@@ -376,37 +319,47 @@ export default function LoadFiles() {
             description="Detects BPM and key from the audio for tracks that are missing them, about 3–5 seconds per track."
           >
             <Button variant="outline" onClick={handleAnalyzeAll} disabled={busy}>
-              {analysisRunning ? <Loader2 className="animate-spin" /> : <ScanLine />}
-              {analysisRunning ? "Analyzing…" : "Analyze BPM and key"}
+              {analysis.running ? <Loader2 className="animate-spin" /> : <ScanLine />}
+              {analysis.running ? "Analyzing…" : "Analyze BPM and key"}
             </Button>
-            {analysisRunning && analysis && (
+            {analysis.running && (
               <div className="mt-4 max-w-xl space-y-2">
-                <Progress
-                  value={analysis.total > 0 ? (analysis.done / analysis.total) * 100 : 0}
-                  aria-label="BPM and key analysis"
-                />
+                <div className="flex items-center gap-3">
+                  <Progress
+                    value={analysis.total > 0 ? (analysis.done / analysis.total) * 100 : 0}
+                    aria-label="BPM and key analysis progress"
+                    className="min-w-0 flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={abortAnalysis}
+                    disabled={analysis.stopping}
+                  >
+                    Abort
+                  </Button>
+                </div>
                 <p className="flex min-w-0 gap-2 text-xs text-muted-foreground">
                   <span className="k-num shrink-0">
                     {analysis.done} / {analysis.total}
                   </span>
-                  {analysis.currentTitle && (
-                    <span className="truncate" title={analysis.currentTitle}>
-                      {analysis.currentTitle}
-                    </span>
-                  )}
+                  <span className="truncate" title={analysis.stopping ? undefined : analysis.currentTitle}>
+                    {analysis.stopping ? "Stopping after this track…" : analysis.currentTitle}
+                  </span>
                 </p>
               </div>
             )}
-            {analysisResult && !analysisRunning && (
+            {lastAnalysis && (
               <p className="mt-3 text-[13px] text-muted-foreground">
-                Last run: <span className="k-num text-foreground">{analysisResult.analyzed}</span> analyzed,{" "}
-                <span className="k-num text-foreground">{analysisResult.updated}</span> updated
-                {analysisResult.skipped > 0 && (
+                Last run: <span className="k-num text-foreground">{lastAnalysis.analyzed}</span> analyzed,{" "}
+                <span className="k-num text-foreground">{lastAnalysis.updated}</span> updated
+                {lastAnalysis.skipped > 0 && (
                   <>
-                    , <span className="k-num text-foreground">{analysisResult.skipped}</span> skipped
+                    , <span className="k-num text-foreground">{lastAnalysis.skipped}</span> skipped
                   </>
                 )}
-                .
+                {lastAnalysis.cancelled && " (stopped)"}.
               </p>
             )}
           </PageSection>

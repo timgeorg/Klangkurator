@@ -270,8 +270,8 @@ describe("withClusterFields — a song in its cluster view", () => {
 describe("clusterFeatures — the cluster's own values (plan › Clusters)", () => {
   it("takes the median BPM, the most common genre and key, and the mean ratings", () => {
     const members: ClusterTrack[] = [
-      t({ id: "a", bpm: 120, genre: "techno", genreLabel: "Techno", key: { n: 8, mode: "A" }, energy: 1, danceability: 2 }),
-      t({ id: "b", bpm: 130, genre: "techno", genreLabel: "Techno", key: { n: 8, mode: "A" }, energy: 3, danceability: 4 }),
+      t({ id: "a", bpm: 120, genre: "techno", genreLabel: "Techno", key: { n: 8, mode: "A" }, energy: 1, people: 2 }),
+      t({ id: "b", bpm: 130, genre: "techno", genreLabel: "Techno", key: { n: 8, mode: "A" }, energy: 3, people: 4 }),
       // Unrated values are already undefined in features, so a member carries none.
       t({ id: "c", bpm: 140, genre: "house", genreLabel: "House", key: { n: 9, mode: "A" }, energy: 5 }),
     ];
@@ -282,7 +282,7 @@ describe("clusterFeatures — the cluster's own values (plan › Clusters)", () 
     expect(feature.genreLabel).toBe("Techno");
     expect(feature.key).toEqual({ n: 8, mode: "A" });
     expect(feature.energy).toBe(3); // (1 + 3 + 5) / 3
-    expect(feature.danceability).toBe(3); // (2 + 4) / 2, the unrated member skipped
+    expect(feature.people).toBe(3); // (2 + 4) / 2, the unrated member skipped
     expect(feature.memberIds).toEqual(["a", "b", "c"]);
   });
 

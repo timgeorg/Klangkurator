@@ -6,8 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PlayerProvider } from "@/lib/PlayerContext";
+import { BackgroundJobsProvider } from "@/lib/BackgroundJobsContext";
 import { LibraryFilterProvider } from "@/lib/LibraryFilterContext";
 import { THEME_STORAGE_KEY } from "@/lib/appearance";
+import { JobProgressToast } from "@/components/dj/JobProgressToast";
 import { DJLayout } from "@/components/layout/DJLayout";
 import Index from "./pages/Index";
 import LoadFiles from "./pages/LoadFiles";
@@ -37,34 +39,43 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
-          <Toaster />
           <BrowserRouter>
-            {/* Above the routes: the one search and one set of filters the
-                table and the map share for the session, so they survive
-                navigating between them and the browser's Back (TM-R11). */}
-            <LibraryFilterProvider>
-              <PlayerProvider>
-                <DJLayout>
-                  <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/load-files" element={<LoadFiles />} />
-                    <Route path="/song/:id" element={<SongDetailPage />} />
-                    <Route path="/sets" element={<Sets />} />
-                    <Route
-                      path="/map"
-                      element={
-                        <Suspense fallback={<MapRouteFallback />}>
-                          <TrackMap />
-                        </Suspense>
-                      }
-                    />
-                    <Route path="/settings" element={<Settings />} />
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </DJLayout>
-              </PlayerProvider>
-            </LibraryFilterProvider>
+            {/* The one background job pair (scan + analysis) is above the
+                routes so its progress survives navigation and a reload
+                (issue #46). The Toaster is inside the router because the
+                progress toast is hidden on the Import page, where the same
+                progress shows inline. */}
+            <BackgroundJobsProvider>
+              <Toaster>
+                <JobProgressToast />
+              </Toaster>
+              {/* Above the routes: the one search and one set of filters the
+                  table and the map share for the session, so they survive
+                  navigating between them and the browser's Back (TM-R11). */}
+              <LibraryFilterProvider>
+                <PlayerProvider>
+                  <DJLayout>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/load-files" element={<LoadFiles />} />
+                      <Route path="/song/:id" element={<SongDetailPage />} />
+                      <Route path="/sets" element={<Sets />} />
+                      <Route
+                        path="/map"
+                        element={
+                          <Suspense fallback={<MapRouteFallback />}>
+                            <TrackMap />
+                          </Suspense>
+                        }
+                      />
+                      <Route path="/settings" element={<Settings />} />
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </DJLayout>
+                </PlayerProvider>
+              </LibraryFilterProvider>
+            </BackgroundJobsProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
