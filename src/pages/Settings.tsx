@@ -28,7 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { api, API_BASE, describeApiError } from "@/lib/api";
 import { useCoverStyle } from "@/lib/appearance";
 import { getGenreConfig, saveGenreConfig, type GenreConfig } from "@/lib/genreData";
-import { saveSettings, useSettingsTick } from "@/lib/settings";
+import { refreshGenres, saveSettings, useSettingsTick } from "@/lib/settings";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { usePlayer } from "@/lib/PlayerContext";
 import { storage, type Tag } from "@/lib/storage";
@@ -124,6 +124,9 @@ export default function Settings() {
 
   /** The library table listens for this and reloads (bulk data changed). */
   const reloadAfterImport = () => {
+    // An import merges genres server-side; re-read them, or the next genre edit
+    // would replace the whole list with this stale copy (review of #51).
+    void refreshGenres();
     window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
   };
 

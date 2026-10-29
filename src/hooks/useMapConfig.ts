@@ -102,21 +102,44 @@ const readSections = (value: unknown): Record<string, boolean> => {
   );
 };
 
-/** The persisted config, or the defaults when nothing valid is stored. */
-const loadPersistedMapConfig = (): MapConfig => {
+/**
+ * A stored map config, validated field by field; null when it is not an object.
+ *
+ * Only the fields a stored value can be trusted with are read: anything else
+ * takes the default, so a hand-edited or older document cannot break the map.
+ */
+const normaliseMapConfig = (value: unknown): MapConfig | null => {
+  const parsed = value;
+  if (!isPlainObject(parsed)) return null;
+  return {
+    inputs: readInputs(parsed.inputs),
+    layers: readLayers(parsed.layers),
+    sections: readSections(parsed.sections),
+    railOpen: typeof parsed.railOpen === "boolean" ? parsed.railOpen : DEFAULT_MAP_CONFIG.railOpen,
+    leftRailOpen:
+      typeof parsed.leftRailOpen === "boolean" ? parsed.leftRailOpen : DEFAULT_MAP_CONFIG.leftRailOpen,
+  };
+};
+
+/**
+ * The saved config, or the defaults when nothing valid is stored.
+ *
+ * `settings.json` first: it is the source of truth (issue #51). Reading only
+ * localStorage left the file a write-only value, and the save effect below then
+ * wrote the defaults over it on the first mount (review of #51). The browser
+ * copy is read only while the file has no `map`.
+ */
+// Exported for the regression test: the read half of #51 was left behind once.
+export const loadPersistedMapConfig = (): MapConfig => {
+  const fromFile = readSetting<unknown>("map", undefined);
+  if (fromFile !== undefined) {
+    const parsed = normaliseMapConfig(fromFile);
+    if (parsed) return parsed;
+  }
   try {
     const raw = localStorage.getItem(MAP_CONFIG_STORAGE_KEY);
     if (!raw) return DEFAULT_MAP_CONFIG;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isPlainObject(parsed)) return DEFAULT_MAP_CONFIG;
-    return {
-      inputs: readInputs(parsed.inputs),
-      layers: readLayers(parsed.layers),
-      sections: readSections(parsed.sections),
-      railOpen: typeof parsed.railOpen === "boolean" ? parsed.railOpen : DEFAULT_MAP_CONFIG.railOpen,
-      leftRailOpen:
-        typeof parsed.leftRailOpen === "boolean" ? parsed.leftRailOpen : DEFAULT_MAP_CONFIG.leftRailOpen,
-    };
+    return normaliseMapConfig(JSON.parse(raw)) ?? DEFAULT_MAP_CONFIG;
   } catch {
     return DEFAULT_MAP_CONFIG;
   }

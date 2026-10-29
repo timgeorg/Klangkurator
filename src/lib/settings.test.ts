@@ -226,3 +226,86 @@ describe("the two debounced writes", () => {
     expect(backend.reads().genres).toEqual([{ name: "B", color: "#222222", subgenres: [] }]);
   });
 });
+
+describe("the read paths (review of #51)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("an emptied genre list stays empty instead of resurrecting the defaults", async () => {
+    // Deleting every genre used to make `getGenreConfig` fall back to the 13
+    // defaults, which the next edit then wrote back over the file.
+    stubStorage({});
+    stubBackend({ genres: [] });
+    const mod = await freshModule();
+    await mod.loadSettings();
+    const { getGenreConfig } = await import("./genreData");
+
+    expect(getGenreConfig()).toEqual([]);
+  });
+
+  it("uses the defaults when no genre document was ever stored", async () => {
+    stubStorage({
+      "dj_database_genre_config": JSON.stringify([{ name: "Legacy", color: "#123456", subgenres: [] }]),
+    });
+    stubBackend({ genres: [] });
+    const mod = await freshModule();
+    // Before any load: nothing has been stored, so the defaults apply.
+    const { getGenreConfig } = await import("./genreData");
+    expect(getGenreConfig().length).toBeGreaterThan(1);
+    await mod.loadSettings();
+  });
+
+  it("refreshGenres re-reads the list without writing it back", async () => {
+    // An import merges genres server-side; a stale copy would delete them on
+    // the next edit, because PUT /api/genres replaces the whole list.
+    stubStorage({});
+    const backend = stubBackend({ genres: [{ name: "House", color: "#fff", subgenres: [] }] });
+    const mod = await freshModule();
+    await mod.loadSettings();
+    expect(mod.getGenres()).toHaveLength(1);
+
+    backend.calls.length = 0;
+    // The backend now has two more genres, as an import would leave it.
+    vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+      const path = String(input).replace("/api", "");
+      if (init?.method === "PUT") backend.calls.push({ method: "PUT", path });
+      if (path === "/genres") {
+        return json([
+          { name: "House", color: "#fff", subgenres: [] },
+          { name: "Techno", color: "#111111", subgenres: [] },
+        ]);
+      }
+      return json({});
+    });
+
+    await mod.refreshGenres();
+
+    expect(mod.getGenres().map((g) => g.name)).toEqual(["House", "Techno"]);
+    expect(backend.calls.filter((c) => c.method === "PUT")).toEqual([]);
+  });
+});
+
+describe("the map's saved settings (review of #51)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("come from the file, not only from localStorage", async () => {
+    // The read half was left on localStorage, so the file's `map` was
+    // write-only and the save effect then wrote the defaults over it.
+    stubStorage({});  // no browser copy at all: a different browser
+    stubBackend({
+      settings: { map: { inputs: {}, layers: {}, sections: {}, railOpen: false, leftRailOpen: true } },
+      genres: [],
+    });
+    const mod = await freshModule();
+    await mod.loadSettings();
+
+    const { readSetting } = mod;
+    const map = readSetting<{ railOpen: boolean }>("map", { railOpen: true });
+    expect(map.railOpen).toBe(false);
+  });
+});

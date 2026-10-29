@@ -20,7 +20,11 @@ Principles (each carries its contract clause):
 
 from __future__ import annotations
 
+import logging
+
 from backend.models.song import SongBase
+
+logger = logging.getLogger(__name__)
 
 #: The colour a genre gets when an import brings one without a colour. The
 #: palette's own fallback (`src/lib/palette.ts`), so a merged genre looks like
@@ -408,7 +412,11 @@ def _merge_genres(incoming, library) -> int:
     Returns:
         int: How many genres were added.
     """
-    local = library.get_genres()
+    # A copy, not the live list: `_new_genre` may build something
+    # `set_genres` then refuses, and a half-mutated live list would be persisted
+    # by the next save in `apply_import` — after the songs were already written
+    # (review of #51).
+    local = [dict(genre) for genre in library.get_genres()]
     added = 0
     for genre in _valid_genres(incoming):
         existing = _find_genre(local, genre["name"])
@@ -417,8 +425,14 @@ def _merge_genres(incoming, library) -> int:
             added += 1
         else:
             _add_missing_subgenres(existing, genre.get("subgenres"))
-    if added or local:
-        library.set_genres(local)
+    if added or incoming:
+        try:
+            library.set_genres(local)
+        except ValueError as exc:
+            # A genre list the store refuses must not fail the whole import:
+            # the songs are already in. Say so and keep the local list.
+            logger.warning("Genres not merged from the import: %s", exc)
+            return 0
     return added
 
 
@@ -451,17 +465,28 @@ def _find_genre(local: list[dict], name: str) -> dict | None:
 
 
 def _new_genre(genre: dict) -> dict:
-    """A local record for an incoming genre the library does not have."""
+    """A local record for an incoming genre the library does not have.
+
+    The envelope is untrusted: a colour that is not a string, or subgenres that
+    are not a list of strings, would otherwise be stored as they are — or crash
+    on iteration — and the store's own validation would refuse the whole list
+    after the songs had already been written (review of #51).
+    """
+    color = genre.get("color")
+    subgenres = genre.get("subgenres")
     return {
         "name": genre["name"].strip(),
-        "color": genre.get("color") or FALLBACK_GENRE_COLOR,
-        "subgenres": [s for s in genre.get("subgenres", []) if isinstance(s, str)],
+        "color": color if isinstance(color, str) and color else FALLBACK_GENRE_COLOR,
+        "subgenres": [
+            s for s in (subgenres if isinstance(subgenres, list) else [])
+            if isinstance(s, str) and s.strip()
+        ],
     }
 
 
 def _add_missing_subgenres(existing: dict, incoming) -> None:
     """Append the subgenres `existing` lacks, keeping the ones it has."""
-    if not isinstance(incoming, list):
+    if not isinstance(incoming, list) or not isinstance(existing.get("subgenres", []), list):
         return
     known = {str(s).casefold() for s in existing.get("subgenres", [])}
     for subgenre in incoming:

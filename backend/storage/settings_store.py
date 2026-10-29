@@ -5,6 +5,7 @@ a multi-megabyte `library.json` (NFR-2, issue #51).
 """
 
 import logging
+import math
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,9 @@ class SettingsStore:
 
         for key, value in patch.items():
             self._data[key] = value
-        self._data["version"] = SETTINGS_VERSION
+        # Never downgrade a document a newer version wrote: its own version may
+        # gate a migration this app knows nothing about (review of #51).
+        self._data.setdefault("version", SETTINGS_VERSION)
         self._save_fn()
         logger.debug("Settings written: %s", sorted(patch))
         return dict(self._data)
@@ -99,6 +102,10 @@ class SettingsStore:
         if isinstance(expected, tuple):
             if isinstance(value, bool) or not isinstance(value, expected):
                 raise SettingsError(f"“{key}” must be a number")
+            # `json.dump` writes `Infinity` for inf/nan, which `JSON.parse` then
+            # refuses: the frontend could never read the document again.
+            if not math.isfinite(value):
+                raise SettingsError(f"“{key}” must be a finite number")
             return
         if not isinstance(value, expected):
             raise SettingsError(f"“{key}” has the wrong type ({type(value).__name__})")

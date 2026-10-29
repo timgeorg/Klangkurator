@@ -174,3 +174,48 @@ def test_a_corrupt_library_is_preserved_too(tmp_path):
     path.write_text("not json at all")
     BaseStore(path)
     assert list(tmp_path.glob("library.corrupt-*.json"))
+
+
+# ── The read paths the first review of #51 found broken ──
+
+
+def test_a_non_utf8_file_is_preserved_not_a_crash(tmp_path):
+    """UnicodeDecodeError is a ValueError, not a JSONDecodeError."""
+    from backend.storage.base_store import BaseStore
+
+    path = tmp_path / "library.json"
+    path.write_bytes(b'{"songs": ["\xe2\x82')  # a truncated multi-byte sequence
+
+    store = BaseStore(path)
+
+    assert store._data == {}
+    assert list(tmp_path.glob("library.corrupt-*.json"))
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_a_non_finite_number_is_refused(_empty_settings, bad):
+    """`json.dump` writes `Infinity`, which `JSON.parse` then refuses for ever."""
+    client.put("/api/settings", json={"volume": 0.5})
+    before = _empty_settings.read_bytes()
+
+    # A raw body: the test client's own JSON encoder refuses `Infinity`, and a
+    # real client reaching the API does not.
+    res = client.put(
+        "/api/settings",
+        content=b'{"volume": Infinity}' if bad > 0 else b'{"volume": -Infinity}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert res.status_code == 422
+    assert _empty_settings.read_bytes() == before
+
+
+def test_a_newer_documents_version_is_not_downgraded(_empty_settings):
+    """A future version may gate a migration on that number."""
+    _empty_settings.write_text(json.dumps({"version": 9}))
+    get_settings_store()._data.clear()
+    get_settings_store()._data.update(json.loads(_empty_settings.read_text()))
+
+    client.put("/api/settings", json={"theme": "paper"})
+
+    assert json.loads(_empty_settings.read_text())["version"] == 9
