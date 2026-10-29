@@ -8,6 +8,7 @@ Usage:
 import logging
 import socket
 import threading
+from pathlib import Path
 
 import uvicorn
 
@@ -95,7 +96,18 @@ def launch_desktop():
     )
     window.events.closing += on_closing
 
-    webview.start(debug=True)  # debug=True → F12 DevTools
+    # `private_mode=False` plus a storage path under the data folder: pywebview
+    # defaults to private mode, where its GTK backend turns HTML5 local storage
+    # off, so the desktop window could not keep anything (issue #51, decision 6).
+    # Nothing the app needs depends on browser storage any more; this keeps the
+    # behaviour a browser tab has.
+    settings_dir = Path.home() / ".klangkurator"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    webview.start(  # debug=True → F12 DevTools
+        debug=True,
+        private_mode=False,
+        storage_path=str(settings_dir / "webview"),
+    )
 
 
 def launch_server(port: int = 8000):

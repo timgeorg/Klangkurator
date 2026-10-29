@@ -22,6 +22,11 @@ from __future__ import annotations
 
 from backend.models.song import SongBase
 
+#: The colour a genre gets when an import brings one without a colour. The
+#: palette's own fallback (`src/lib/palette.ts`), so a merged genre looks like
+#: one created in the app.
+FALLBACK_GENRE_COLOR = "#A1A2B3"
+
 ENVELOPE_FORMAT = "klangkurator-library"
 ENVELOPE_VERSION = 1
 DATA_KEYS = (
@@ -287,6 +292,9 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
         if updates:
             library.update_song(local["id"], updates)
 
+    # ── genres (issue #51): merge by name, local colour wins ──
+    genres_added = _merge_genres(data.get("genres"), library)
+
     # ── tags + joins (TC-1/TC-2) ───────────────────────────
     name_to_id = {t["name"]: t["id"] for t in library.get_tags()}
     for t in plan["_plan"]["tags_to_create"]:
@@ -334,6 +342,7 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     summary = plan["summary"]
     summary.update({"overwrites_applied": applied_overwrites,
                     "tags_created": len(plan["_plan"]["tags_to_create"]),
+                    "genres_added": genres_added,
                     "joins_added": joins_added})
     return {"valid": True, "summary": summary}
 
@@ -382,3 +391,80 @@ def _remap_djset(djset: dict, remap: dict) -> dict:
         {**p, "items": remap_items(p.get("items", []))} for p in m.get("phases", [])
     ]
     return m
+
+
+def _merge_genres(incoming, library) -> int:
+    """Add genres the library lacks, keeping each existing genre's own colour.
+
+    "Default local wins" (17_SETTINGS) and NFR-2's "merge, never replace": a
+    genre the library already has keeps its name, colour and order, and only
+    gains subgenres it was missing. An export made before genres existed has no
+    `genres` key and adds nothing.
+
+    Args:
+        incoming: The envelope's genre list, or None.
+        library: The library store.
+
+    Returns:
+        int: How many genres were added.
+    """
+    local = library.get_genres()
+    added = 0
+    for genre in _valid_genres(incoming):
+        existing = _find_genre(local, genre["name"])
+        if existing is None:
+            local.append(_new_genre(genre))
+            added += 1
+        else:
+            _add_missing_subgenres(existing, genre.get("subgenres"))
+    if added or local:
+        library.set_genres(local)
+    return added
+
+
+def _valid_genres(incoming) -> list[dict]:
+    """The usable genre objects in an envelope, ignoring anything malformed.
+
+    Args:
+        incoming: The envelope's `genres` value, of any shape.
+
+    Returns:
+        list[dict]: Genres with a non-blank name.
+    """
+    if not isinstance(incoming, list):
+        return []
+    return [
+        genre for genre in incoming
+        if isinstance(genre, dict)
+        and isinstance(genre.get("name"), str)
+        and genre["name"].strip()
+    ]
+
+
+def _find_genre(local: list[dict], name: str) -> dict | None:
+    """The local genre with this name, matched case-insensitively."""
+    key = name.strip().casefold()
+    return next(
+        (g for g in local if isinstance(g, dict) and str(g.get("name", "")).strip().casefold() == key),
+        None,
+    )
+
+
+def _new_genre(genre: dict) -> dict:
+    """A local record for an incoming genre the library does not have."""
+    return {
+        "name": genre["name"].strip(),
+        "color": genre.get("color") or FALLBACK_GENRE_COLOR,
+        "subgenres": [s for s in genre.get("subgenres", []) if isinstance(s, str)],
+    }
+
+
+def _add_missing_subgenres(existing: dict, incoming) -> None:
+    """Append the subgenres `existing` lacks, keeping the ones it has."""
+    if not isinstance(incoming, list):
+        return
+    known = {str(s).casefold() for s in existing.get("subgenres", [])}
+    for subgenre in incoming:
+        if isinstance(subgenre, str) and subgenre.strip() and subgenre.casefold() not in known:
+            existing.setdefault("subgenres", []).append(subgenre)
+            known.add(subgenre.casefold())

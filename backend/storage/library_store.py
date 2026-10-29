@@ -1,7 +1,10 @@
-"""Library store — wraps library.json (songs, tags, song_tags, relationships, playlists)."""
+"""Library store — wraps library.json (songs, tags, genres, relationships, playlists)."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 def _new_id() -> str:
@@ -13,7 +16,7 @@ def _now() -> str:
 
 
 class LibraryStore:
-    """CRUD for songs, tags, song_tags, relationships, playlists, playlist_songs.
+    """CRUD for songs, tags, genres, song_tags, relationships, playlists, playlist_songs.
 
     Data is kept in memory and written back to library.json on every mutation.
     """
@@ -25,7 +28,8 @@ class LibraryStore:
         self._lock = base_store._lock
 
         # Ensure all top-level keys exist
-        for key in ("songs", "tags", "song_tags", "relationships", "playlists", "playlist_songs"):
+        for key in ("songs", "tags", "genres", "song_tags", "relationships",
+                    "playlists", "playlist_songs"):
             if key not in self._data:
                 self._data[key] = []
 
@@ -155,6 +159,34 @@ class LibraryStore:
         return True
 
     # ── Relationships ──────────────────────────────────────
+
+    # ── Genres (issue #51: library content, so they travel with the export) ──
+
+    def get_genres(self) -> list[dict]:
+        """The genre list, each `{name, color, subgenres}`.
+
+        Returns:
+            list[dict]: The stored genres, in the user's order.
+        """
+        return self._data["genres"]
+
+    def set_genres(self, genres: list[dict]) -> list[dict]:
+        """Replace the genre list, refusing a malformed one.
+
+        Args:
+            genres (list[dict]): The new list.
+
+        Returns:
+            list[dict]: The stored list.
+
+        Raises:
+            ValueError: A genre is malformed, or a name repeats.
+        """
+        _validate_genres(genres)
+        self._data["genres"] = genres
+        self._save_fn()
+        logger.info("Genres written: %d", len(genres))
+        return self._data["genres"]
 
     def get_relationships(self) -> list[dict]:
         return self._data["relationships"]
@@ -306,3 +338,33 @@ class LibraryStore:
             self._data["_config"] = {}
         self._data["_config"][key] = value
         self._save_fn()
+
+
+def _validate_genres(genres) -> None:
+    """Refuse a genre list that would break the Settings page.
+
+    Args:
+        genres: The proposed list.
+
+    Raises:
+        ValueError: It is not a list of `{name, color, subgenres}`, a name is
+            blank, or two names match case-insensitively.
+    """
+    if not isinstance(genres, list):
+        raise ValueError("Genres must be a list")
+    seen: set[str] = set()
+    for genre in genres:
+        if not isinstance(genre, dict):
+            raise ValueError("Each genre must be an object")
+        name = genre.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("A genre needs a non-empty name")
+        if not isinstance(genre.get("color"), str):
+            raise ValueError(f"Genre “{name}” needs a colour")
+        subgenres = genre.get("subgenres", [])
+        if not isinstance(subgenres, list) or not all(isinstance(s, str) for s in subgenres):
+            raise ValueError(f"Genre “{name}” needs a list of subgenres")
+        key = name.strip().casefold()
+        if key in seen:
+            raise ValueError(f"Duplicate genre name: {name}")
+        seen.add(key)

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Song } from "@/lib/storage";
+import { readSetting, saveSettings } from "@/lib/settings";
 
 /**
  * Player state. The provider holds the queue (the run Play was pressed in and
@@ -40,11 +41,15 @@ interface PlayerContextValue {
   setDock: (dock: PlayerDock) => void;
 }
 
-const DOCK_KEY = "klangkurator.player.dock.v1";
-
+/**
+ * The saved dock. `settings.json` holds it as of issue #51; the browser value is
+ * read only when the file has none, which is the case before the first save.
+ */
 function loadDock(): PlayerDock {
+  const stored = readSetting<string | undefined>("playerDock", undefined);
+  if (stored === "bar" || stored === "panel") return stored;
   try {
-    return localStorage.getItem(DOCK_KEY) === "bar" ? "bar" : "panel";
+    return localStorage.getItem("klangkurator.player.dock.v1") === "bar" ? "bar" : "panel";
   } catch {
     return "panel";
   }
@@ -86,11 +91,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const setDock = useCallback((next: PlayerDock) => {
     setDockState(next);
-    try {
-      localStorage.setItem(DOCK_KEY, next);
-    } catch {
-      /* ignore */
-    }
+    saveSettings({ playerDock: next });
   }, []);
 
   const value = useMemo(

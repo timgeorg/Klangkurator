@@ -5,6 +5,7 @@ import { ColorChip } from "@/components/ui/color-chip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { addSubgenre, getMainGenreColor, getSubgenresForMainGenre } from "@/lib/genreData";
+import { useSettingsTick } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 interface SubgenreSelectorProps {
@@ -21,6 +22,9 @@ interface SubgenreSelectorProps {
 export function SubgenreSelector({ mainGenre, selectedSubgenres, onSubgenresChange, size = "sm" }: SubgenreSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  // Hooks run before any early return: the genre list can change while this
+  // popover is open, and the chips must follow it.
+  useSettingsTick();
 
   if (!mainGenre) {
     return <p className="text-xs text-muted-foreground">Choose a main genre first.</p>;

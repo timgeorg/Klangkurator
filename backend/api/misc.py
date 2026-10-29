@@ -83,6 +83,9 @@ def export_data():
                 for song in library.get_songs()
             ],
             "tags": library.get_tags(),
+            # Genres are library vocabulary like tags, so a backup carries them
+            # (NFR-2, issue #51).
+            "genres": library.get_genres(),
             "song_tags": library.get_song_tags(),
             "song_relationships": library.get_relationships(),
             "playlists": library.get_playlists(),

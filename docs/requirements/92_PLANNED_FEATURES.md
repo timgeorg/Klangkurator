@@ -1,7 +1,7 @@
 # Planned Features (Not Yet Specced)
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-29
 Source: Requirements.md section 15; new ideas from set planning session; Tim's 2026-09-24 backlog list
 
 ## Confirmed Future Work
@@ -11,7 +11,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-1 | Visual Fabric.js canvas editor for Sets | Drag blocks as nodes, draw connections as flowchart |
 | PF-2 | BPM & key compatibility hints when building blocks/sets | Show green/yellow/red when adjacent tracks are compatible |
 | PF-3 | Bulk-tag multiple selected songs | Select rows → apply tag to all |
-| PF-4 | Persist column order/visibility/widths to localStorage | |
+| PF-4 | Persist column order/visibility/widths | Done: first `localStorage`, and since #51 in `~/.klangkurator/settings.json` (PF-89) |
 | PF-5 | "Clear All Filters" button + keyboard shortcuts (Ctrl+F, Esc) | |
 | PF-6 | Inline editing of subgenres in the table | |
 | PF-7 | Auto-size Subgenres column | |
@@ -30,6 +30,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-15 | Column reorder via drag and drop | Swap columns in the table by dragging headers, persisted like visibility/widths |
 | PF-16 | Media player | Actually play songs from the library — transport controls, current-track indicator |
 | PF-17 | Song detail view | Click a track → dedicated view with full metadata, notes, tags, relationships, waveform |
+| PF-89 | Settings in files, not the browser | **Built 2026-10-29** (issue #51; PR pending). The UI preferences moved from `localStorage` into `~/.klangkurator/settings.json`, and the genre list into `library.json` as `genres`, so both travel with the library folder, survive clearing site data and appear in the backup. The desktop window runs with `private_mode=False` so its storage survives too. A one-time migration copies an existing browser's values; an unreadable data file is preserved as `*.corrupt-<timestamp>` instead of being overwritten. Spec: `17_SETTINGS.md`; plan: `docs/plans/SETTINGS_PORTABILITY_PLAN.md` |
 | PF-88 | Crate tabs: collapse past 10, Shift+click for several | **Built 2026-10-23** (issue #49, PR #54; review fixes #57). More than 10 crates: the tab bar collapses to the first 10 plus every selected crate and a "+N more" toggle; the choice is remembered per browser. Shift+click adds a crate to or removes it from the selection (A+B+C), feeding the existing multi-select Crate filter the table and the map share. Spec: `13_LIBRARY_VIEW.md` REQ-13-CT; plan: `docs/plans/CRATE_TABS_PLAN.md` |
 
 ## Player

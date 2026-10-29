@@ -9,6 +9,7 @@
 // switched off is still off after a reload (TM-L7).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { readSetting, saveSettings } from "@/lib/settings";
 import {
   DEFAULT_INPUTS,
   MAP_INPUTS,
@@ -134,12 +135,8 @@ export function useMapConfig() {
   useEffect(() => {
     const blob = JSON.stringify(config);
     if (blob === lastSavedBlob.current) return;
-    try {
-      localStorage.setItem(MAP_CONFIG_STORAGE_KEY, blob);
-      lastSavedBlob.current = blob;
-    } catch {
-      // Private mode or a full quota: the settings last for this session.
-    }
+    lastSavedBlob.current = blob;
+    saveSettings({ map: config });
   }, [config]);
 
   const setInputEnabled = useCallback((input: MapInput, enabled: boolean) => {

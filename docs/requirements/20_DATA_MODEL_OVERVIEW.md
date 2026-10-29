@@ -52,3 +52,19 @@ library/
 All three files are loaded fully at startup. Changes are written back
 to the relevant file on save. No per-entity files — the entire dataset
 fits in memory (~1,000–5,000 songs).
+
+## The fourth file (built 2026-10-29, issue #51)
+
+`~/.klangkurator/` holds four data files, not three:
+
+| File | Holds |
+|---|---|
+| `library.json` | songs, tags, **genres**, song_tags, relationships, playlists, playlist_songs, `_config` |
+| `blocks.json` | blocks |
+| `sets.json` | sets |
+| `settings.json` | the UI preferences: column layout, map inputs and layers, theme, covers, player dock, volume, crate-tab collapse |
+
+`settings.json` is separate because a preference change must not rewrite the
+multi-megabyte library. Every file is written atomically, and an unreadable one
+is preserved as `<name>.corrupt-<timestamp>.json` rather than being replaced by
+the empty state that follows a read error.

@@ -28,6 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { api, API_BASE, describeApiError } from "@/lib/api";
 import { useCoverStyle } from "@/lib/appearance";
 import { getGenreConfig, saveGenreConfig, type GenreConfig } from "@/lib/genreData";
+import { saveSettings, useSettingsTick } from "@/lib/settings";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { usePlayer } from "@/lib/PlayerContext";
 import { storage, type Tag } from "@/lib/storage";
@@ -51,7 +52,10 @@ export default function Settings() {
   const [tagUses, setTagUses] = useState<Map<string, number>>(new Map());
   const [tagStatus, setTagStatus] = useState<"loading" | "ready" | "error">("loading");
   const [tagError, setTagError] = useState("");
-  const [genres, setGenres] = useState<GenreConfig[]>(() => getGenreConfig());
+  // The genre list lives in library.json (issue #51); the tick re-renders this
+  // page when another view changes it.
+  useSettingsTick();
+  const genres = getGenreConfig();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Dialogs keep their subject while they animate closed.
@@ -143,7 +147,6 @@ export default function Settings() {
 
   const updateGenres = (next: GenreConfig[]) => {
     saveGenreConfig(next);
-    setGenres(next);
   };
 
   const edit = (next: Editing) => {
@@ -471,7 +474,13 @@ function AppearanceSettings() {
         <SegmentedControl
           label="Theme"
           value={themeChoice}
-          onValueChange={(next) => setTheme(next === "paper" ? "light" : next === "system" ? "system" : "dark")}
+          onValueChange={(next) => {
+            const resolved = next === "paper" ? "light" : next === "system" ? "system" : "dark";
+            // next-themes keeps its own browser copy for the first paint; the
+            // file is the source of truth (issue #51), so write it too.
+            setTheme(resolved);
+            saveSettings({ theme: resolved });
+          }}
           options={[
             { value: "ink", label: "Ink", icon: <Moon /> },
             { value: "paper", label: "Paper", icon: <Sun /> },
