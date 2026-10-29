@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
+import { readSetting, saveSettings } from '@/lib/settings';
+
 // Column definition type
 export interface ColumnDef {
   id: string;
@@ -74,50 +76,61 @@ const isValidColumnOrder = (value: unknown): value is string[] =>
   value.length > 0 &&
   value.every(id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(COLUMN_DEFINITIONS, id));
 
-// Returns the persisted blob only when complete and valid; null → fall back to defaults
+// The saved layout, or null for the defaults. `settings.json` is the source of
+// truth as of issue #51; the browser copy is read only while the file has none.
 const loadPersistedColumnConfig = (): ColumnConfig | null => {
+  const fromFile = readSetting<unknown>('columns', undefined);
+  if (fromFile !== undefined) {
+    const parsed = normaliseColumnConfig(fromFile);
+    if (parsed) return parsed;
+  }
   try {
     const raw = localStorage.getItem(COLUMN_CONFIG_STORAGE_KEY);
     if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isPlainObject(parsed)) return null;
-
-    const { order, visibility, widths, sized } = parsed;
-    if (!isValidColumnOrder(order) || !isPlainObject(visibility) || !isPlainObject(widths)) {
-      return null;
-    }
-    // Migration: persisted orders from before PF-14 have no 'cover' column.
-    // Insert after 'play' (or first) so existing users don't lose it.
-    const migratedOrder = order.includes('cover')
-      ? order
-      : (() => {
-          const idx = order.indexOf('play');
-          const next = [...order];
-          next.splice(idx >= 0 ? idx + 1 : 0, 0, 'cover');
-          return next;
-        })();
-    // Migration: persisted orders from before issue #4 have no 'rank' column.
-    // Insert after 'people' (or the nearest rating) so existing users see it.
-    const rankedOrder = migratedOrder.includes('rank')
-      ? migratedOrder
-      : (() => {
-          const anchor = ['people', 'energy'].find((id) => migratedOrder.includes(id));
-          const idx = anchor ? migratedOrder.indexOf(anchor) : -1;
-          const next = [...migratedOrder];
-          next.splice(idx >= 0 ? idx + 1 : next.length, 0, 'rank');
-          return next;
-        })();
-    const vis = visibility as Record<string, boolean>;
-    const wid = widths as Record<string, number>;
-    return {
-      order: rankedOrder,
-      visibility: { ...vis, cover: vis.cover ?? true, rank: vis.rank ?? true },
-      widths: { ...wid, cover: wid.cover ?? 48, rank: wid.rank ?? 80 },
-      sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
-    };
+    return normaliseColumnConfig(JSON.parse(raw));
   } catch {
     return null;
   }
+};
+
+// The stored layout, validated and migrated to the current columns; null when unusable.
+const normaliseColumnConfig = (value: unknown): ColumnConfig | null => {
+  const parsed = value;
+  if (!isPlainObject(parsed)) return null;
+
+  const { order, visibility, widths, sized } = parsed;
+  if (!isValidColumnOrder(order) || !isPlainObject(visibility) || !isPlainObject(widths)) {
+    return null;
+  }
+  // Migration: persisted orders from before PF-14 have no 'cover' column.
+  // Insert after 'play' (or first) so existing users don't lose it.
+  const migratedOrder = order.includes('cover')
+    ? order
+    : (() => {
+        const idx = order.indexOf('play');
+        const next = [...order];
+        next.splice(idx >= 0 ? idx + 1 : 0, 0, 'cover');
+        return next;
+      })();
+  // Migration: persisted orders from before issue #4 have no 'rank' column.
+  // Insert after 'people' (or the nearest rating) so existing users see it.
+  const rankedOrder = migratedOrder.includes('rank')
+    ? migratedOrder
+    : (() => {
+        const anchor = ['people', 'energy'].find((id) => migratedOrder.includes(id));
+        const idx = anchor ? migratedOrder.indexOf(anchor) : -1;
+        const next = [...migratedOrder];
+        next.splice(idx >= 0 ? idx + 1 : next.length, 0, 'rank');
+        return next;
+      })();
+  const vis = visibility as Record<string, boolean>;
+  const wid = widths as Record<string, number>;
+  return {
+    order: rankedOrder,
+    visibility: { ...vis, cover: vis.cover ?? true, rank: vis.rank ?? true },
+    widths: { ...wid, cover: wid.cover ?? 48, rank: wid.rank ?? 80 },
+    sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
+  };
 };
 
 export function useColumnConfig() {
@@ -140,7 +153,7 @@ export function useColumnConfig() {
   const lastSavedBlob = useRef<string | null>(null);
   const skipNextSave = useRef(false);
 
-  // Persist order/visibility/widths to localStorage whenever they change
+  // Persist order/visibility/widths to settings.json whenever they change
   useEffect(() => {
     if (skipNextSave.current) {
       skipNextSave.current = false;
@@ -153,12 +166,8 @@ export function useColumnConfig() {
       sized: Object.keys(userResized).filter(id => userResized[id]),
     });
     if (blob === lastSavedBlob.current) return;
-    try {
-      localStorage.setItem(COLUMN_CONFIG_STORAGE_KEY, blob);
-      lastSavedBlob.current = blob;
-    } catch {
-      // Quota/serialization errors: keep in-memory state, skip persistence
-    }
+    lastSavedBlob.current = blob;
+    saveSettings({ columns: JSON.parse(blob) });
   }, [columnOrder, columnVisibility, columnWidths, userResized]);
 
   // Get visible columns in order
@@ -268,11 +277,12 @@ export function useColumnConfig() {
     setColumnWidths({ ...DEFAULT_WIDTHS });
     setUserResized({});
     skipNextSave.current = true;
-    try {
-      localStorage.removeItem(COLUMN_CONFIG_STORAGE_KEY);
-    } catch {
-      // Ignore storage errors
-    }
+    saveSettings({ columns: {
+      order: [...DEFAULT_COLUMN_ORDER],
+      visibility: { ...DEFAULT_VISIBILITY },
+      widths: { ...DEFAULT_WIDTHS },
+      sized: [],
+    } });
   }, []);
 
   return {

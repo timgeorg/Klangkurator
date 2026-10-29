@@ -1,7 +1,7 @@
 # Settings
 
 Status: Active
-Last Updated: 2026-10-08
+Last Updated: 2026-10-29
 Source: Requirements.md section 11
 
 ## Tags Management
@@ -44,14 +44,55 @@ Lives on the Import page, not in Settings (see 10_LIBRARY_AND_FILE_LOADING):
 - **Set export**: export individual sets as markdown / text / JSON (still
   open — set-level export is not this feature)
 
+## Where settings live (built 2026-10-29, PF-89, issue #51)
+
+Settings used to sit only in the browser's `localStorage`: they did not travel
+with the library, vanished when site data was cleared, and the desktop window
+could not keep them at all. They are files now.
+
+- **`~/.klangkurator/settings.json`** holds the UI preferences, as a fourth data
+  file beside `library.json`, `blocks.json` and `sets.json`. Not in
+  `library.json`: that file is library content, and a column drag must not
+  rewrite it.
+- **`genres` inside `library.json`** holds the genre list
+  (`[{name, color, subgenres}]`). Genres are library vocabulary like tags, and
+  the backup covers the whole library, so they join the export.
+- **`GET /api/settings`** returns the document, or `{}` when nothing was saved.
+  **`PUT /api/settings`** shallow-merges a partial object. Only `columns`,
+  `map`, `theme`, `covers`, `playerDock`, `volume` and `crateTabsExpanded` are
+  accepted, each type-checked; an unknown key or a wrong type is 422 and
+  nothing is written. A key written by a newer version is returned as it is, so
+  an older app never destroys it.
+- **`GET /api/genres` / `PUT /api/genres`** read and replace the genre list.
+  A blank name, a duplicate (case-insensitive), a missing colour or malformed
+  subgenres is 422.
+- **Loading:** the app reads both once, before it renders; a skeleton shows
+  until then. The existing synchronous genre getters keep their signatures.
+- **Writes:** applied in memory at once and saved about 300 ms later. A failed
+  save toasts and keeps the value for the next attempt.
+- **Migration:** on the first start, the browser's old values (all seven keys,
+  genres included) are copied into the files once. A value already in a file
+  wins. After that the files are the truth; the theme keeps its browser copy
+  only so the first paint does not flash.
+- **An unreadable data file is kept.** `BaseStore` renames it to
+  `<name>.corrupt-<timestamp>.json` and logs an error before starting empty, so
+  no data file is ever overwritten by the empty state that follows a read error.
+- **Settings travel by copying `~/.klangkurator/`.** The Backup & Export file
+  stays library content; the machine-local music folder path stays in
+  `library.json` `_config` and out of the export.
+- **The desktop window keeps browser storage** (`private_mode=False` with a
+  storage path under the data folder); nothing the app needs depends on it.
+
 ## Preferences
 
-- Default phase names for new sets (e.g. "Opening, Building, Sunset, Peak, Closing")
-- Default target set duration
-- Column layout persistence (order, visibility, widths) — saved to localStorage
-- **Appearance** (built 2026-10-08): theme Ink (dark, default) / Paper (light) /
-  System; covers in black and white (default) or original colour; on wide
-  screens the player as a right-hand panel or a bottom bar. All stored in
-  localStorage (`klangkurator.theme.v1`, `klangkurator.covers.v1`,
-  `klangkurator.player.dock.v1`). No accent picker: orange carries meaning
-  ("this one") and is not a preference.
+- **Appearance** (built 2026-10-08, moved into `settings.json` 2026-10-29): theme
+  Ink (dark, default) / Paper (light) / System; covers in black and white
+  (default) or original colour; on wide screens the player as a right-hand panel
+  or a bottom bar. No accent picker: orange carries meaning ("this one") and is
+  not a preference.
+- Column layout (order, visibility, widths), the map's inputs and layers, the
+  player's volume and dock, and the crate bar's collapse choice are all in
+  `settings.json`.
+- **Not built, and out of scope:** default phase names for new sets, and a
+  default target set duration. A set carries its own `target_duration_min`.
+  They belong in `settings.json` once they exist.

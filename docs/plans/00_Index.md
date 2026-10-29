@@ -35,3 +35,4 @@ tags:
 - [[CRATE_TABS_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #49, judged source-blind by the Validator.
 - [[MCP_SERVER_PLAN.md]] — technical plan for issue #47: the three backend prerequisites, the 24-tool surface, the mcp 2.x API, and the three open questions answered.
 - [[MCP_SERVER_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #47, judged source-blind by the Validator with curl and an MCP client.
+- [[SETTINGS_PORTABILITY_PLAN.md]] — technical plan for issue #51: preferences into `settings.json`, genres into `library.json`, the one-time migration, and the corrupt-file guard.

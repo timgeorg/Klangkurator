@@ -1,7 +1,7 @@
 # Data Model: library.json
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-29
 Source: Requirements.md sections 2.3, 3, 5, 7
 
 ## Schema
@@ -85,3 +85,15 @@ Source: Requirements.md sections 2.3, 3, 5, 7
   genre, year, notes, lyrics, …); required fields (title, artist, file path)
   and list fields ignore `null` (since 2026-10-08; before, every `null` was
   dropped, so an emptied field could never be cleared)
+
+## `genres` (added 2026-10-29, issue #51)
+
+```json
+"genres": [
+  { "name": "Techno", "color": "#6B5BD6", "subgenres": ["Peak Time", "Hard"] }
+]
+```
+
+The genre vocabulary, beside `tags` and for the same reason: it is library
+content, so it travels with the library and joins the export. Written through
+`PUT /api/genres`; a blank name or a duplicate (case-insensitive) is refused.

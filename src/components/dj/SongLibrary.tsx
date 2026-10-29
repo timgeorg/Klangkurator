@@ -15,6 +15,7 @@ import { getMainGenreColor } from "@/lib/genreData";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
 import { createSongWriter, type SongWriter } from "@/lib/songWriter";
+import { getSettings, saveSettings } from "@/lib/settings";
 import { storage, Song, SongPatch, SongTag, Tag } from "@/lib/storage";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
@@ -53,14 +54,20 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-/** Where the crate bar's expand choice is kept; a stored "1" means expanded. */
+/**
+ * Where the crate bar's expand choice is kept. `settings.json` holds it as of
+ * issue #51; the browser key is the pre-#51 location, read once by the settings
+ * migration.
+ */
 const CRATES_EXPANDED_KEY = "klangkurator.crates.expanded";
 
 /** How many crate tabs fit before the bar collapses and hides the rest (issue #49). */
 const CRATE_TAB_LIMIT = 10;
 
-/** The stored expand choice for the crate tabs; without storage, collapsed. */
+/** The expand choice for the crate tabs; collapsed until one is stored. */
 function readCratesExpanded(): boolean {
+  const stored = getSettings().crateTabsExpanded;
+  if (typeof stored === "boolean") return stored;
   try {
     return localStorage.getItem(CRATES_EXPANDED_KEY) === "1";
   } catch {
@@ -68,13 +75,9 @@ function readCratesExpanded(): boolean {
   }
 }
 
-/** Stores the crate tabs' expand choice; private mode keeps it for the session. */
+/** Store the crate tabs' expand choice (settings.json, issue #51). */
 function writeCratesExpanded(expanded: boolean): void {
-  try {
-    localStorage.setItem(CRATES_EXPANDED_KEY, expanded ? "1" : "0");
-  } catch {
-    /* private mode: the choice lasts for this session */
-  }
+  saveSettings({ crateTabsExpanded: expanded });
 }
 
 /** A patch applied the way the backend applies it: null clears the field. */

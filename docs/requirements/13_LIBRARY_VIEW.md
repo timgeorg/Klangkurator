@@ -62,11 +62,10 @@ unchanged ("A, B" for two crates, "N selected" beyond).
   no count. Pressing it keeps focus on it. When a focused tab disappears (a
   crate beyond the first 10 is deselected while collapsed), focus moves to the
   toggle.
-- The choice is remembered per browser (`localStorage`, read and written inside
-  try/catch); without storage the bar starts collapsed. Known limit: the
-  desktop window does not keep `localStorage` between launches today
-  (pywebview private mode, `backend/pywebview_launcher.py`) — the same as the
-  saved column layout.
+- The choice is remembered in `settings.json` (`crateTabsExpanded`, issue #51),
+  so it travels with the library folder and the desktop window keeps it. It was
+  per-browser `localStorage` until #51; the settings migration copies an old
+  value once. Without a readable file the bar starts collapsed.
 - On touch screens (`pointer: coarse`) the tabs and the toggle are at least
   44 px tall; with a mouse they stay 32 px.
 

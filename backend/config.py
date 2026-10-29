@@ -7,6 +7,10 @@ DATA_DIR = Path.home() / ".klangkurator"
 LIBRARY_FILE = DATA_DIR / "library.json"
 BLOCKS_FILE = DATA_DIR / "blocks.json"
 SETS_FILE = DATA_DIR / "sets.json"
+# UI preferences (column layout, map, theme, covers, dock, volume, crate tabs).
+# Separate from library.json on purpose: a column drag must not rewrite a
+# multi-megabyte library (issue #51).
+SETTINGS_FILE = DATA_DIR / "settings.json"
 ARTWORK_DIR = DATA_DIR / "artwork"  # PF-14: extracted cover thumbnails (one jpg per song id)
 
 # Audio extensions the file scanner looks for

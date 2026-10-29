@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getGenreConfig, getMainGenreColor } from "@/lib/genreData";
+import { useSettingsTick } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 interface MainGenreSelectorProps {
@@ -14,6 +15,7 @@ interface MainGenreSelectorProps {
 
 /** Choose a track's main genre; the genre's colour shows as a dot. Can be changed or cleared directly. */
 export function MainGenreSelector({ selectedGenre, onGenreChange, size = "sm", showClear = true }: MainGenreSelectorProps) {
+  useSettingsTick();
   const genres = getGenreConfig();
   // A legacy genre name from file tags may not be in the configured list; keep it selectable.
   const options =
