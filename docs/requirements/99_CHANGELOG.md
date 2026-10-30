@@ -72,6 +72,26 @@ Library gleichzeitig angezeigt."*
 - `.wav` files have no embedded artwork and no useful tags, so they are worth
   keeping but are not worth showing as their own rows.
 
+### Add a song to a set from the library and the song page (#64)
+
+Tim: *"I as a user want to be able to add songs to a set from the library and song
+view, so I can add a song I'm currently looking at to a set without needing to jump
+over to "Sets" first."*
+
+A library row now carries a third icon action beside Play and Edit. The song page
+carries an **Add to set** button after Relationships. Both open the same list
+of sets, read on open so it is always current. Selecting a set appends the song to
+that set's running order. It saves at once with `items` only, so the name, notes
+and phases stay as they were. A set that already holds the song, in its flat list
+or inside a phase, shows a check mark and cannot be picked.
+
+`addSongToItems` normalises every item to the backend's shape and renumbers the
+positions `0..n-1`. A stored set can have gaps. `position: items.length` would then
+place the new song before the real end, so the helper counts from the array.
+
+REQ-16-AS is new in `16_SET_PLANNING.md`. The `#` column widened to 84 px to hold
+the three actions. A stored narrower width rises to the new minimum on load.
+
 ### Typing in the library search stays instant (#68)
 
 Tim: *"Search is also very slow when all tracks are selected. The problem is, that

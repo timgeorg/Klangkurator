@@ -252,8 +252,9 @@ the Edit dialog stays for changing everything at once. Behavior contract:
 - **Lyrics**: click → the lyrics editor
 - **Read-only**: Cover, Waveform, Time and Crate come from the file
 - Clicking a song title → opens the song detail page (`/song/:id`, PF-17)
-- Play (or Pause on the current track) and Edit → in the # column, on row
-  hover or keyboard focus
+- Play (or Pause on the current track), Edit and Add to set → in the # column,
+  on row hover or keyboard focus. Add to set appends the track to a set without
+  leaving the library (REQ-16-AS)
 - Play starts a run of the rows as shown (search, filters, sort): the
   player's next and previous play the row below and above, and the row below
   starts when a track ends; no wraparound. The run is fixed when Play is

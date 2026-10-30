@@ -13,3 +13,4 @@ tags:
 - [[BlockEditor.tsx]] — Dialog to create or edit a block: two or more tracks in mixing order with transition notes.
 - [[RunningOrder.tsx]] — The editable running order list (move/remove with focus kept, Play from a row) and the transition row between items.
 - [[TrackPicker.tsx]] — Searchable popover to add a track or block; caps the list at 50 matches.
+- [[AddToSetMenu.tsx]] — The "Add to set" popover and its library-row trigger (issue #64, REQ-16-AS): reads the sets on open, lists them in the Sets page's order, and appends the song to the chosen set's running order with one save of `items` alone.
