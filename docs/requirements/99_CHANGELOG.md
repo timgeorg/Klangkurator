@@ -1,7 +1,28 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-29
+Last Updated: 2026-10-30
+
+## 2026-10-30
+
+### Audio variants: one track, several files (proposed, issue #65)
+
+Tim: *"Wir müssen irgendwas neues noch einbauen, dass es 2 Varianten (Audio
+Files) vom gleichen Track geben kann. […] Damit werden beide nicht in der
+Library gleichzeitig angezeigt."*
+
+- **New requirement `18_AUDIO_VARIANTS.md`.** A track keeps its primary in
+  `file_path` and gains `audio_variants` for the other files of the *same*
+  recording. One row in the table, one BPM, one set of notes, one set entry.
+- **The bug that prompted it:** the same Levex remix was detected at 66.3 BPM
+  from the `.mp3` and 132.0 from the `.wav`. The author repaired the `.mp3` by
+  hand. The new requirement makes BPM/key a property of the track, analysed once
+  from the primary, and makes an octave disagreement a reported case, never a
+  silent pick.
+- **`INV-14` and `INV-15`** record the two rules that follow: one primary per
+  track, and detaching a variant never deletes the file.
+- `.wav` files have no embedded artwork and no useful tags, so they are worth
+  keeping but are not worth showing as their own rows.
 
 ## 2026-10-29
 

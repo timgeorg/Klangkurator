@@ -16,6 +16,7 @@ tags:
 - [[15_BLOCKS.md]] — reusable mini-mixes (ordered songs + transition notes).
 - [[16_SET_PLANNING.md]] — phase-based set planning workflow: crate selection, sorting, arc review, export.
 - [[17_SETTINGS.md]] — tags/genres management, backup/export, preferences.
+- [[18_AUDIO_VARIANTS.md]] — one track, several audio files: a primary with attached variants, so an `.mp3` and its `.wav` are one row, one BPM and one set of notes.
 - [[20_DATA_MODEL_OVERVIEW.md]] — entity relationships and storage file layout.
 - [[21_DATA_MODEL_LIBRARY_JSON.md]] — library.json schema (songs, tags, relationships, playlists).
 - [[22_DATA_MODEL_BLOCKS_AND_SETS_JSON.md]] — blocks.json and sets.json schemas.

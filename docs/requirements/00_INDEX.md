@@ -40,6 +40,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 - [15_BLOCKS.md](15_BLOCKS.md) — reusable mini-mixes (ordered songs + transition notes)
 - [16_SET_PLANNING.md](16_SET_PLANNING.md) — set planning workflow: crate selection, sorting, phase-based set building
 - [17_SETTINGS.md](17_SETTINGS.md) — tags/genres management, backup/export, preferences
+- [18_AUDIO_VARIANTS.md](18_AUDIO_VARIANTS.md) — one track, several audio files: a primary with attached variants
 
 ## Data Contract
 
