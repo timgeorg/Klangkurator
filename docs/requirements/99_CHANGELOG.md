@@ -5,6 +5,26 @@ Last Updated: 2026-10-30
 
 ## 2026-10-30
 
+### A set exports as a Rekordbox playlist (#67)
+
+Tim: *"Ist es theoretisch möglich aus so einem Set eine rekordbox playlist zu
+erstellen? Oder wie macht man das normalerweise?"*
+
+Rekordbox imports a playlist from the XML file Pioneer documents, and the app now
+writes that file. `GET /api/sets/{id}/export/rekordbox` answers one `NODE` per set,
+ordered by the set's own `position`. Each set card carries an export action.
+
+The details that decide whether the import works are the ones the format fixes. A
+`Location` is a `file://localhost/` URI, and the writer encodes the space and `#` in
+this library's root. `Rating` uses Rekordbox's six values, not a star count. The app
+leaves out an attribute it cannot fill, rather than guessing one. A block expands
+into its tracks in place, and the set's transition note arrives in `Comments`.
+
+Writing `master.db` stays out of scope. `31a_REKORDBOX_PLAYLIST_EXPORT.md` now reads
+"Built", and section 2 of `30_REKORDBOX_INTEGRATION.md` says what the export does.
+
+A measured export of 47 real tracks: 17.5 KB, 11 ms, every `Location` resolves.
+
 ### A set can be a pool: the target duration is now removable
 
 Tim: *"Ja, die Länge ist egal. Ein Set ist grade eher mehr ein Pool. Also viel
