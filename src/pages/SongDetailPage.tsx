@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Map as MapIcon, Pause, Pencil, Play, Share2, Wand2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ListPlus,
+  Map as MapIcon,
+  Pause,
+  Pencil,
+  Play,
+  Share2,
+  Wand2,
+} from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
@@ -10,6 +19,7 @@ import { SongRelationshipsDialog } from "@/components/dj/SongRelationshipsDialog
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SectionHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
+import { AddToSetMenu } from "@/components/sets/AddToSetMenu";
 import { ColorChip } from "@/components/ui/color-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Waveform } from "@/components/ui/waveform";
@@ -18,7 +28,13 @@ import { MAP_PATH } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
 import { relationshipPhrase } from "@/lib/relationshipStyle";
 import { storage, Song, SongRelationship, Tag } from "@/lib/storage";
-import { crateOf, formatBpm, formatDuration, keyName, splitTitle } from "@/lib/trackFormat";
+import {
+  crateOf,
+  formatBpm,
+  formatDuration,
+  keyName,
+  splitTitle,
+} from "@/lib/trackFormat";
 
 /** A relationship seen from this song (PF-17). */
 interface RelRow {
@@ -28,7 +44,13 @@ interface RelRow {
 }
 
 const formatDate = (iso?: string) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "–";
+  iso
+    ? new Date(iso).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "–";
 
 const NOTE_FIELDS = [
   { key: "mixing_notes", label: "Mixing" },
@@ -72,11 +94,15 @@ export default function SongDetailPage() {
               .map((rel): RelRow | null => {
                 if (rel.source_song_id === loaded.id) {
                   const otherSong = byId.get(rel.target_song_id);
-                  return otherSong ? { rel, direction: "source", otherSong } : null;
+                  return otherSong
+                    ? { rel, direction: "source", otherSong }
+                    : null;
                 }
                 if (rel.target_song_id === loaded.id) {
                   const otherSong = byId.get(rel.source_song_id);
-                  return otherSong ? { rel, direction: "target", otherSong } : null;
+                  return otherSong
+                    ? { rel, direction: "target", otherSong }
+                    : null;
                 }
                 return null;
               })
@@ -120,7 +146,10 @@ export default function SongDetailPage() {
   const { main, version } = splitTitle(song.title);
   const genre = song.mainGenre || song.genres?.[0] || song.genre;
   const crate = crateOf(song);
-  const notes = NOTE_FIELDS.map((f) => ({ ...f, text: (song[f.key] ?? "").trim() })).filter((n) => n.text);
+  const notes = NOTE_FIELDS.map((f) => ({
+    ...f,
+    text: (song[f.key] ?? "").trim(),
+  })).filter((n) => n.text);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 pb-20 pt-5 md:px-8 md:pt-7">
@@ -143,14 +172,32 @@ export default function SongDetailPage() {
           />
           <div className="min-w-0">
             <h1 className="k-display-sm [overflow-wrap:anywhere]">{main}</h1>
-            {version && <p className="mt-2 break-words font-serif text-xl text-muted-foreground">{version}</p>}
-            <p className="mt-4 text-lg text-foreground/90 [overflow-wrap:anywhere]">{song.artist}</p>
+            {version && (
+              <p className="mt-2 break-words font-serif text-xl text-muted-foreground">
+                {version}
+              </p>
+            )}
+            <p className="mt-4 text-lg text-foreground/90 [overflow-wrap:anywhere]">
+              {song.artist}
+            </p>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground">
-              {genre && <ColorChip size="md" color={getMainGenreColor(genre)} label={genre} />}
+              {genre && (
+                <ColorChip
+                  size="md"
+                  color={getMainGenreColor(genre)}
+                  label={genre}
+                />
+              )}
               {song.year ? <span className="k-num">{song.year}</span> : null}
               {crate && <span className="truncate">{crate}</span>}
             </div>
-            <div className="mt-6 flex flex-wrap gap-2">
+          </div>
+          {/* Six actions no longer fit the text column beside the cover, so from
+              768 up the strip spans the whole header. It is grouped: track
+              actions, then management, then navigation. */}
+          <div className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-2 md:col-span-2 md:mt-0 md:border-t md:border-border md:pt-5">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* the track's own actions */}
               <Button onClick={() => (isCurrent ? toggle() : play(song))}>
                 {isCurrent && isPlaying ? <Pause /> : <Play />}
                 {isCurrent && isPlaying ? "Pause" : "Play"}
@@ -167,7 +214,20 @@ export default function SongDetailPage() {
                 <Share2 />
                 Relationships
               </Button>
-              {/* TM-E2: the song page's way onto the map, focusing this track. */}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <AddToSetMenu songId={song.id} songTitle={song.title}>
+                <Button variant="outline">
+                  <ListPlus />
+                  Add to set
+                </Button>
+              </AddToSetMenu>
+              {/* TM-E2: the song page's way onto the map, focusing this track. It is
+                navigation rather than a track action, so it starts its own group. */}
+              <span
+                aria-hidden="true"
+                className="mx-1 hidden h-5 w-px bg-border xl:block"
+              />
               <Button variant="outline" asChild>
                 <Link to={`${MAP_PATH}?focus=${encodeURIComponent(song.id)}`}>
                   <MapIcon />
@@ -178,7 +238,12 @@ export default function SongDetailPage() {
           </div>
         </header>
 
-        <Waveform variant="full" peaks={song.waveform_peaks} active={isCurrent} className="mt-10 h-20 w-full" />
+        <Waveform
+          variant="full"
+          peaks={song.waveform_peaks}
+          active={isCurrent}
+          className="mt-10 h-20 w-full"
+        />
 
         <dl className="mt-10 grid grid-cols-2 gap-x-8 gap-y-6 border-t border-border pt-8 sm:grid-cols-3 lg:grid-cols-4">
           <Spec label="BPM">{formatBpm(song.bpm)}</Spec>
@@ -186,7 +251,9 @@ export default function SongDetailPage() {
             {song.musical_key ? (
               <>
                 {song.musical_key}
-                <span className="ml-2 font-sans text-xs text-muted-foreground">{keyName(song.musical_key)}</span>
+                <span className="ml-2 font-sans text-xs text-muted-foreground">
+                  {keyName(song.musical_key)}
+                </span>
               </>
             ) : (
               "–"
@@ -196,7 +263,15 @@ export default function SongDetailPage() {
           <Spec label="Year">{song.year ?? "–"}</Spec>
           <Spec label="Rank">{song.rank ? `${song.rank}/5` : "Unranked"}</Spec>
           <Spec label="Genre" mono={false}>
-            {genre ? <ColorChip size="md" color={getMainGenreColor(genre)} label={genre} /> : "–"}
+            {genre ? (
+              <ColorChip
+                size="md"
+                color={getMainGenreColor(genre)}
+                label={genre}
+              />
+            ) : (
+              "–"
+            )}
           </Spec>
           <Spec label="Subgenres" mono={false}>
             {song.subgenres?.length ? song.subgenres.join(" · ") : "–"}
@@ -211,18 +286,28 @@ export default function SongDetailPage() {
           <Spec label="Updated">{formatDate(song.updated_at)}</Spec>
           <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-2">
             <dt className="k-label text-muted-foreground">File</dt>
-            <dd className="k-num mt-2 text-xs text-foreground/80 [overflow-wrap:anywhere]" title={song.file_path}>
+            <dd
+              className="k-num mt-2 text-xs text-foreground/80 [overflow-wrap:anywhere]"
+              title={song.file_path}
+            >
               {song.file_path}
             </dd>
           </div>
         </dl>
 
-        <section aria-labelledby="notes-heading" className="mt-12 border-t border-border pt-8">
+        <section
+          aria-labelledby="notes-heading"
+          className="mt-12 border-t border-border pt-8"
+        >
           <SectionHeader
             title={<span id="notes-heading">Notes</span>}
             actions={
               notes.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditOpen(true)}
+                >
                   <Pencil />
                   Edit notes
                 </Button>
@@ -233,7 +318,9 @@ export default function SongDetailPage() {
             <div className="mt-6 grid gap-8 md:grid-cols-2">
               {notes.map((n) => (
                 <figure key={n.key} className="min-w-0">
-                  <figcaption className="k-label text-muted-foreground">{n.label}</figcaption>
+                  <figcaption className="k-label text-muted-foreground">
+                    {n.label}
+                  </figcaption>
                   <p className="k-prose mt-3 whitespace-pre-wrap">{n.text}</p>
                 </figure>
               ))}
@@ -246,7 +333,11 @@ export default function SongDetailPage() {
               title="No notes yet."
               body="Write down where to mix in, what the drums do and which elements carry the track, so you never have to re-listen before a gig."
               action={
-                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditOpen(true)}
+                >
                   Add notes
                 </Button>
               }
@@ -254,26 +345,46 @@ export default function SongDetailPage() {
           )}
         </section>
 
-        <section aria-labelledby="tags-heading" className="mt-12 border-t border-border pt-8">
-          <SectionHeader title={<span id="tags-heading">Tags</span>} count={tags.length || undefined} />
+        <section
+          aria-labelledby="tags-heading"
+          className="mt-12 border-t border-border pt-8"
+        >
+          <SectionHeader
+            title={<span id="tags-heading">Tags</span>}
+            count={tags.length || undefined}
+          />
           {tags.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-1.5">
               {tags.map((tag) => (
-                <ColorChip key={tag.id} size="md" color={tag.color} label={tag.name} />
+                <ColorChip
+                  key={tag.id}
+                  size="md"
+                  color={tag.color}
+                  label={tag.name}
+                />
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-[13px] text-muted-foreground">No tags yet. Add them in the library table.</p>
+            <p className="mt-3 text-[13px] text-muted-foreground">
+              No tags yet. Add them in the library table.
+            </p>
           )}
         </section>
 
-        <section aria-labelledby="relations-heading" className="mt-12 border-t border-border pt-8">
+        <section
+          aria-labelledby="relations-heading"
+          className="mt-12 border-t border-border pt-8"
+        >
           <SectionHeader
             title={<span id="relations-heading">Relationships</span>}
             count={relationships.length || undefined}
             actions={
               relationships.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setRelationsOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRelationsOpen(true)}
+                >
                   Manage
                 </Button>
               )
@@ -282,12 +393,19 @@ export default function SongDetailPage() {
           {relationships.length > 0 ? (
             <ul className="mt-4 divide-y divide-border/70 border-y border-border/70">
               {relationships.map(({ rel, direction, otherSong }) => (
-                <li key={rel.id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-3 sm:grid-cols-[11rem_auto_minmax(0,1fr)]">
+                <li
+                  key={rel.id}
+                  className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-3 sm:grid-cols-[11rem_auto_minmax(0,1fr)]"
+                >
                   <span className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-1">
                     <RelationLine type={rel.relationship_type} />
                     {relationshipPhrase(rel.relationship_type, direction)}
                   </span>
-                  <CoverArt src={otherSong.artwork_url} current={current?.id === otherSong.id} className="h-8 w-8 rounded-[3px]" />
+                  <CoverArt
+                    src={otherSong.artwork_url}
+                    current={current?.id === otherSong.id}
+                    className="h-8 w-8 rounded-[3px]"
+                  />
                   <span className="min-w-0">
                     <Link
                       to={`/song/${otherSong.id}`}
@@ -311,7 +429,11 @@ export default function SongDetailPage() {
               title="No relationships yet."
               body="Link remixes, edits, shared samples and transitions to see how your tracks connect."
               action={
-                <Button variant="outline" size="sm" onClick={() => setRelationsOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRelationsOpen(true)}
+                >
                   Add a relationship
                 </Button>
               }
@@ -352,18 +474,38 @@ export default function SongDetailPage() {
   );
 }
 
-function Spec({ label, children, mono = true }: { label: string; children: React.ReactNode; mono?: boolean }) {
+function Spec({
+  label,
+  children,
+  mono = true,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="min-w-0">
       <dt className="k-label text-muted-foreground">{label}</dt>
-      <dd className={mono ? "k-num mt-2 text-[15px] [overflow-wrap:anywhere]" : "mt-2 text-[15px] [overflow-wrap:anywhere]"}>{children}</dd>
+      <dd
+        className={
+          mono
+            ? "k-num mt-2 text-[15px] [overflow-wrap:anywhere]"
+            : "mt-2 text-[15px] [overflow-wrap:anywhere]"
+        }
+      >
+        {children}
+      </dd>
     </div>
   );
 }
 
 function DetailSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading the track" className="mx-auto w-full max-w-5xl px-5 pb-20 pt-5 md:px-8 md:pt-7">
+    <div
+      aria-busy="true"
+      aria-label="Loading the track"
+      className="mx-auto w-full max-w-5xl px-5 pb-20 pt-5 md:px-8 md:pt-7"
+    >
       <Skeleton className="h-4 w-16" />
       <div className="mt-6 grid gap-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)] md:items-end">
         <Skeleton className="aspect-square w-full max-w-[300px] rounded-lg" />

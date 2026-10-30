@@ -2,6 +2,8 @@ import { memo } from "react";
 import { Link } from "react-router-dom";
 import { Pause, Pencil, Play } from "lucide-react";
 
+import { AddToSetButton, AddToSetMenu } from "@/components/sets/AddToSetMenu";
+
 import { CoverArt } from "@/components/brand";
 import { TagSelector } from "@/components/ui/tag-selector";
 import { Waveform } from "@/components/ui/waveform";
@@ -103,6 +105,12 @@ function SongTableRowImpl({
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
+              <AddToSetMenu songId={song.id} songTitle={song.title}>
+                <AddToSetButton
+                  songTitle={song.title}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </AddToSetMenu>
             </div>
           </div>
         );
@@ -270,8 +278,12 @@ function SongTableRowImpl({
   };
 
   return (
+    // Only the first rows render (issue #63): the position must be explicit, or a
+    // screen reader counts the rendered rows as the whole table. The header row is
+    // row 1, so the first track is row 2.
     <div
       role="row"
+      aria-rowindex={index + 2}
       data-current={isCurrent || undefined}
       aria-current={isCurrent ? "true" : undefined}
       className={cn(

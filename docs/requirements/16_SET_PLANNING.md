@@ -98,6 +98,36 @@ not used by the UI):
   the editor say how many there are, saving leaves them untouched, and Play
   does not play them
 
+### Add to a set from the library and the song page (REQ-16-AS, built 2026-10-30, issue #64)
+
+The user adds the track they are looking at without going to Sets first.
+
+- A library row carries a third icon action beside Play and Edit. It shows on
+  row hover and on keyboard focus, and it is named "Add <title> to a set". The
+  song page carries an **Add to set** button after Relationships.
+- The menu reads the sets each time it opens, in the Sets page's order. Each
+  row shows the set's colour, its name and its number of tracks.
+- Typing filters the list by set name.
+- Selecting a set appends the song as the last item of that set's running order
+  and saves at once, with `items` only. The name, the description, the notes and
+  the `phases` stay as they were.
+- The saved list follows the editor's own rules. The app normalises every item to
+  the backend's `SetItem` shape and renumbers the positions `0..n-1`. It trims a
+  transition note and leaves an empty one out.
+- A set that already holds the song, in `items` or inside a `phases` item, shows
+  a check mark and cannot be picked. This is the editor's rule: a song appears
+  once per set.
+- After the save a notice names the set. If the save fails, a notice says so and
+  the set stays as it was on screen.
+- With no set at all, the list says "No sets yet" and links to the Sets page.
+- The list is keyboard-reachable. The trigger opens it. The arrow keys, Home and
+  End move through it, and Enter picks. Escape closes it and returns focus to the
+  trigger.
+- On a touch screen the row action and each list row are at least 44 px tall.
+
+**Known limit:** a set editor open on the same set with unsaved changes keeps
+its own copy of the running order. When it saves, it replaces this addition.
+
 ## Set Planning UI
 
 ### Step 1 — Crate Selection

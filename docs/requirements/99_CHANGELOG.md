@@ -72,6 +72,60 @@ Library gleichzeitig angezeigt."*
 - `.wav` files have no embedded artwork and no useful tags, so they are worth
   keeping but are not worth showing as their own rows.
 
+### Add a song to a set from the library and the song page (#64)
+
+Tim: *"I as a user want to be able to add songs to a set from the library and song
+view, so I can add a song I'm currently looking at to a set without needing to jump
+over to "Sets" first."*
+
+A library row now carries a third icon action beside Play and Edit. The song page
+carries an **Add to set** button after Relationships. Both open the same list
+of sets, read on open so it is always current. Selecting a set appends the song to
+that set's running order. It saves at once with `items` only, so the name, notes
+and phases stay as they were. A set that already holds the song, in its flat list
+or inside a phase, shows a check mark and cannot be picked.
+
+`addSongToItems` normalises every item to the backend's shape and renumbers the
+positions `0..n-1`. A stored set can have gaps. `position: items.length` would then
+place the new song before the real end, so the helper counts from the array.
+
+REQ-16-AS is new in `16_SET_PLANNING.md`. The `#` column widened to 84 px to hold
+the three actions. A stored narrower width rises to the new minimum on load.
+
+### Typing in the library search stays instant (#68)
+
+Tim: *"Search is also very slow when all tracks are selected. The problem is, that
+you cannot type well, because typing is laggy."*
+
+The field was bound to the shared filter query. Every keystroke therefore
+re-filtered and rebuilt the matching rows before the next character could show. The field now
+stays on the live query and the table follows a deferred copy at low priority,
+with no fixed delay. The header count, `aria-rowcount` and the empty-state text
+read the same deferred query as the rows, so they always agree with the table. The
+deferral stays in the library view. A deferred value in the shared filter context
+would drop characters, and the map keeps reading the live string.
+
+Measured on a production build with all tracks selected. The slowest keystroke
+went from 1,945 ms to 224 ms. Six characters in a row now stay in order.
+
+REQ-13-ST is new in `13_LIBRARY_VIEW.md`.
+
+### The library table renders 50 rows and adds 50 while scrolling (#63)
+
+Tim: *"I want to see the crates immediately. Tracks can be rendered lazy and more
+added only when scrolling."*
+
+The table built every matching row in one React commit. The crate tabs therefore
+waited for all 1,907 rows. It now renders the first 50 rows and adds the next 50 when the
+sentinel after them comes into view. A new search, filter, crate or sort starts
+again at 50 rows and at the top. An inline edit keeps the rows and the scroll
+position. The rows stay a prefix of the list, so row numbers stay absolute. The
+header count, `aria-rowcount` and the player's run still cover every matching
+track, and each rendered row now announces its absolute position.
+
+REQ-13-LR is new in `13_LIBRARY_VIEW.md`. NFR-3 now states a measurable budget
+instead of "comfortably".
+
 ## 2026-10-29
 
 ### Settings and genres into the data folder (#51, PF-89)

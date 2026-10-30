@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronsRight, FolderInput, Search, SlidersHorizontal, X } from "lucide-react";
 
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
+import { useRevealedRows } from "@/hooks/useRevealedRows";
 import { getMainGenreColor } from "@/lib/genreData";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
@@ -97,8 +98,19 @@ export function SongLibrary() {
   // come from the context above the routes, so they carry across the Table |
   // Map switch both ways and survive the browser's Back; clearing them here
   // clears them on the map too. Sort stays this page's own.
-  const { searchQuery, setSearchQuery, filters, updateFilter, activeFilterKeys, isFiltering, clearAll } =
+  const { searchQuery, setSearchQuery, filters, updateFilter, activeFilterKeys, clearAll } =
     useLibraryFilters();
+  // The field stays bound to the live query; the table follows a deferred copy
+  // (issue #68). React renders the character at once, builds the table at low
+  // priority, and drops a half-built table when the next key arrives. There is
+  // no fixed delay, so the results show as soon as the device is free. The
+  // deferral stays here and never moves into the context: the map's field and
+  // this one read the same live string, and a deferred context value would drop
+  // characters.
+  const deferredQuery = useDeferredValue(searchQuery);
+  // Everything that describes the table reads this: the header count, the empty
+  // state and the reset key, so they never disagree with the rows on screen.
+  const tableIsFiltering = activeFilterKeys.length > 0 || deferredQuery.trim() !== "";
   const songsRef = useRef(songs);
   songsRef.current = songs;
   const [sort, setSort] = useState<SortState>(null);
@@ -122,7 +134,7 @@ export function SongLibrary() {
   // Edits never move rows: the order on screen freezes at the first edit, so
   // a track that no longer fits the sort, the search or a filter keeps its
   // place (under the pointer) until one of those changes.
-  const viewKey = JSON.stringify([searchQuery, filters, sort]);
+  const viewKey = JSON.stringify([deferredQuery, filters, sort]);
   const viewKeyRef = useRef(viewKey);
   viewKeyRef.current = viewKey;
   const [frozen, setFrozen] = useState<{ key: string; ids: string[] } | null>(null);
@@ -306,7 +318,7 @@ export function SongLibrary() {
   const filteredSongs = useMemo(() => {
     // The predicate itself is `filterSongs` in libraryTable.ts, shared with the
     // map so the table and the map agree on what matches (phase 4a, TM-R11).
-    const rows = filterSongs(songs, songTags, filters, searchQuery);
+    const rows = filterSongs(songs, songTags, filters, deferredQuery);
     if (!sort || !SORT_VALUE[sort.column]) return rows;
     const get = SORT_VALUE[sort.column];
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -319,7 +331,7 @@ export function SongLibrary() {
       if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
       return collator.compare(String(va), String(vb)) * dir;
     });
-  }, [songs, searchQuery, filters, songTags, sort]);
+  }, [songs, deferredQuery, filters, songTags, sort]);
 
   // The rows on screen: the live result, or the frozen order while editing.
   const rows = useMemo(() => {
@@ -327,6 +339,18 @@ export function SongLibrary() {
     const byId = new Map(songs.map((song) => [song.id, song]));
     return frozen.ids.flatMap((id) => byId.get(id) ?? []);
   }, [frozen, viewKey, filteredSongs, songs]);
+
+  // The table renders the first rows only and adds a page while the sentinel at
+  // its end stays in view (issue #63). `viewKey` is the reset key: a new list
+  // starts again, an inline edit keeps its rows. The full `rows` still feed the
+  // header count, `aria-rowcount` and the player.
+  const { count: revealedCount, sentinelRef } = useRevealedRows(rows.length, viewKey);
+
+  // A new list starts at the top: the first page is all that is rendered, so a
+  // scroll position from the previous list would point past its end.
+  useEffect(() => {
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
+  }, [viewKey]);
   rowsRef.current = rows;
 
   // A new search, filter or sort thaws the order for good: going back to an
@@ -335,8 +359,8 @@ export function SongLibrary() {
     setFrozen((prev) => (prev && prev.key !== viewKey ? null : prev));
   }, [viewKey]);
 
-  // `activeFilterKeys`, `isFiltering` and `clearAll` come from the shared
-  // context with the search and filters themselves (TM-R11).
+  // `activeFilterKeys` and `clearAll` come from the shared context with the
+  // search and filters themselves (TM-R11).
 
   // The table's right edge while more columns lie beyond it. A sliver of a
   // cut column is covered by the page ground, so the visible table ends on a
@@ -417,7 +441,7 @@ export function SongLibrary() {
   const crateTotal = filterOptions.rootFolders.length;
   const meta = !initialLoadDone
     ? undefined
-    : isFiltering
+    : tableIsFiltering
       ? `${rows.length} of ${songs.length} tracks`
       : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}` +
         (crateTotal > 0 ? ` · ${crateTotal} ${crateTotal === 1 ? "crate" : "crates"}` : "");
@@ -595,7 +619,7 @@ export function SongLibrary() {
             <TableSkeleton gridTemplate={gridTemplate} columns={visibleColumns} />
           ) : (
             <>
-              <div role="table" aria-label="Library" aria-rowcount={rows.length} className="w-max min-w-full">
+              <div role="table" aria-label="Library" aria-rowcount={rows.length + 1} className="w-max min-w-full">
                 <SongTableHeader
                   columnConfig={columnConfig}
                   filters={filters}
@@ -605,7 +629,7 @@ export function SongLibrary() {
                   onSortChange={setSort}
                 />
                 <div role="rowgroup">
-                  {rows.map((song, index) => (
+                  {rows.slice(0, revealedCount).map((song, index) => (
                     <SongTableRow
                       key={song.id}
                       song={song}
@@ -625,6 +649,11 @@ export function SongLibrary() {
                     />
                   ))}
                 </div>
+                {/* Reveals the next page when it comes into view. It sits outside
+                    `role="rowgroup"`: a rowgroup may only hold rows. */}
+                {revealedCount < rows.length && (
+                  <div ref={sentinelRef} aria-hidden="true" className="h-1 w-full" />
+                )}
               </div>
               {rows.length === 0 && songs.length > 0 && (
                 <div className="sticky left-0 w-full max-w-3xl p-5 md:p-8">
@@ -633,8 +662,8 @@ export function SongLibrary() {
                     arrangement="stack"
                     title="No track matches."
                     body={
-                      searchQuery.trim()
-                        ? `Nothing in your ${songs.length} tracks matches “${searchQuery.trim()}” with the current filters.`
+                      deferredQuery.trim()
+                        ? `Nothing in your ${songs.length} tracks matches “${deferredQuery.trim()}” with the current filters.`
                         : "The active filters exclude every track."
                     }
                     action={

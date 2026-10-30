@@ -99,6 +99,40 @@ unchanged ("A, B" for two crates, "N selected" beyond).
   orange cut on its cover, an orange index and title, an orange waveform and
   a tinted row
 
+### Lazy rows (REQ-13-LR, built 2026-10-30, issue #63)
+
+- The table renders the **first 50 rows** of the matching list. It adds the
+  next 50 when the user scrolls to the last rendered row. This repeats until
+  every matching row renders. A list of 50 rows or fewer renders in full. It
+  adds nothing.
+- The rendered rows are always a **prefix** of the list. Row numbers stay
+  absolute. The `#` column counts 01, 02, … across every page.
+- A **new list** starts again at 50 rows and scrolls the table to the top. The
+  list changes when the search, a filter, the crate or the sort changes.
+- An **inline edit** is not a new list. The table keeps its rows and its scroll
+  position.
+- The header count, `aria-rowcount` and the player's run still cover **every**
+  matching track, not only the rendered ones. A screen reader hears each
+  rendered row's absolute position.
+- The browser's own find (Ctrl+F) finds rendered rows only. The app's search
+  covers every track.
+
+### Instant typing (REQ-13-ST, built 2026-10-30, issue #68)
+
+- The search field is bound to the **live** query. It shows each character at
+  once, and the table follows a deferred copy at low priority. There is no fixed
+  delay: the results appear as soon as the device is free.
+- While the table catches up it keeps its previous rows. React drops a
+  half-built table when the next key arrives, so the field never waits for it.
+- The header count, `aria-rowcount` and the empty-state text describe the
+  **deferred** query, the same one the rows use, so they always agree with the
+  table. The field itself shows the live text.
+- The deferral lives in the library view. The map's field and the library's
+  field keep reading the same live string. A deferred value in the shared filter
+  context would drop characters (TM-R11).
+- The match rules do not change. `filterSongs` still matches the title, the
+  artist, the genres and the key.
+
 ## Columns
 
 | Column | Type | Notes |
@@ -218,8 +252,9 @@ the Edit dialog stays for changing everything at once. Behavior contract:
 - **Lyrics**: click → the lyrics editor
 - **Read-only**: Cover, Waveform, Time and Crate come from the file
 - Clicking a song title → opens the song detail page (`/song/:id`, PF-17)
-- Play (or Pause on the current track) and Edit → in the # column, on row
-  hover or keyboard focus
+- Play (or Pause on the current track), Edit and Add to set → in the # column,
+  on row hover or keyboard focus. Add to set appends the track to a set without
+  leaving the library (REQ-16-AS)
 - Play starts a run of the rows as shown (search, filters, sort): the
   player's next and previous play the row below and above, and the row below
   starts when a track ends; no wraparound. The run is fixed when Play is

@@ -17,7 +17,8 @@ export interface ColumnDef {
 
 // All available columns with their configuration
 export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
-  play: { id: 'play', label: '#', minWidth: 52, maxWidth: 100, defaultWidth: 52, resizable: true, filterable: false, sortable: false },
+  // 84 px holds the row number plus Play, Edit and Add to set (issue #64).
+  play: { id: 'play', label: '#', minWidth: 84, maxWidth: 140, defaultWidth: 84, resizable: true, filterable: false, sortable: false },
   cover: { id: 'cover', label: 'Cover', minWidth: 40, maxWidth: 80, defaultWidth: 40, resizable: true, filterable: false, sortable: false },
   preview: { id: 'preview', label: 'Waveform', minWidth: 64, maxWidth: 240, defaultWidth: 72, resizable: true, filterable: false, sortable: false },
   title: { id: 'title', label: 'Title', minWidth: 120, maxWidth: 480, defaultWidth: 216, resizable: true, filterable: true, sortable: true, filterType: 'text' },
@@ -118,7 +119,14 @@ const normaliseColumnConfig = (value: unknown): ColumnConfig | null => {
   return {
     order: rankedOrder,
     visibility: { ...vis, cover: vis.cover ?? true, rank: vis.rank ?? true },
-    widths: { ...wid, cover: wid.cover ?? 48, rank: wid.rank ?? 80 },
+    // Migration: a stored '# width from before issue #64 is too narrow for the
+    // third row action, so it is lifted to the new minimum.
+    widths: {
+      ...wid,
+      play: Math.max(wid.play ?? DEFAULT_WIDTHS.play, COLUMN_DEFINITIONS.play.minWidth),
+      cover: wid.cover ?? 48,
+      rank: wid.rank ?? 80,
+    },
     sized: Array.isArray(sized) ? sized.filter((id): id is string => typeof id === 'string') : [],
   };
 };
