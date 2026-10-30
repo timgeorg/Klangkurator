@@ -270,8 +270,11 @@ function SongTableRowImpl({
   };
 
   return (
+    // Only the first rows render (issue #63): the position must be explicit, or a
+    // screen reader counts the rendered rows as the whole table.
     <div
       role="row"
+      aria-rowindex={index + 1}
       data-current={isCurrent || undefined}
       aria-current={isCurrent ? "true" : undefined}
       className={cn(
