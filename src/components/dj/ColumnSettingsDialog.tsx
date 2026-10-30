@@ -99,7 +99,7 @@ export function ColumnSettingsDialog({
                   <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
 
                   <span className={cn("flex-1 text-[13px]", !isVisible && "text-muted-foreground")}>
-                    {columnId === "play" ? "Number, play and edit" : columnId === "cover" ? "Cover" : def?.label || columnId}
+                    {columnId === "play" ? "Number, play, edit and add to set" : columnId === "cover" ? "Cover" : def?.label || columnId}
                   </span>
 
                   <Switch

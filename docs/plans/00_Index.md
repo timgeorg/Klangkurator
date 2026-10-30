@@ -40,3 +40,5 @@ tags:
 - [[LAZY_ROWS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for lazy rows (issue #63), judged black-box against a sandbox copy of the 1,907-track library.
 - [[SMOOTH_SEARCH_PLAN.md]] — plan for instant library search (issue #68): why the deferral stays out of the shared context, and which surfaces read the deferred query.
 - [[SMOOTH_SEARCH_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for instant search (issue #68), judged black-box against the sandbox library with all tracks selected.
+- [[ADD_TO_SET_PLAN.md]] — plan for adding a song to a set from the library and the song page (issue #64): the normalisation and renumber rules, phases, and the wider `#` column.
+- [[ADD_TO_SET_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for add-to-set (issue #64), judged black-box against the sandbox library.

@@ -24,3 +24,4 @@ tags:
 - [[settings.ts]] — the preferences and genre documents as files (issue #51): one load before the first paint, synchronous getters, a 300 ms debounced save per document. Nothing is read from or written to `localStorage`.
 - [[settings.test.ts]] — tests for that module: both documents are the only store (nothing reaches the browser), unchanged values are not re-sent, a burst debounces to one request, a genre write and a preference write both land, and loading survives denied browser storage.
 - [[theme.tsx]] — the theme provider that replaced `next-themes`: the choice lives in `settings.json` alone, so a copied data folder reproduces the theme; "system" follows the computer.
+- [[setItems.ts]] — Reading a set's items against the library (issue #64): the referenced id across the stored shapes, whether a set already holds a song in its items or its phases, and the normalised, renumbered `items` a save should send.
