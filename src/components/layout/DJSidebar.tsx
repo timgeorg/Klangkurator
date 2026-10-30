@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/theme";
 import { FolderInput, Layers, Library, Moon, Settings, Sun } from "lucide-react";
 
 import { Wordmark } from "@/components/brand";

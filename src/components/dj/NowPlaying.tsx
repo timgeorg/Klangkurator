@@ -24,22 +24,10 @@ const formatTime = (seconds: number) => {
 };
 
 // Volume persists across sessions (player-level setting, not per-track)
-/**
- * The saved volume, from `settings.json` as of issue #51. A browser value is
- * read only when the file has none yet.
- */
+/** The saved volume, from `settings.json` alone as of issue #51. */
 function loadVolume(): number {
   const stored = readSetting<number | undefined>("volume", undefined);
   if (typeof stored === "number" && Number.isFinite(stored) && stored >= 0 && stored <= 1) return stored;
-  try {
-    const raw = localStorage.getItem("klangkurator.player.volume.v1");
-    if (raw !== null) {
-      const v = parseFloat(raw);
-      if (isFinite(v) && v >= 0 && v <= 1) return v;
-    }
-  } catch {
-    /* private mode etc. */
-  }
   return 1;
 }
 

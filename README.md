@@ -12,7 +12,7 @@ tracks, and set planning. Runs as a desktop app or in the browser, entirely on y
 - **Library table** — 17 data-driveable columns (BPM, key, genre/subgenres, energy
   ratings, tags, notes, ...) with per-column filters (text, range, multi-select),
   sorting, crate tabs, removable filter chips, resizing, show/hide, and **drag-and-drop
-  column reorder** — order, visibility, and widths all persist to localStorage
+  column reorder** — order, visibility, and widths all persist to `settings.json`
 - **Track map** — the library's other view, at `/map`: every track on one fullscreen
   canvas, placed so similar tracks sit near each other, by a symmetric user-weighted
   metadata similarity computed in the browser (no stored matrix). Clusters past 500

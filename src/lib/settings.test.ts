@@ -44,12 +44,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/** Every key a test wrote to the browser copy, to prove nothing goes there. */
+let writes: string[] = [];
+
+function storageWrites(): string[] {
+  return writes;
+}
+
 /** A `localStorage` with no persistence, so each test starts clean. */
 function stubStorage(seed: Record<string, string> = {}) {
   const store = { ...seed };
+  writes = [];
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => store[key] ?? null,
-    setItem: (key: string, value: string) => { store[key] = String(value); },
+    setItem: (key: string, value: string) => { writes.push(key); store[key] = String(value); },
     removeItem: (key: string) => { delete store[key]; },
     clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
     key: (index: number) => Object.keys(store)[index] ?? null,
@@ -78,75 +86,56 @@ async function freshModule() {
   return import("./settings");
 }
 
-describe("migration from localStorage", () => {
+describe("the documents are the only store", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("copies every legacy value into the files on the first start", async () => {
+  it("loads both documents and nothing else", async () => {
+    // Nothing is read from the browser any more: no migration, no fallback.
     stubStorage(LEGACY);
-    const backend = stubBackend();
+    const backend = stubBackend({ settings: { theme: "light", volume: 0.25 }, genres: [] });
 
     const mod = await freshModule();
     await mod.loadSettings();
 
     expect(mod.getSettings().theme).toBe("light");
-    expect(mod.getSettings().covers).toBe("original");
-    expect(mod.getSettings().playerDock).toBe("bar");
     expect(mod.getSettings().volume).toBe(0.25);
-    expect(mod.getSettings().crateTabsExpanded).toBe(true);
-    expect((mod.getSettings().columns as { widths: { title: number } }).widths.title).toBe(420);
-    expect(mod.getGenres()).toEqual([
-      { name: "Legacy Techno", color: "#123456", subgenres: ["Legacy Sub"] },
-    ]);
-    expect(backend.reads().settings).toMatchObject({ theme: "light", volume: 0.25 });
+    // The browser's genre list is ignored; the file's empty list wins.
+    expect(mod.getGenres()).toEqual([]);
+    expect(backend.calls.filter((c) => c.method === "PUT")).toEqual([]);
+    expect(storageWrites()).toEqual([]);
   });
 
-  it("runs once: a second start keeps the files even when the browser differs", async () => {
-    const storage = stubStorage(LEGACY);
-    stubBackend();
-    const mod = await freshModule();
-    await mod.loadSettings();
-    expect(storage["klangkurator.settingsMigrated.v1"]).toBe("1");
-
-    // The user changes the theme in the app; the browser copy stays stale.
-    const backend = stubBackend({
-      settings: { theme: "paper", volume: 0.25 },
-      genres: [],
-    });
-    storage["klangkurator.theme.v1"] = "light";
-    const again = await freshModule();
-    await again.loadSettings();
-
-    expect(again.getSettings().theme).toBe("paper");
-    expect(backend.calls.some((c) => c.method === "PUT")).toBe(false);
-  });
-
-  it("never overwrites a value the file already holds", async () => {
-    stubStorage({ ...LEGACY, "klangkurator.theme.v1": "dark" });
-    const backend = stubBackend({ settings: { theme: "paper" }, genres: [{ name: "House", color: "#fff", subgenres: [] }] });
-
+  it("never writes a preference or the genres back to the browser", async () => {
+    stubStorage({});
+    const backend = stubBackend({ genres: [{ name: "House", color: "#fff", subgenres: [] }] });
     const mod = await freshModule();
     await mod.loadSettings();
 
-    expect(mod.getSettings().theme).toBe("paper");
-    expect(mod.getGenres()).toEqual([{ name: "House", color: "#fff", subgenres: [] }]);
+    mod.saveSettings({ theme: "paper" });
+    mod.setGenres([{ name: "Techno", color: "#000", subgenres: [] }]);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
     expect(backend.reads().settings.theme).toBe("paper");
+    expect(backend.reads().genres).toEqual([{ name: "Techno", color: "#000", subgenres: [] }]);
+    // `saveSettings` and `setGenres` reach the files, never the browser.
+    expect(storageWrites()).toEqual([]);
   });
 
-  it("does nothing in a browser without storage", async () => {
+  it("still loads when the browser denies storage access", async () => {
     vi.stubGlobal("localStorage", {
       getItem: () => { throw new Error("denied"); },
       setItem: () => { throw new Error("denied"); },
       removeItem: () => { throw new Error("denied"); },
       clear: () => { throw new Error("denied"); },
     });
-    const backend = stubBackend();
+    const backend = stubBackend({ settings: { theme: "light" } });
 
     const mod = await freshModule();
     await mod.loadSettings();
 
-    expect(mod.getSettings()).toEqual({});
+    expect(mod.getSettings().theme).toBe("light");
     expect(backend.calls.every((c) => c.method === "GET")).toBe(true);
   });
 });
@@ -236,47 +225,13 @@ describe("the read paths (review of #51)", () => {
   it("an emptied genre list stays empty instead of resurrecting the defaults", async () => {
     // Deleting every genre used to make `getGenreConfig` fall back to the 13
     // defaults, which the next edit then wrote back over the file.
-    stubStorage({ "klangkurator.genresMigrated.v1": "1" });
+    stubStorage({});
     stubBackend({ genres: [] });
     const mod = await freshModule();
     await mod.loadSettings();
     const { getGenreConfig } = await import("./genreData");
 
     expect(getGenreConfig()).toEqual([]);
-  });
-
-  it("fills an empty genre list from the browser even after the settings migrated", async () => {
-    // The genre document joined the migration later than the other six keys, so
-    // a browser that migrated before it kept `library.json`'s list empty and the
-    // app showed no genres at all. Its own flag is what lets this run.
-    const storage = stubStorage({
-      "klangkurator.settingsMigrated.v1": "1",
-      "dj_database_genre_config": JSON.stringify([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]),
-    });
-    const backend = stubBackend({ settings: { theme: "paper" }, genres: [] });
-    const mod = await freshModule();
-    await mod.loadSettings();
-
-    expect(mod.getGenres()).toEqual([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]);
-    expect(storage["klangkurator.genresMigrated.v1"]).toBe("1");
-    // The settings half stays untouched, as its own flag says it already ran.
-    expect(backend.reads().settings.theme).toBe("paper");
-    expect(backend.calls.some((c) => c.method === "PUT" && c.path === "/settings")).toBe(false);
-  });
-
-  it("migrates the genres once, then leaves an emptied list alone", async () => {
-    const storage = stubStorage({
-      "klangkurator.settingsMigrated.v1": "1",
-      "dj_database_genre_config": JSON.stringify([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]),
-    });
-    // A file that migrated the genres already: the user then deleted them.
-    storage["klangkurator.genresMigrated.v1"] = "1";
-    const backend = stubBackend({ genres: [] });
-    const mod = await freshModule();
-    await mod.loadSettings();
-
-    expect(mod.getGenres()).toEqual([]);
-    expect(backend.calls.some((c) => c.method === "PUT" && c.path === "/genres")).toBe(false);
   });
 
   it("uses the defaults when no genre document was ever stored", async () => {
@@ -327,8 +282,8 @@ describe("the map's saved settings (review of #51)", () => {
     vi.useRealTimers();
   });
 
-  it("come from the file, not only from localStorage", async () => {
-    // The read half was left on localStorage, so the file's `map` was
+  it("come from the file, not only from the browser", async () => {
+    // The read half was once left on localStorage, so the file's `map` was
     // write-only and the save effect then wrote the defaults over it.
     stubStorage({});  // no browser copy at all: a different browser
     stubBackend({

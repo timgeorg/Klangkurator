@@ -18,9 +18,6 @@ import {
   type MapInputs,
 } from "@/lib/trackMap/types";
 
-/** The save key the plan pins for the map's settings. */
-export const MAP_CONFIG_STORAGE_KEY = "klangkurator.map.v1";
-
 /** The weight an enabled input may take: 0.5 to 3, in steps of 0.5. */
 export const MAP_WEIGHT_MIN = 0.5;
 export const MAP_WEIGHT_MAX = 3;
@@ -124,25 +121,16 @@ const normaliseMapConfig = (value: unknown): MapConfig | null => {
 /**
  * The saved config, or the defaults when nothing valid is stored.
  *
- * `settings.json` first: it is the source of truth (issue #51). Reading only
- * localStorage left the file a write-only value, and the save effect below then
- * wrote the defaults over it on the first mount (review of #51). The browser
- * copy is read only while the file has no `map`.
+ * `settings.json` is the only source of truth (issue #51), so the weights,
+ * layer switches and rail states survive a copy of the data folder. Reading
+ * only localStorage once left the file a write-only value, and the save effect
+ * below then wrote the defaults over it on the first mount (review of #51).
  */
 // Exported for the regression test: the read half of #51 was left behind once.
 export const loadPersistedMapConfig = (): MapConfig => {
   const fromFile = readSetting<unknown>("map", undefined);
-  if (fromFile !== undefined) {
-    const parsed = normaliseMapConfig(fromFile);
-    if (parsed) return parsed;
-  }
-  try {
-    const raw = localStorage.getItem(MAP_CONFIG_STORAGE_KEY);
-    if (!raw) return DEFAULT_MAP_CONFIG;
-    return normaliseMapConfig(JSON.parse(raw)) ?? DEFAULT_MAP_CONFIG;
-  } catch {
-    return DEFAULT_MAP_CONFIG;
-  }
+  if (fromFile === undefined) return DEFAULT_MAP_CONFIG;
+  return normaliseMapConfig(fromFile) ?? DEFAULT_MAP_CONFIG;
 };
 
 /**

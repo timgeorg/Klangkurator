@@ -6,15 +6,30 @@
     <meta name="theme-color" content="#111112" />
     <link rel="icon" type="image/svg+xml" href="/design-system/assets/favicon.svg" />
     <script>
-      // Apply the saved theme before first paint (next-themes takes over after mount).
+      // Paint the saved theme before first paint. `settings.json` is the only
+      // store, so it is read over the API; the synchronous XHR in the head
+      // finishes long before the first frame, and the default covers a miss.
       (function () {
+        var root = document.documentElement;
+        var apply = function (dark) {
+          root.classList.add(dark ? "dark" : "light");
+          root.style.colorScheme = dark ? "dark" : "light";
+        };
+        var prefersDark = function () {
+          return matchMedia("(prefers-color-scheme: dark)").matches;
+        };
+        apply(true);
         try {
-          var t = localStorage.getItem("klangkurator.theme.v1");
-          var dark = t ? t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches) : true;
-          document.documentElement.classList.add(dark ? "dark" : "light");
-          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", "/api/settings", false);
+          xhr.send();
+          if (xhr.status === 200) {
+            var theme = JSON.parse(xhr.responseText).theme;
+            if (theme === "light") { root.classList.remove("dark"); apply(false); }
+            else if (theme === "system") { root.classList.remove("light", "dark"); apply(prefersDark()); }
+          }
         } catch (e) {
-          document.documentElement.classList.add("dark");
+          /* the default theme is already applied */
         }
       })();
     </script>
