@@ -236,13 +236,47 @@ describe("the read paths (review of #51)", () => {
   it("an emptied genre list stays empty instead of resurrecting the defaults", async () => {
     // Deleting every genre used to make `getGenreConfig` fall back to the 13
     // defaults, which the next edit then wrote back over the file.
-    stubStorage({});
+    stubStorage({ "klangkurator.genresMigrated.v1": "1" });
     stubBackend({ genres: [] });
     const mod = await freshModule();
     await mod.loadSettings();
     const { getGenreConfig } = await import("./genreData");
 
     expect(getGenreConfig()).toEqual([]);
+  });
+
+  it("fills an empty genre list from the browser even after the settings migrated", async () => {
+    // The genre document joined the migration later than the other six keys, so
+    // a browser that migrated before it kept `library.json`'s list empty and the
+    // app showed no genres at all. Its own flag is what lets this run.
+    const storage = stubStorage({
+      "klangkurator.settingsMigrated.v1": "1",
+      "dj_database_genre_config": JSON.stringify([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]),
+    });
+    const backend = stubBackend({ settings: { theme: "paper" }, genres: [] });
+    const mod = await freshModule();
+    await mod.loadSettings();
+
+    expect(mod.getGenres()).toEqual([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]);
+    expect(storage["klangkurator.genresMigrated.v1"]).toBe("1");
+    // The settings half stays untouched, as its own flag says it already ran.
+    expect(backend.reads().settings.theme).toBe("paper");
+    expect(backend.calls.some((c) => c.method === "PUT" && c.path === "/settings")).toBe(false);
+  });
+
+  it("migrates the genres once, then leaves an emptied list alone", async () => {
+    const storage = stubStorage({
+      "klangkurator.settingsMigrated.v1": "1",
+      "dj_database_genre_config": JSON.stringify([{ name: "Legacy Techno", color: "#123456", subgenres: [] }]),
+    });
+    // A file that migrated the genres already: the user then deleted them.
+    storage["klangkurator.genresMigrated.v1"] = "1";
+    const backend = stubBackend({ genres: [] });
+    const mod = await freshModule();
+    await mod.loadSettings();
+
+    expect(mod.getGenres()).toEqual([]);
+    expect(backend.calls.some((c) => c.method === "PUT" && c.path === "/genres")).toBe(false);
   });
 
   it("uses the defaults when no genre document was ever stored", async () => {

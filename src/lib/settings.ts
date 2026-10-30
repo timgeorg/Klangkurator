@@ -56,6 +56,14 @@ const LEGACY_KEYS = {
 /** Marks that the browser's old values were copied into the files. */
 const MIGRATED_KEY = "klangkurator.settingsMigrated.v1";
 
+/**
+ * Marks that the browser's genre list was copied into `library.json`.
+ *
+ * Its own flag, because the genre document only joined the migration in
+ * issue #51: a browser that migrated before that kept an empty list for good.
+ */
+const GENRES_MIGRATED_KEY = "klangkurator.genresMigrated.v1";
+
 /** Whether the documents have arrived; false means `<SettingsGate>` still shows a skeleton. */
 export function settingsLoaded(): boolean {
   return loaded;
@@ -230,11 +238,19 @@ export async function loadSettings(): Promise<void> {
  * the desktop window before #51) contributes nothing.
  */
 async function migrateLegacyValues(): Promise<void> {
+  let settingsMigrated = false;
+  let genresMigrated = false;
   try {
-    if (localStorage.getItem(MIGRATED_KEY)) return;
+    settingsMigrated = localStorage.getItem(MIGRATED_KEY) !== null;
+    genresMigrated = localStorage.getItem(GENRES_MIGRATED_KEY) !== null;
   } catch {
     return; // no storage: nothing to migrate from
   }
+
+  // The genre list keeps its own flag. Sharing the settings flag left a browser
+  // that migrated before the genres existed with an empty `library.json` list
+  // for good: the app then showed no genres at all.
+  if (settingsMigrated && genresMigrated) return;
 
   const patch: SettingsDocument = {};
   const has = (key: string): boolean => settings[key as keyof SettingsDocument] !== undefined;
@@ -246,33 +262,40 @@ async function migrateLegacyValues(): Promise<void> {
     }
   };
 
-  const columns = read(LEGACY_KEYS.columns);
-  if (columns && !has("columns")) patch.columns = parseJson(columns);
-  const map = read(LEGACY_KEYS.map);
-  if (map && !has("map")) patch.map = parseJson(map);
-  const theme = read(LEGACY_KEYS.theme);
-  if (theme && !has("theme")) patch.theme = theme;
-  const covers = read(LEGACY_KEYS.covers);
-  if (covers && !has("covers")) patch.covers = covers;
-  const dock = read(LEGACY_KEYS.playerDock);
-  if (dock && !has("playerDock")) patch.playerDock = dock;
-  const volume = read(LEGACY_KEYS.volume);
-  if (volume && !has("volume")) {
-    const parsed = Number(volume);
-    if (Number.isFinite(parsed)) patch.volume = parsed;
+  if (!settingsMigrated) {
+    const columns = read(LEGACY_KEYS.columns);
+    if (columns && !has("columns")) patch.columns = parseJson(columns);
+    const map = read(LEGACY_KEYS.map);
+    if (map && !has("map")) patch.map = parseJson(map);
+    const theme = read(LEGACY_KEYS.theme);
+    if (theme && !has("theme")) patch.theme = theme;
+    const covers = read(LEGACY_KEYS.covers);
+    if (covers && !has("covers")) patch.covers = covers;
+    const dock = read(LEGACY_KEYS.playerDock);
+    if (dock && !has("playerDock")) patch.playerDock = dock;
+    const volume = read(LEGACY_KEYS.volume);
+    if (volume && !has("volume")) {
+      const parsed = Number(volume);
+      if (Number.isFinite(parsed)) patch.volume = parsed;
+    }
+    const expanded = read(LEGACY_KEYS.crateTabsExpanded);
+    if (expanded && !has("crateTabsExpanded")) patch.crateTabsExpanded = expanded === "1";
   }
-  const expanded = read(LEGACY_KEYS.crateTabsExpanded);
-  if (expanded && !has("crateTabsExpanded")) patch.crateTabsExpanded = expanded === "1";
 
   try {
     if (Object.keys(patch).length > 0) {
       settings = { ...settings, ...(await api.put<SettingsDocument>("/settings", patch)) };
     }
-    const legacyGenres = read(LEGACY_KEYS.genres);
-    if (legacyGenres && genres !== null && genres.length === 0) {
-      const parsed = parseJson(legacyGenres);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        genres = await api.put<GenreConfig[]>("/genres", parsed);
+    // Only a document that has never been migrated may be filled. A list the
+    // user emptied therefore stays empty, because its flag is already set.
+    if (!genresMigrated) {
+      const legacyGenres = read(LEGACY_KEYS.genres);
+      if (legacyGenres && genres !== null && genres.length === 0) {
+        const parsed = parseJson(legacyGenres);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          genres = await api.put<GenreConfig[]>("/genres", parsed);
+          localStorage.setItem(GENRES_MIGRATED_KEY, "1");
+        }
       }
     }
     localStorage.setItem(MIGRATED_KEY, "1");
