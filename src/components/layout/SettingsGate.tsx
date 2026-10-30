@@ -1,28 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { applyCoverStyle, readCoverStyle, THEME_STORAGE_KEY } from "@/lib/appearance";
-import { getSettings, loadSettings } from "@/lib/settings";
+import { applyCoverStyle, readCoverStyle } from "@/lib/appearance";
+import { loadSettings, readSetting } from "@/lib/settings";
+import { applyTheme } from "@/lib/theme";
 
-/**
- * Put next-themes on the theme the file holds.
- *
- * ThemeProvider reads `localStorage` only, so on a machine that never had this
- * browser the app would start in the default theme while `settings.json` says
- * otherwise. The browser copy stays for the first paint; the file wins here.
- */
+/** Paint the theme the file holds, so the first frame after the load is right. */
 function applyStoredTheme(): void {
-  const theme = getSettings().theme;
-  if (theme !== "light" && theme !== "dark" && theme !== "system") return;
-  const root = document.documentElement;
-  root.classList.remove("light", "dark");
-  if (theme !== "system") root.classList.add(theme);
-  root.style.colorScheme = theme;
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    /* private mode: the class is already right for this session */
-  }
+  const theme = readSetting<string | undefined>("theme", undefined);
+  if (theme === "light" || theme === "dark") applyTheme(theme);
+  else if (theme === "system") applyTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 }
 
 /**

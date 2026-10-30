@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * The first cut of #51 converted only the write half of this hook: the map's
  * document was written but never read, and the save effect then replaced the
- * user's weights and layer switches with the defaults on the first mount.
+ * user's weights and layer switches with the defaults on the first mount. The
+ * browser fallback is gone too: the file is the only store.
  */
 
 function stubStorage(seed: Record<string, string> = {}) {
@@ -58,17 +59,17 @@ describe("the map's saved settings", () => {
     expect(config.layers.relationships).toBe(false);
   });
 
-  it("fall back to the browser copy while the file has no map", async () => {
+  it("ignore the browser copy when the file has no map", async () => {
     const browser = JSON.stringify({
       inputs: {}, layers: {}, sections: {}, railOpen: false, leftRailOpen: false,
     });
-    // The key is a literal here: destructuring it from the module before the
-    // dynamic import resolves would read it in its temporal dead zone.
+    // The file is the only store, so a browser copy from an older build must
+    // not shape the layout a copied data folder cannot reproduce.
     const { loadPersistedMapConfig } = await withSettings(
       {},
       { "klangkurator.map.v1": browser },
     );
 
-    expect(loadPersistedMapConfig().leftRailOpen).toBe(false);
+    expect(loadPersistedMapConfig().leftRailOpen).toBe(true);
   });
 });

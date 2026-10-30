@@ -1,7 +1,76 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-29
+Last Updated: 2026-10-30
+
+## 2026-10-30
+
+### A set can be a pool: the target duration is now removable
+
+Tim: *"Ja, die Länge ist egal. Ein Set ist grade eher mehr ein Pool. Also viel
+kann, weniger muss."*
+
+`PUT /api/sets/{id}` dropped every null, so a `target_duration_min` that had been
+set could never be taken off again — the pool still claimed a length it did not
+have. The endpoint now uses the same rule as a song update: an explicit null
+clears an optional field, a field left out is untouched, and a required field
+(`name`) ignores a null instead of being blanked. Four tests in
+`test_set_update.py`.
+
+The Halloween set therefore carries no target length; its 47 tracks are a pool
+along the arc, not a timed plan.
+
+### Rekordbox playlist export specified (proposed)
+
+Tim: *"Ist es theoretisch möglich aus so einem Set eine rekordbox playlist zu
+erstellen? Oder wie macht man das normalerweise?"*
+
+- **Yes, through the XML file Pioneer documents** (`XML file format for
+  playlists sharing`, version 1.0.0): Rekordbox imports a playlist from it, and it
+  is the same file Rekordbox itself exports. New spec
+  `31a_REKORDBOX_PLAYLIST_EXPORT.md`, and section 2 of
+  `30_REKORDBOX_INTEGRATION.md` points at it.
+- **The real constraint is `Location`**: an absolute `file://` URI, so an export
+  is bound to the machine and drive that hold the audio (this library lives on
+  `/media/tim/Extreme SSD/#MUSIC`, with a space and a `#` to encode).
+- **Writing `master.db` is explicitly out of scope** — undocumented schema,
+  version-bound, and a bad write corrupts the collection.
+
+### The BPM detector reads the wrong metrical level (issue #66)
+
+Five tracks in the Halloween set were stored at half or two-thirds of their real
+tempo: `Bitch Don't Kill My Vibe (Darren After Edit)` at 86.1, `Love The Right Way`
+and `Make Believe` at 89.1, `Crazy` and `Pon De Replay` at 63.0 — all really
+129.2. Re-analysing with a 125–133 hint returned 129.2 for every one, so the
+values are corrected; the fault itself is #66.
+
+- **Root cause:** `analyze_track` calls `librosa.beat.beat_track` with no
+  `prior`, and the library-wide job never passes a hint, so nothing steers the
+  estimate away from a lower metrical level.
+- **Scale:** 271 of the 1,907 tracks sit in a dance crate at 55–100 BPM, which
+  is very likely the same fault. The drum & bass crate shows it in the other
+  direction: 13 tracks at 86.1 that are really 172.3.
+- **Not fixed by a bulk rewrite.** INV-13 stands: the background job only fills
+  missing values. The ticket asks for a reviewable repair pass instead.
+
+### Audio variants: one track, several files (proposed, issue #65)
+
+Tim: *"Wir müssen irgendwas neues noch einbauen, dass es 2 Varianten (Audio
+Files) vom gleichen Track geben kann. […] Damit werden beide nicht in der
+Library gleichzeitig angezeigt."*
+
+- **New requirement `18_AUDIO_VARIANTS.md`.** A track keeps its primary in
+  `file_path` and gains `audio_variants` for the other files of the *same*
+  recording. One row in the table, one BPM, one set of notes, one set entry.
+- **The bug that prompted it:** the same Levex remix was detected at 66.3 BPM
+  from the `.mp3` and 132.0 from the `.wav`. The author repaired the `.mp3` by
+  hand. The new requirement makes BPM/key a property of the track, analysed once
+  from the primary, and makes an octave disagreement a reported case, never a
+  silent pick.
+- **`INV-14` and `INV-15`** record the two rules that follow: one primary per
+  track, and detaching a variant never deletes the file.
+- `.wav` files have no embedded artwork and no useful tags, so they are worth
+  keeping but are not worth showing as their own rows.
 
 ## 2026-10-29
 

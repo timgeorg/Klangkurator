@@ -66,7 +66,6 @@ export interface ColumnConfig {
 }
 
 // PF-15: the whole column config persists as one JSON blob under a single key
-const COLUMN_CONFIG_STORAGE_KEY = 'klangkurator.columnConfig.v1';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -76,21 +75,12 @@ const isValidColumnOrder = (value: unknown): value is string[] =>
   value.length > 0 &&
   value.every(id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(COLUMN_DEFINITIONS, id));
 
-// The saved layout, or null for the defaults. `settings.json` is the source of
-// truth as of issue #51; the browser copy is read only while the file has none.
+// The saved layout, or null for the defaults. `settings.json` is the only
+// source of truth (issue #51), so copying the data folder reproduces the width.
 const loadPersistedColumnConfig = (): ColumnConfig | null => {
   const fromFile = readSetting<unknown>('columns', undefined);
-  if (fromFile !== undefined) {
-    const parsed = normaliseColumnConfig(fromFile);
-    if (parsed) return parsed;
-  }
-  try {
-    const raw = localStorage.getItem(COLUMN_CONFIG_STORAGE_KEY);
-    if (!raw) return null;
-    return normaliseColumnConfig(JSON.parse(raw));
-  } catch {
-    return null;
-  }
+  if (fromFile === undefined) return null;
+  return normaliseColumnConfig(fromFile);
 };
 
 // The stored layout, validated and migrated to the current columns; null when unusable.

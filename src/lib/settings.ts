@@ -1,11 +1,10 @@
 /**
  * Settings and genres as files, not as browser storage (issue #51).
  *
- * Preferences used to live only in `localStorage`: they did not travel with the
- * library, vanished when site data was cleared, and the desktop window could
- * not keep them at all. They are now two documents on the backend —
- * `settings.json` for UI preferences, `genres` in `library.json` for the genre
- * vocabulary — loaded once before the app renders.
+ * They are two documents on the backend — `settings.json` for UI preferences,
+ * `genres` in `library.json` for the genre vocabulary — loaded once before the
+ * app renders. Nothing is read from `localStorage` any more: copying the data
+ * folder is enough to reproduce the app exactly.
  *
  * The synchronous getters the app already calls (`getGenreConfig()`,
  * `getMainGenreColor()`, …) read the in-memory copy, so no caller changed shape.
@@ -18,7 +17,7 @@ import { api, describeApiError } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import type { GenreConfig } from "@/lib/genreData";
 
-/** The keys `PUT /api/settings` accepts, each keeping the shape it had in `localStorage`. */
+/** The keys `PUT /api/settings` accepts, each keeping its original shape. */
 export interface SettingsDocument {
   version?: number;
   columns?: unknown;
@@ -40,21 +39,6 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let genreTimer: ReturnType<typeof setTimeout> | null = null;
 let pending: SettingsDocument = {};
 const listeners = new Set<() => void>();
-
-/** The legacy `localStorage` keys, read once by the migration below. */
-const LEGACY_KEYS = {
-  columns: "klangkurator.columnConfig.v1",
-  map: "klangkurator.map.v1",
-  theme: "klangkurator.theme.v1",
-  covers: "klangkurator.covers.v1",
-  playerDock: "klangkurator.player.dock.v1",
-  volume: "klangkurator.player.volume.v1",
-  crateTabsExpanded: "klangkurator.crates.expanded",
-  genres: "dj_database_genre_config",
-} as const;
-
-/** Marks that the browser's old values were copied into the files. */
-const MIGRATED_KEY = "klangkurator.settingsMigrated.v1";
 
 /** Whether the documents have arrived; false means `<SettingsGate>` still shows a skeleton. */
 export function settingsLoaded(): boolean {
@@ -104,8 +88,8 @@ export async function refreshGenres(): Promise<void> {
 }
 
 /**
- * Read one preference. The generic keeps each caller's own type, because the
- * document stores each key in the shape `localStorage` used to hold.
+ * Read one preference. The generic keeps each caller's own type, because each
+ * key keeps the shape it was first stored in.
  */
 export function readSetting<T>(key: keyof SettingsDocument, fallback: T): T {
   const value = settings[key];
@@ -117,9 +101,9 @@ export function readSetting<T>(key: keyof SettingsDocument, fallback: T): T {
  *
  * A value identical to the one already held is dropped. Components initialise
  * their state from the loaded document and then run a save-on-mount effect, so
- * without this an unchanged value would be re-sent — and a write queued during
- * that first render would overwrite what the one-time legacy migration had just
- * stored (found while verifying issue #51).
+ * without this an unchanged value would be re-sent on every mount, and a write
+ * queued during that first render would overwrite what the load had just read
+ * (found while verifying issue #51).
  */
 export function saveSettings(patch: SettingsDocument): void {
   const changed = Object.fromEntries(
@@ -199,10 +183,12 @@ async function flushGenres(): Promise<void> {
 }
 
 /**
- * Load both documents, then copy any browser values the files lack.
+ * Load both documents. The files are the only source of truth.
  *
- * Only the browser can read `localStorage`, so the migration has to run here.
- * It happens once: after that the files are the truth (issue #51, decision 4).
+ * There is no migration out of `localStorage` any more: the app is the author's
+ * own, and every value it reads now is written to `settings.json` or
+ * `library.json`. A browser copy from an older build is ignored, so a copy of
+ * the data folder always reproduces the same app.
  */
 export async function loadSettings(): Promise<void> {
   if (loaded) return;
@@ -212,82 +198,11 @@ export async function loadSettings(): Promise<void> {
   ]);
   settings = settingsDoc ?? {};
   genres = genreList ?? [];
-  // Migrate before anything can render: a component that mounted first would
-  // queue a write of its defaults, which would flush over the migrated values.
-  await migrateLegacyValues();
   loaded = true;
   notify();
   // The gate renders the app on the next tick; flush immediately so a mounting
-  // component's first save cannot beat the migration to the file.
+  // component's first save cannot beat the load to the file.
   await flushSettings();
-}
-
-/**
- * Copy the seven `localStorage` values into the files, once.
- *
- * A file value wins over a browser one, so this never overwrites what the user
- * already saved from another browser. A browser without storage (private mode,
- * the desktop window before #51) contributes nothing.
- */
-async function migrateLegacyValues(): Promise<void> {
-  try {
-    if (localStorage.getItem(MIGRATED_KEY)) return;
-  } catch {
-    return; // no storage: nothing to migrate from
-  }
-
-  const patch: SettingsDocument = {};
-  const has = (key: string): boolean => settings[key as keyof SettingsDocument] !== undefined;
-  const read = (key: string): string | null => {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  };
-
-  const columns = read(LEGACY_KEYS.columns);
-  if (columns && !has("columns")) patch.columns = parseJson(columns);
-  const map = read(LEGACY_KEYS.map);
-  if (map && !has("map")) patch.map = parseJson(map);
-  const theme = read(LEGACY_KEYS.theme);
-  if (theme && !has("theme")) patch.theme = theme;
-  const covers = read(LEGACY_KEYS.covers);
-  if (covers && !has("covers")) patch.covers = covers;
-  const dock = read(LEGACY_KEYS.playerDock);
-  if (dock && !has("playerDock")) patch.playerDock = dock;
-  const volume = read(LEGACY_KEYS.volume);
-  if (volume && !has("volume")) {
-    const parsed = Number(volume);
-    if (Number.isFinite(parsed)) patch.volume = parsed;
-  }
-  const expanded = read(LEGACY_KEYS.crateTabsExpanded);
-  if (expanded && !has("crateTabsExpanded")) patch.crateTabsExpanded = expanded === "1";
-
-  try {
-    if (Object.keys(patch).length > 0) {
-      settings = { ...settings, ...(await api.put<SettingsDocument>("/settings", patch)) };
-    }
-    const legacyGenres = read(LEGACY_KEYS.genres);
-    if (legacyGenres && genres !== null && genres.length === 0) {
-      const parsed = parseJson(legacyGenres);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        genres = await api.put<GenreConfig[]>("/genres", parsed);
-      }
-    }
-    localStorage.setItem(MIGRATED_KEY, "1");
-  } catch {
-    // A failed migration is retried on the next start; nothing is lost.
-  }
-}
-
-/** Parse a `localStorage` value, or undefined when it is not JSON. */
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
 }
 
 /** Test seam: reset the in-memory copy. */

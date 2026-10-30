@@ -54,25 +54,13 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-/**
- * Where the crate bar's expand choice is kept. `settings.json` holds it as of
- * issue #51; the browser key is the pre-#51 location, read once by the settings
- * migration.
- */
-const CRATES_EXPANDED_KEY = "klangkurator.crates.expanded";
-
 /** How many crate tabs fit before the bar collapses and hides the rest (issue #49). */
 const CRATE_TAB_LIMIT = 10;
 
 /** The expand choice for the crate tabs; collapsed until one is stored. */
 function readCratesExpanded(): boolean {
   const stored = getSettings().crateTabsExpanded;
-  if (typeof stored === "boolean") return stored;
-  try {
-    return localStorage.getItem(CRATES_EXPANDED_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return typeof stored === "boolean" ? stored : false;
 }
 
 /** Store the crate tabs' expand choice (settings.json, issue #51). */

@@ -16,6 +16,7 @@ tags:
 - [[15_BLOCKS.md]] — reusable mini-mixes (ordered songs + transition notes).
 - [[16_SET_PLANNING.md]] — phase-based set planning workflow: crate selection, sorting, arc review, export.
 - [[17_SETTINGS.md]] — tags/genres management, backup/export, preferences.
+- [[18_AUDIO_VARIANTS.md]] — one track, several audio files: a primary with attached variants, so an `.mp3` and its `.wav` are one row, one BPM and one set of notes.
 - [[20_DATA_MODEL_OVERVIEW.md]] — entity relationships and storage file layout.
 - [[21_DATA_MODEL_LIBRARY_JSON.md]] — library.json schema (songs, tags, relationships, playlists).
 - [[22_DATA_MODEL_BLOCKS_AND_SETS_JSON.md]] — blocks.json and sets.json schemas.
@@ -28,4 +29,5 @@ tags:
 - [[31_TRANSITION_MINING.md]] — transition mining, suggestion engine, transition library (planned).
 - [[32_AI_CURATION.md]] — AI-assisted curation: set planning, transition suggestions, spectral clustering (planned).
 - [[33_TRACK_MAP.md]] — the track map (PF-81, issue #8; **Active** since phase 7): every track placed by a user-weighted similarity, with clusters and relationship/transition layers.
+- [[31a_REKORDBOX_PLAYLIST_EXPORT.md]] — export a set as a rekordbox XML playlist: the element list, the `file://` URI rules, the rating table and the phase nesting.
 - [[34_MCP_SERVER.md]] — the MCP server (PF-85, issue #47): 24 curated tools over stdio as a thin client of the backend, its config env vars, annotations, error mapping and read-only mode.

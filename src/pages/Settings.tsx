@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ChevronRight, Download, Monitor, Moon, Pencil, Plus, Sun, Trash2, Upload, X } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/theme";
 
 import { ImportMergeDialog, type Conflict, type ImportSummary } from "@/components/dj/ImportMergeDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -479,10 +479,9 @@ function AppearanceSettings() {
           value={themeChoice}
           onValueChange={(next) => {
             const resolved = next === "paper" ? "light" : next === "system" ? "system" : "dark";
-            // next-themes keeps its own browser copy for the first paint; the
-            // file is the source of truth (issue #51), so write it too.
+            // The provider writes `settings.json` itself, so copying the data
+            // folder reproduces the theme (issue #51).
             setTheme(resolved);
-            saveSettings({ theme: resolved });
           }}
           options={[
             { value: "ink", label: "Ink", icon: <Moon /> },

@@ -75,6 +75,15 @@ everything, I'll re-add those ratings"*); old keys still sitting in an existing
 | `created_at` | ISO timestamp | First import time |
 | `updated_at` | ISO timestamp | Last modification time |
 
+### Audio Files (proposed 2026-10-30)
+
+| Field | Type | Description |
+|---|---|---|
+| `file_path` | string | The **primary** audio file — the one that plays |
+| `audio_variants` | AudioVariant[] | Other files of the *same* recording (an `.mp3` beside the `.wav`). A variant has no BPM, key, ratings, notes or tags of its own: those belong to the track, once. See [[18_AUDIO_VARIANTS]] |
+
+One track plays once, however many files it ships in.
+
 ## Design Note: Notes Are The Core Asset
 
 The most important fields are the free-text notes. The entire tool exists so

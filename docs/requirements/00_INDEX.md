@@ -22,6 +22,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 ## Architecture & Planning
 
 - [30_REKORDBOX_INTEGRATION.md](30_REKORDBOX_INTEGRATION.md) — Rekordbox read/write: cue points, playlists, USB export
+- [31a_REKORDBOX_PLAYLIST_EXPORT.md](31a_REKORDBOX_PLAYLIST_EXPORT.md) — export a set as a rekordbox XML playlist
 - [31_TRANSITION_MINING.md](31_TRANSITION_MINING.md) — transition mining, suggestion engine, transition library
 - [32_AI_CURATION.md](32_AI_CURATION.md) — AI-assisted curation: set planning, transition suggestions, spectral clustering
 - [33_TRACK_MAP.md](33_TRACK_MAP.md) — the track map: all tracks placed by similarity, clusters, relationship and transition layers (PF-81)
@@ -40,6 +41,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 - [15_BLOCKS.md](15_BLOCKS.md) — reusable mini-mixes (ordered songs + transition notes)
 - [16_SET_PLANNING.md](16_SET_PLANNING.md) — set planning workflow: crate selection, sorting, phase-based set building
 - [17_SETTINGS.md](17_SETTINGS.md) — tags/genres management, backup/export, preferences
+- [18_AUDIO_VARIANTS.md](18_AUDIO_VARIANTS.md) — one track, several audio files: a primary with attached variants
 
 ## Data Contract
 

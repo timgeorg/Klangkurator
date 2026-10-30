@@ -42,17 +42,12 @@ interface PlayerContextValue {
 }
 
 /**
- * The saved dock. `settings.json` holds it as of issue #51; the browser value is
- * read only when the file has none, which is the case before the first save.
+ * The saved dock, from `settings.json` as of issue #51 — the only place it is
+ * stored, so a copied data folder reproduces it.
  */
 function loadDock(): PlayerDock {
   const stored = readSetting<string | undefined>("playerDock", undefined);
-  if (stored === "bar" || stored === "panel") return stored;
-  try {
-    return localStorage.getItem("klangkurator.player.dock.v1") === "bar" ? "bar" : "panel";
-  } catch {
-    return "panel";
-  }
+  return stored === "bar" || stored === "panel" ? stored : "panel";
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);

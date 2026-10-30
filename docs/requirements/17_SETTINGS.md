@@ -70,10 +70,15 @@ could not keep them at all. They are files now.
   until then. The existing synchronous genre getters keep their signatures.
 - **Writes:** applied in memory at once and saved about 300 ms later. A failed
   save toasts and keeps the value for the next attempt.
-- **Migration:** on the first start, the browser's old values (all seven keys,
-  genres included) are copied into the files once. A value already in a file
-  wins. After that the files are the truth; the theme keeps its browser copy
-  only so the first paint does not flash.
+- **The files are the only store** (2026-10-30). The one-time migration out of
+  `localStorage` is gone, together with every remaining browser read and write:
+  the column layout, the map config, the theme, the covers, the player dock and
+  volume, and the crate bar's collapse choice all come from `settings.json` or
+  `library.json`. The theme's provider replaces `next-themes`, which wrote
+  `localStorage` on its own; `index.html` reads `/api/settings` so the first
+  paint still matches the file. Consequence: copying `~/.klangkurator/`
+  reproduces the app exactly, including the theme on a machine that never
+  opened it.
 - **An unreadable data file is kept.** `BaseStore` renames it to
   `<name>.corrupt-<timestamp>.json` and logs an error before starting empty, so
   no data file is ever overwritten by the empty state that follows a read error.
@@ -81,7 +86,8 @@ could not keep them at all. They are files now.
   stays library content; the machine-local music folder path stays in
   `library.json` `_config` and out of the export.
 - **The desktop window keeps browser storage** (`private_mode=False` with a
-  storage path under the data folder); nothing the app needs depends on it.
+  storage path under the data folder); nothing the app needs depends on it, and
+  the app now reads none of it.
 
 ## Preferences
 

@@ -97,3 +97,34 @@ Source: Requirements.md sections 2.3, 3, 5, 7
 The genre vocabulary, beside `tags` and for the same reason: it is library
 content, so it travels with the library and joins the export. Written through
 `PUT /api/genres`; a blank name or a duplicate (case-insensitive) is refused.
+
+## `audio_variants` (proposed 2026-10-30)
+
+```json
+"songs": [
+  {
+    "id": "uuid",
+    "file_path": "/music/house/x/Track (Remix).mp3",
+    "audio_variants": [
+      {
+        "id": "uuid",
+        "file_path": "/music/house/x/Track (Remix).wav",
+        "format": "wav",
+        "duration": 204.545,
+        "bitrate": null,
+        "sample_rate": 44100,
+        "bit_depth": 24,
+        "size_bytes": 36158234,
+        "added_at": "2026-10-30T15:00:00Z"
+      }
+    ]
+  }
+]
+```
+
+The primary audio file stays in `file_path`, so every reader that already
+exists (audio, waveform, export, the Rekordbox path handoff) is untouched. A
+variant holds only what differs between the files — never BPM, key, ratings,
+notes, tags or relationships; those belong to the track. Format facts are
+stored because probing every row on every listing is not affordable for `.wav`
+files of 30 MB and more. Full rules in [[18_AUDIO_VARIANTS]].
