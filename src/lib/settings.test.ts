@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The one-time migration out of `localStorage` (issue #51).
+ * The preferences and genre documents as files (issue #51).
  *
- * Only the browser can read the old keys, so the copy has to happen in the app.
- * It must run before any component can write its defaults, and it must not
- * repeat once the files are the truth.
+ * The files are the only store since 2026-10-30: nothing is read from the
+ * browser and nothing is written back to it, so copying the data folder
+ * reproduces the app. `stubStorage` exists to prove exactly that — it records
+ * every write so a test can assert there were none.
  */
 
 type Call = { method: string; path: string; body?: unknown };
@@ -51,7 +52,7 @@ function storageWrites(): string[] {
   return writes;
 }
 
-/** A `localStorage` with no persistence, so each test starts clean. */
+/** A `localStorage` with no persistence, recording every write. */
 function stubStorage(seed: Record<string, string> = {}) {
   const store = { ...seed };
   writes = [];
@@ -66,6 +67,7 @@ function stubStorage(seed: Record<string, string> = {}) {
   return store;
 }
 
+/** A browser still holding the pre-#51 keys; every test asserts it is ignored. */
 const LEGACY = {
   "klangkurator.theme.v1": "light",
   "klangkurator.covers.v1": "original",

@@ -101,9 +101,9 @@ export function readSetting<T>(key: keyof SettingsDocument, fallback: T): T {
  *
  * A value identical to the one already held is dropped. Components initialise
  * their state from the loaded document and then run a save-on-mount effect, so
- * without this an unchanged value would be re-sent — and a write queued during
- * that first render would overwrite what the one-time legacy migration had just
- * stored (found while verifying issue #51).
+ * without this an unchanged value would be re-sent on every mount, and a write
+ * queued during that first render would overwrite what the load had just read
+ * (found while verifying issue #51).
  */
 export function saveSettings(patch: SettingsDocument): void {
   const changed = Object.fromEntries(

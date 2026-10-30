@@ -9,7 +9,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { getSettings, readSetting, saveSettings, useSettingsTick } from "@/lib/settings";
+import { readSetting, saveSettings, useSettingsTick } from "@/lib/settings";
 
 /** What the user picked: a fixed theme, or "system" to follow the computer. */
 export type ThemeChoice = "light" | "dark" | "system";
@@ -86,11 +86,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     saveSettings({ theme: next });
   }, []);
 
-  // `getSettings` is read so a caller's first render already sees the file.
   const value = useMemo<ThemeContextValue>(
     () => ({ theme, resolvedTheme, setTheme }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theme, resolvedTheme, setTheme, getSettings().theme],
+    [theme, resolvedTheme, setTheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
