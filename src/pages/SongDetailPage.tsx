@@ -13,6 +13,7 @@ import {
 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
+import { AudioFilesSection } from "@/components/dj/AudioFilesSection";
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
 import { ReanalyzeDialog } from "@/components/dj/ReanalyzeDialog";
 import { SongRelationshipsDialog } from "@/components/dj/SongRelationshipsDialog";
@@ -284,16 +285,19 @@ export default function SongDetailPage() {
           </Spec>
           <Spec label="Added">{formatDate(song.created_at)}</Spec>
           <Spec label="Updated">{formatDate(song.updated_at)}</Spec>
-          <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-2">
-            <dt className="k-label text-muted-foreground">File</dt>
-            <dd
-              className="k-num mt-2 text-xs text-foreground/80 [overflow-wrap:anywhere]"
-              title={song.file_path}
-            >
-              {song.file_path}
-            </dd>
-          </div>
         </dl>
+
+        {/* Issue #65: the primary and every variant, with the facts and paths
+            that tell two files of one recording apart. */}
+        <div className="mt-10 border-t border-border pt-8">
+          <AudioFilesSection
+            song={song}
+            onChanged={(updated) => {
+              setSong(updated);
+              load(false);
+            }}
+          />
+        </div>
 
         <section
           aria-labelledby="notes-heading"

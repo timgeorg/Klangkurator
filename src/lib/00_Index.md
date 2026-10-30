@@ -16,7 +16,9 @@ tags:
 - [[relationshipStyle.ts]] — Labels and line styles (colour, weight, dash) for the eight relationship types, shared by the graph, its legend and the lists.
 - [[returnFocus.ts]] — Hook that returns focus to the element that opened a controlled dialog when it closes (or to the main content if that element is gone).
 - [[songWriter.ts]] — Write queue for inline edits: one save request at a time, changes to a track merged while a save runs, idle() for reloads.
-- [[storage.ts]] — Data model types (Song, Tag, Block, DJSet, SongPatch, BpmRange, ReanalyzeResult …) and the storage layer the components call: the backend API implementation.
+- [[audioVariants.ts]] — The display rules behind audio variants (issue #65), pure so they test without a DOM: the primary-first file list, the badge count, which file playback will use when the primary is gone, size and fact formatting, and the octave-apart test.
+- [[audioVariants.test.ts]] — Tests for those rules, including the measured 132.0 / 66.3 pair.
+- [[storage.ts]] — Data model types (Song, Tag, Block, DJSet, SongPatch, BpmRange, ReanalyzeResult …) and the storage layer the components call: the backend API implementation, including `AudioVariant` and the attach / make-primary / detach calls (issue #65).
 - [[trackFormat.ts]] — Track display and input rules shared across views: duration, BPM (format and parse), keys (names, the 24-key list), crate, shown genre.
 - [[utils.ts]] — Tailwind class name merging utility combining clsx and twMerge.
 - [[jobProgress.ts]] — The pure rules of the background jobs (Import-page match, how a run ended, the failed-read limit), apart from the provider so they are testable without a DOM.

@@ -7,11 +7,25 @@ import { POLL_FAILURE_LIMIT, runEnd } from "@/lib/jobProgress";
 /** How often a running job's status is read (REQ-10-SP, REQ-10-AP). */
 const POLL_MS = 500;
 
+/** A file the scan met that looks like another copy of a stored track (AC-1). */
+export interface AttachOffer {
+  file_path: string;
+  song_id: string;
+  title: string;
+  artist: string;
+  /** How the scan matched it: `artist_title`, or `duration` across a tag gap. */
+  match: "artist_title" | "duration";
+  duration: number | null;
+}
+
 /** What a finished scan counted (the job's `result`). */
 export interface ScanResult {
   total: number;
   added: number;
   skipped: number;
+  /** Files offered as a variant of a known track — waiting for one click. */
+  offered?: number;
+  offers?: AttachOffer[];
   errors: string[];
 }
 
@@ -57,6 +71,8 @@ interface ScanStatusResponse {
   current_crate: string;
   added: number;
   skipped: number;
+  offered?: number;
+  offers?: AttachOffer[];
   errors: string[];
   result: ScanResult | null;
   error: string | null;

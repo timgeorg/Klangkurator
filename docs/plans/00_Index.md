@@ -12,6 +12,8 @@ tags:
 - [[PHASE_4_DESKTOP_PACKAGING.md]] — PyWebView launcher, static file serving, native folder picker, clean shutdown.
 - [[PHASE_5_ANALYSIS_PROGRESS.md]] — audio analysis progress job (REQ-10-AP): in-memory job + polled status endpoint, frontend progress bar; includes testing guide T1-T4.
 - [[BACKLOG_ORCHESTRATION.ipynb]] — working notebook for the six library-UX backlog features (PF-12..PF-17): sprint board, per-feature subtasks, verification cells, session log.
+- [[AUDIO_VARIANTS_PLAN.md]] — plan for the audio variants (issue #65): one primary path plus a variant list, the nine build steps, and the risks with their handling.
+- [[AUDIO_VARIANTS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the variants (issue #65), from the scan's offer through Files, make primary, playback fallback, the octave report and export, judged black-box against a sandbox copy.
 - [[PLAYER_RUN_PLAN.md]] — plan for the player stepping through a run (issue #5, PF-80): Tim's decisions, the queue model, data flow, interaction semantics, files.
 - [[PLAYER_RUN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for next/previous and auto-advance (issue #5), judged black-box against a sandbox copy of the library.
 - [[TRACK_MAP_PLAN.md]] — plan for the track map (issue #8, PF-81): shared types, the similarity/cluster/transition algorithm contract, and seven phases as PRs into int.

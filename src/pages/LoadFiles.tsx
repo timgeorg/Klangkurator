@@ -12,8 +12,16 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { fileName } from "@/lib/audioVariants";
 import { api, apiStatus, describeApiError } from "@/lib/api";
-import { useBackgroundJobs, type AnalysisResult, type ScanResult } from "@/lib/BackgroundJobsContext";
+import {
+  useBackgroundJobs,
+  type AnalysisResult,
+  type AttachOffer,
+  type ScanResult,
+} from "@/lib/BackgroundJobsContext";
+import { storage } from "@/lib/storage";
+import { formatDuration } from "@/lib/trackFormat";
 
 interface Crate {
   name: string;
@@ -311,6 +319,7 @@ export default function LoadFiles() {
               </div>
             )}
             {scanResult && <ScanSummary result={scanResult} />}
+            {scanResult && <AttachOffers offers={scanResult.offers ?? []} />}
           </PageSection>
 
           <PageSection
@@ -390,6 +399,66 @@ export default function LoadFiles() {
   );
 }
 
+/**
+ * The files the scan met that look like another copy of a track it already has.
+ *
+ * Issue #65, AC-1: the scan offers, it never attaches. A `.wav` has no tags, so
+ * its artist comes from the file name and will not equal the `.mp3`'s tag
+ * artist — the match is a guess the user confirms in one click. Applying it
+ * adds a variant, never a row (AC-2).
+ */
+function AttachOffers({ offers }: { offers: AttachOffer[] }) {
+  const [applied, setApplied] = useState<Record<string, "busy" | "done" | "failed">>({});
+  if (offers.length === 0) return null;
+
+  const attach = async (offer: AttachOffer) => {
+    setApplied((prev) => ({ ...prev, [offer.file_path]: "busy" }));
+    try {
+      await storage.attachVariant(offer.song_id, offer.file_path);
+      setApplied((prev) => ({ ...prev, [offer.file_path]: "done" }));
+      toast({ title: "File attached", description: `“${fileName(offer.file_path)}” is now a variant of “${offer.title}”.` });
+    } catch (error) {
+      setApplied((prev) => ({ ...prev, [offer.file_path]: "failed" }));
+      toast({ title: "The file was not attached", description: describeApiError(error), variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="mt-5 max-w-xl space-y-2">
+      <h3 className="text-[13px] font-semibold">Files of tracks you already have</h3>
+      <ul className="divide-y divide-border border-y border-border">
+        {offers.map((offer) => {
+          const state = applied[offer.file_path];
+          return (
+            <li key={offer.file_path} className="flex items-center gap-3 py-2.5 text-[13px]">
+              <div className="min-w-0 flex-1">
+                <p className="truncate" title={offer.file_path}>
+                  {fileName(offer.file_path)}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {offer.match === "duration" ? "Same length as" : "Same artist and title as"} “{offer.title}”
+                  {offer.match === "duration" && ` — ${formatDuration(offer.duration)}`}
+                </p>
+              </div>
+              {state === "done" ? (
+                <span className="shrink-0 text-xs text-muted-foreground">Attached</span>
+              ) : (
+                <Button variant="outline" size="sm" disabled={state === "busy"} onClick={() => attach(offer)}>
+                  {state === "busy" ? "Attaching…" : "Attach as variant"}
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        A variant is another file of the same recording. It joins the track instead of becoming a second row, and
+        the track keeps its notes, ratings and tags.
+      </p>
+    </div>
+  );
+}
+
 function ScanSummary({ result }: { result: ScanResult }) {
   const shownErrors = result.errors.slice(0, 5);
   return (
@@ -397,6 +466,12 @@ function ScanSummary({ result }: { result: ScanResult }) {
       <p>
         Scan finished: <span className="k-num">{result.added}</span> added,{" "}
         <span className="k-num">{result.skipped}</span> already in the library
+        {(result.offered ?? 0) > 0 && (
+          <>
+            , <span className="k-num text-foreground">{result.offered}</span>{" "}
+            {count(result.offered ?? 0, "variant")} offered
+          </>
+        )}
         {result.errors.length > 0 && (
           <>
             , <span className="k-num text-destructive">{result.errors.length}</span> could not be read

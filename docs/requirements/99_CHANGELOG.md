@@ -1,7 +1,51 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-30
+Last Updated: 2026-10-31
+
+## 2026-10-31
+
+### Audio variants built: one track, several files (issue #65)
+
+Tim: *"66 ist falsch. Vor allem, wenn es bei dem .wav der selben Version keine
+Probleme gab. Wir müssen irgendwas neues noch einbauen, dass es 2 Varianten
+(Audio Files) vom gleichen Track geben kann."*
+
+This change builds the mechanism the spec describes. A track keeps one row, and
+every other file of the same recording becomes a variant of it.
+
+- **One row, one set entry.** `POST /api/songs/{id}/variants` attaches a file and
+  adds no song row. The scan no longer skips a file whose artist and title match
+  a stored track without a word. It offers the attach on the Import page, and one
+  click applies it. This library holds about 426 files on disk that are not in
+  the library. Several of them are second copies. The offer is therefore what
+  the later dedupe pass needs.
+- **The row shows a count badge.** The Files section lists the primary and every
+  variant with format, duration, size and path. *Make primary* swaps the paths
+  and keeps BPM, key, ratings, notes and tags. *Detach from track* takes the file
+  off the track and leaves it on disk (INV-15).
+- **Playback falls back to a variant when the primary's file is gone.** The
+  player names the file it used. That is the only case where the primary does not
+  play, and INV-17 records it.
+- **A half-tempo disagreement shows both numbers, not an average.** The
+  re-analyze popup reads `primary 132.0 / variant 66.3` and offers a BPM range
+  for the repair. The app picks nothing.
+- **Export and import carry the list.** An imported variant keeps its path
+  (INV-11). One whose file is not on this machine stays in the list. It shows
+  the missing mark, and the import never drops it.
+- **New invariants:** INV-16 (a derived fact is never stored) and INV-17
+  (playback uses the primary unless its file is gone).
+- **`scripts/repair_audio_variants.py` repairs the Levex pair.** That script
+  prints a dry run by default and refuses to write without `--apply`. It attaches
+  the `.wav` to the `40a2ace1…` row. It drops the emptied `f08a9c70…` row only
+  after it confirms that no set, block, playlist or relationship refers to that
+  id.
+
+Two places where the built code departs from the written spec, both recorded in
+[[18_AUDIO_VARIANTS]]. A variant carries an advisory `bpm_reading`, because the
+popup's second number has nowhere else to come from. The duration-based attach
+offer also requires a matching title, because a duration alone claimed two
+unrelated tracks as one recording.
 
 ## 2026-10-30
 

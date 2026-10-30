@@ -37,6 +37,20 @@ Source: Requirements.md sections 2.3, 3, 5, 7
       ],
       "root_folder": "Melodic Techno",
       "lyrics": null,
+      "audio_variants": [
+        {
+          "id": "uuid",
+          "file_path": "/music/Melodic Techno/Ben Böhmer - Beyond Beliefs.wav",
+          "format": "wav",
+          "duration": 312.004,
+          "bitrate": null,
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "size_bytes": 55040000,
+          "added_at": "2026-10-30T15:00:00Z",
+          "bpm_reading": null
+        }
+      ],
       "created_at": "2026-08-08T...",
       "updated_at": "2026-08-08T..."
     }
@@ -77,6 +91,16 @@ Source: Requirements.md sections 2.3, 3, 5, 7
   are deleted too (cascade)
 - `root_folder` is derived from `file_path` at import time and stored denormalized
   for fast filtering (not re-derived on every query)
+- `audio_variants` holds the other files of the same recording. `file_path` is
+  the primary, and a variant never becomes a row of its own (INV-14,
+  [[18_AUDIO_VARIANTS]]). The list is absent on a single-file track rather than
+  stored as `[]`.
+- `audio_variants[].missing` and the song's `primary_missing` are **derived on
+  every read** from the file system. They are never written to this file: a
+  stored flag goes stale when a file moves, and the fact belongs to the machine.
+- `audio_variants[].bpm_reading` is advisory. It records a tempo an earlier
+  analysis or the file's own TBPM tag read for that file, and nothing acts on
+  it. The track's `bpm` stays the only tempo the library uses.
 - Legacy `genre` and `genres` fields are kept for backward compatibility; the
   edit dialog mirrors them from `mainGenre` and `subgenres` on save (and
   clears them with the main genre), so older readers stay consistent

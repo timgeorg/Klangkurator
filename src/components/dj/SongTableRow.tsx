@@ -11,7 +11,16 @@ import { Song, Tag } from "@/lib/storage";
 import { BPM_RANGE, crateOf, formatBpm, formatDuration, parseBpm, splitTitle } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
-import { GenreCell, KeyCell, LyricsCell, PatchSong, RatingCell, SubgenresCell, TextCell } from "./InlineCells";
+import {
+  GenreCell,
+  KeyCell,
+  LyricsCell,
+  PatchSong,
+  RatingCell,
+  SubgenresCell,
+  TextCell,
+  VariantBadge,
+} from "./InlineCells";
 import { NUMERIC_COLUMNS } from "./libraryTable";
 
 interface SongTableRowProps {
@@ -124,17 +133,20 @@ function SongTableRowImpl({
       case "title": {
         const { main, version } = splitTitle(song.title);
         return (
-          <Link
-            to={`/song/${song.id}`}
-            title={song.title}
-            className={cn(
-              "min-w-0 truncate rounded-sm font-medium transition-colors hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              isCurrent ? "text-signal-text" : "text-foreground",
-            )}
-          >
-            {main}
-            {version && <span className="font-normal text-muted-foreground"> {version}</span>}
-          </Link>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Link
+              to={`/song/${song.id}`}
+              title={song.title}
+              className={cn(
+                "min-w-0 truncate rounded-sm font-medium transition-colors hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isCurrent ? "text-signal-text" : "text-foreground",
+              )}
+            >
+              {main}
+              {version && <span className="font-normal text-muted-foreground"> {version}</span>}
+            </Link>
+            <VariantBadge song={song} />
+          </div>
         );
       }
 

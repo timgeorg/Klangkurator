@@ -100,6 +100,8 @@ _scan_state: dict = {
     "current_crate": "",
     "added": 0,
     "skipped": 0,
+    "offered": 0,
+    "offers": [],
     "errors": [],
     "started_at": None,
     "finished": False,
@@ -156,6 +158,8 @@ def _reset_scan_state(total: int) -> None:
         "current_crate": "",
         "added": 0,
         "skipped": 0,
+        "offered": 0,
+        "offers": [],
         "errors": [],
         "started_at": _now_iso(),
         "finished": False,
@@ -186,7 +190,7 @@ def _run_scan(root: Path, audio_files: list[Path], store) -> None:
 
 
 def _scan_one(store, root: Path, file_path: Path) -> None:
-    """Import one file and count it — added, skipped or failed — before moving on."""
+    """Import one file and count it — added, skipped, offered or failed."""
     try:
         outcome = _import_file(store, root, file_path)
     except Exception as exc:  # noqa: BLE001 — one bad file never stops the scan
@@ -198,8 +202,104 @@ def _scan_one(store, root: Path, file_path: Path) -> None:
         _scan_state["done"] += 1
 
 
+#: How close two durations must be for the scan to call two files one recording
+#: ([[18_AUDIO_VARIANTS]]: "a duration match within ±2 s"). The same window the
+#: import merge treats as identity.
+VARIANT_DURATION_TOLERANCE_S = 2.0
+
+
+def _variant_offer(store, file_path: Path, meta: dict, title: str, artist: str) -> dict | None:
+    """The attach this file is worth, when it looks like another copy of a track.
+
+    A file is offered as a variant when its artist+title matches a stored track,
+    or when its duration sits within `VARIANT_DURATION_TOLERANCE_S` of one. It is
+    only offered: a `.wav` carries no tags, so its filename-derived artist
+    ("Skrillex") will not equal the `.mp3`'s tag-derived one ("Levex"), and a
+    silent attach would be a guess (AC-1).
+
+    Args:
+        store: The library store.
+        file_path (Path): The file the scan is on.
+        meta (dict): What `extract_metadata` read from it.
+        title (str): The metadata title, or the file name without suffix.
+        artist (str): The metadata artist, or "Unknown Artist".
+
+    Returns:
+        dict | None: `{file_path, song_id, title, artist, match, duration}` for
+        the Import result list, or None when no track looks like this file.
+    """
+    song = store.find_song_by_artist_title(artist, title)
+    match = "artist_title"
+    if song is None:
+        song = _song_within_duration(store, meta.get("duration"), title)
+        match = "duration"
+    if song is None:
+        return None
+    return {
+        "file_path": str(file_path),
+        "song_id": song["id"],
+        "title": song.get("title") or title,
+        "artist": song.get("artist") or artist,
+        "match": match,
+        "duration": meta.get("duration"),
+    }
+
+
+def _normalise_title(text: str) -> str:
+    """A title reduced to the part two copies of one file always share.
+
+    Case, extra whitespace and punctuation go. A leading "Artist - " prefix
+    goes too, because a `.wav` falls back to its file name for the title while
+    the `.mp3` beside it carries the same words in a tag.
+
+    Args:
+        text (str): A title, or a file name without its suffix.
+
+    Returns:
+        str: The comparable form.
+    """
+    lowered = " ".join((text or "").lower().split())
+    if " - " in lowered:
+        lowered = lowered.split(" - ", 1)[1]
+    return "".join(ch for ch in lowered if ch.isalnum() or ch == " ").strip()
+
+
+def _song_within_duration(store, duration, title: str) -> dict | None:
+    """The first track whose duration sits close AND whose title matches.
+
+    The title is required, not decoration. A duration alone would claim any
+    track of a similar length: two unrelated 3:24 tracks are a common pair, and
+    a 0.2 s test tone matches the next 0.2 s test tone. The duration then only
+    bridges the artist disagreement that made the offer necessary — a `.wav`
+    with no tags reads `Unknown Artist`.
+
+    Args:
+        store: The library store.
+        duration (float | None): The candidate file's duration.
+        title (str): The candidate file's title, from tags or its file name.
+
+    Returns:
+        dict | None: The track, or None when the duration is unknown, no track
+        sits close enough, or the titles differ.
+    """
+    if not duration or not title:
+        return None
+    wanted = _normalise_title(title)
+    if not wanted:
+        return None
+    for song in store.get_songs():
+        other = song.get("duration")
+        if not other:
+            continue
+        if abs(float(other) - float(duration)) > VARIANT_DURATION_TOLERANCE_S:
+            continue
+        if _normalise_title(song.get("title") or "") == wanted:
+            return song
+    return None
+
+
 def _import_file(store, root: Path, file_path: Path) -> str:
-    """Add one file to the library unless it is already there.
+    """Add one file to the library, offer it as a variant, or skip it.
 
     Args:
         store: The library store.
@@ -207,23 +307,30 @@ def _import_file(store, root: Path, file_path: Path) -> str:
         file_path (Path): The audio file to import.
 
     Returns:
-        str: "added" or "skipped".
+        str: "added", "skipped" or "offered". "offered" means the file looks
+        like another copy of a stored track and waits for the Import page to
+        attach it (AC-1: one click, never silent).
 
     Raises:
         Exception: Whatever metadata or artwork extraction throws; the caller
             records it against the file.
     """
     file_path_str = str(file_path)
-    if store.find_song_by_path(file_path_str):
+    # Already the primary, or already a variant: nothing to do either way.
+    if store.find_song_by_any_path(file_path_str):
         return "skipped"
 
     meta = extract_metadata(file_path_str)
     title = meta.get("title") or file_path.stem
     artist = meta.get("artist") or "Unknown Artist"
 
-    # Idempotent: also check by artist+title (in case file was moved)
-    if store.find_song_by_artist_title(artist, title):
-        return "skipped"
+    # An artist+title match used to be a silent skip (INV-5's re-scan guard).
+    # It is a variant offer now: the match means "another file of a track I
+    # already have", and the Import page asks before attaching (AC-1).
+    offer = _variant_offer(store, file_path, meta, title, artist)
+    if offer is not None:
+        _scan_state["offers"].append(offer)
+        return "offered"
 
     # PF-13: peaks are computed at scan time and persisted on the song
     # (may be None — the lazy /api/audio/waveform endpoint backfills).
@@ -295,6 +402,8 @@ def _finish_scan() -> None:
             "total": _scan_state["total"],
             "added": _scan_state["added"],
             "skipped": _scan_state["skipped"],
+            "offered": _scan_state["offered"],
+            "offers": list(_scan_state["offers"]),
             "errors": list(_scan_state["errors"]),
         }
     _scan_state["finished"] = True
@@ -312,6 +421,7 @@ def scan_status():
     """
     state = dict(_scan_state)
     state["errors"] = list(state["errors"])
+    state["offers"] = list(state["offers"])
     state["result"] = dict(state["result"]) if state["result"] else None
     return state
 
@@ -561,6 +671,14 @@ class ReanalyzeResponse(BaseModel):
     #: The fields that were actually written — a hint that did not fit leaves
     #: bpm out, so the caller can state the truth without re-deriving it.
     applied: dict
+    #: What the primary reads now, and what a variant recorded for the same
+    #: recording — the pair the popup shows when they disagree by a metrical
+    #: level (AC-13). Both are reported; neither is chosen (AC-14).
+    primary_bpm: float | None = None
+    variant_bpm: float | None = None
+    #: True when `variant_bpm` is the primary's tempo doubled or halved within
+    #: 3 %, which is the octave fault the ticket names.
+    octave_disagreement: bool = False
 
 
 class ArtworkScanResponse(BaseModel):
@@ -789,6 +907,11 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
 
     result, changed = _reanalyze(store, song_id, file_path, bpm_range, song)
 
+    # Read the row again: `_reanalyze` may have written a BPM, and the pair the
+    # popup shows must describe what the track holds now.
+    current = store.get_song(song_id) or song
+    primary_bpm, variant_bpm = _bpm_pair(current)
+
     return ReanalyzeResponse(
         song_id=song_id,
         bpm=result.get("bpm"),
@@ -796,7 +919,58 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
         duration=result.get("duration"),
         bpm_fit=bool(result.get("bpm_fit", True)),
         applied=changed,
+        primary_bpm=primary_bpm,
+        variant_bpm=variant_bpm,
+        octave_disagreement=_is_octave_apart(primary_bpm, variant_bpm),
     )
+
+
+#: How close a doubled or halved tempo must land to count as the same reading
+#: one metrical level away. 3 % covers a detector's own jitter on a real track.
+OCTAVE_TOLERANCE = 0.03
+
+
+def _bpm_pair(song: dict) -> tuple[float | None, float | None]:
+    """The primary's BPM and the first variant reading that disagrees.
+
+    Args:
+        song (dict): The track, as stored.
+
+    Returns:
+        tuple[float | None, float | None]: The stored BPM, and a variant's own
+        reading when one exists and differs. Both None when there is nothing to
+        compare — no stored BPM, or no variant that ever recorded one.
+    """
+    primary = song.get("bpm")
+    if primary is None:
+        return None, None
+    for variant in song.get("audio_variants") or []:
+        reading = variant.get("bpm_reading")
+        if reading is not None and reading != primary:
+            return primary, reading
+    return primary, None
+
+
+def _is_octave_apart(primary: float | None, variant: float | None) -> bool:
+    """Whether two tempos are the same reading one metrical level apart.
+
+    A factor of two either way is the case the ticket measured: one file read
+    132.0 and the other 66.3.
+
+    Args:
+        primary (float | None): The track's BPM.
+        variant (float | None): A variant's reading.
+
+    Returns:
+        bool: True when doubling or halving one lands within
+        `OCTAVE_TOLERANCE` of the other.
+    """
+    if not primary or not variant:
+        return False
+    for factor in (2.0, 0.5):
+        if abs(primary * factor - variant) <= OCTAVE_TOLERANCE * variant:
+            return True
+    return False
 
 
 def _reanalyze(store, song_id: str, file_path: str, bpm_range, song: dict) -> tuple[dict, dict]:

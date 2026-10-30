@@ -1,7 +1,7 @@
 # Audio Variants (File Versions Of One Track)
 
-Status: Proposed (issue #65)
-Last Updated: 2026-10-30
+Status: Built (issue #65, 2026-10-31)
+Last Updated: 2026-10-31
 Source: Tim, 2026-10-30 (see the verbatim ask below)
 
 ## The problem
@@ -63,9 +63,11 @@ of the same recording.
       "sample_rate": 44100,
       "bit_depth": 24,
       "size_bytes": 36158234,
-      "added_at": "2026-10-30T15:00:00Z"
+      "added_at": "2026-10-30T15:00:00Z",
+      "bpm_reading": 66.3
     }
-  ]
+  ],
+  "primary_missing": false
 }
 ```
 
@@ -84,6 +86,37 @@ of the same recording.
 - **Format facts are stored, not derived at render time.** `.wav` files are tens
   of megabytes. The pair above is 9.9 MB as mp3 and 36 MB as wav. Probing every
   row on every listing is not acceptable.
+
+### What was built (2026-10-31)
+
+| Piece | Where |
+|---|---|
+| `AudioVariant` model, `audio_variants`, `primary_missing` | `backend/models/song.py` |
+| Variant CRUD (`add_variant`, `remove_variant`, `make_primary`, `find_song_by_any_path`) | `backend/storage/library_store.py` |
+| `POST /api/songs/{id}/variants`, `POST …/{variant_id}/primary`, `DELETE …/{variant_id}` | `backend/api/songs.py` |
+| Playback fallback and the served file's name | `backend/api/audio.py` |
+| Format facts read once at attach time | `backend/scanner/metadata.py` (`file_facts`) |
+| The scan's attach offer and the `offered`/`offers` result counters | `backend/api/library.py` |
+| Variants through an import (`merge_variants`) | `backend/services/import_merge.py` |
+| Types and the three calls | `src/lib/storage.ts` |
+| Badge, and the rules behind it | `src/components/dj/InlineCells.tsx`, `src/lib/audioVariants.ts` |
+| Files section | `src/components/dj/AudioFilesSection.tsx`, used by the edit dialog and the song page |
+| Playback names the file it used | `src/components/dj/NowPlaying.tsx` |
+| The octave report | `src/components/dj/ReanalyzeDialog.tsx` |
+| The offer list on the Import page | `src/pages/LoadFiles.tsx` |
+| The one-off Levex repair | `scripts/repair_audio_variants.py` (dry run by default) |
+
+Two deviations from the text below, both deliberate and both recorded here:
+
+- **`bpm_reading` on the variant.** The rule "a variant carries no BPM" holds
+  for the track's BPM: nothing reads a variant's value as the track's tempo and
+  nothing writes it. The key exists only so the popup can show the second number
+  the acceptance clause asks for. Without it AC-13 has nothing to show.
+- **The duration offer also requires a title match.** The clause reads "a
+  duration match within ±2 s". A duration alone is not identity: it claimed two
+  unrelated 3:24 tracks and two 0.2 s test tones as one recording while this was
+  built. The offer now needs the same normalised title, and the duration bridges
+  only the artist disagreement that made the offer necessary.
 
 ## Behaviour
 
