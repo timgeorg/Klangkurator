@@ -26,16 +26,28 @@ XML format so they appear in Rekordbox after re-import.
 
 ### 2. Playlist Export
 
-**Specified 2026-10-30 in [[31a_REKORDBOX_PLAYLIST_EXPORT]]** (status: proposed),
-which carries the concrete XML shape, the URI encoding rules, the rating table
-and the acceptance. Rekordbox imports a playlist from that XML file; the app
-writes the same file Rekordbox itself exports.
+**Built 2026-10-30** (issue #67). The spec is [[31a_REKORDBOX_PLAYLIST_EXPORT]].
+It carries the XML shape, the URI encoding rules, the rating table and the
+acceptance. Rekordbox imports a playlist from that XML file, and the app writes the
+same file Rekordbox itself exports.
 
-A planned set in Klangkurator can be exported as a Rekordbox playlist:
-- Generate Rekordbox XML playlist format
-- Preserves track order
-- Includes crate/folder structure for organization in Rekordbox
-- Option to export as a single playlist or split by phase (sub-playlists)
+`GET /api/sets/{id}/export/rekordbox` answers the file, and each set card on the
+Sets page carries an export action. The export:
+
+- writes one `NODE Type="1"` for the set, ordered by the set's `position`.
+- fills only the attributes the spec has a slot for. A missing BPM and a missing key
+  are left out.
+- expands a block into its tracks, in place.
+- puts the set's transition note in `Comments`.
+- maps the 0–5 `rank` onto Rekordbox's six rating values.
+- encodes the path as `file://localhost/…`. A space, `#`, apostrophe or non-ASCII
+  letter in the library root then still resolves.
+
+Writing `master.db` stays out of scope: the schema is undocumented and bound to a
+Rekordbox version, and a bad write corrupts the collection.
+
+**Not built yet:** the optional crate/folder structure and the split by phase.
+One file holds one `NODE` per set; a phase split waits for the phase editor.
 
 ### 3. USB Export
 
