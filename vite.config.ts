@@ -9,7 +9,10 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       // KLANGKURATOR_API points the dev server at another backend (e.g. a sandbox copy).
-      "/api": process.env.KLANGKURATOR_API ?? "http://localhost:8000",
+      // The literal IPv4 address, not `localhost`: on hosts that resolve
+      // `localhost` to `::1` first, the proxy reached nothing while uvicorn
+      // listened on 127.0.0.1 only, and every request answered 500.
+      "/api": process.env.KLANGKURATOR_API ?? "http://127.0.0.1:8000",
     },
   },
   resolve: {

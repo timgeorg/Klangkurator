@@ -26,6 +26,11 @@ XML format so they appear in Rekordbox after re-import.
 
 ### 2. Playlist Export
 
+**Specified 2026-10-30 in [[31a_REKORDBOX_PLAYLIST_EXPORT]]** (status: proposed),
+which carries the concrete XML shape, the URI encoding rules, the rating table
+and the acceptance. Rekordbox imports a playlist from that XML file; the app
+writes the same file Rekordbox itself exports.
+
 A planned set in Klangkurator can be exported as a Rekordbox playlist:
 - Generate Rekordbox XML playlist format
 - Preserves track order

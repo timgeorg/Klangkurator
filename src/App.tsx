@@ -3,12 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PlayerProvider } from "@/lib/PlayerContext";
 import { BackgroundJobsProvider } from "@/lib/BackgroundJobsContext";
 import { LibraryFilterProvider } from "@/lib/LibraryFilterContext";
-import { THEME_STORAGE_KEY } from "@/lib/appearance";
+import { ThemeProvider } from "@/lib/theme";
 import { JobProgressToast } from "@/components/dj/JobProgressToast";
 import { DJLayout } from "@/components/layout/DJLayout";
 import { SettingsGate } from "@/components/layout/SettingsGate";
@@ -34,13 +33,7 @@ function App() {
     // Settings and genres are files now (issue #51), so the app waits for them
     // once, before the first paint, instead of rendering defaults and jumping.
     <SettingsGate>
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="dark"
-      enableSystem
-      storageKey={THEME_STORAGE_KEY}
-      disableTransitionOnChange
-    >
+    <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
           <BrowserRouter>
