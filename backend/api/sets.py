@@ -39,6 +39,19 @@ def create_set(body: DJSetCreate):
 
 @router.put("/{set_id}", response_model=DJSet)
 def update_set(set_id: str, body: DJSetUpdate):
+    """Update a set partially.
+
+    Args:
+        set_id (str): The set to change.
+        body (DJSetUpdate): The fields to change. A field left out is not
+            touched; an explicit null clears an optional one (see `_CLEARABLE`).
+
+    Returns:
+        DJSet: The set after the update.
+
+    Raises:
+        HTTPException: 404 when no set has that id.
+    """
     store = get_sets_store()
     raw = body.model_dump(exclude_unset=True)
     updates = {k: v for k, v in raw.items() if v is not None or k in _CLEARABLE}
