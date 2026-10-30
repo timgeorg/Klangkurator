@@ -5,6 +5,24 @@ Last Updated: 2026-10-30
 
 ## 2026-10-30
 
+### Typing in the library search stays instant (#68)
+
+Tim: *"Search is also very slow when all tracks are selected. The problem is, that
+you cannot type well, because typing is laggy."*
+
+The field was bound to the shared filter query. Every keystroke therefore
+re-filtered and rebuilt the matching rows before the next character could show. The field now
+stays on the live query and the table follows a deferred copy at low priority,
+with no fixed delay. The header count, `aria-rowcount` and the empty-state text
+read the same deferred query as the rows, so they always agree with the table. The
+deferral stays in the library view. A deferred value in the shared filter context
+would drop characters, and the map keeps reading the live string.
+
+Measured on a production build with all tracks selected. The slowest keystroke
+went from 1,945 ms to 224 ms. Six characters in a row now stay in order.
+
+REQ-13-ST is new in `13_LIBRARY_VIEW.md`.
+
 ### The library table renders 50 rows and adds 50 while scrolling (#63)
 
 Tim: *"I want to see the crates immediately. Tracks can be rendered lazy and more
