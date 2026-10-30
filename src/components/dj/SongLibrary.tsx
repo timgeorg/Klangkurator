@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { COLUMN_DEFINITIONS, useColumnConfig } from "@/hooks/useColumnConfig";
+import { useRevealedRows } from "@/hooks/useRevealedRows";
 import { getMainGenreColor } from "@/lib/genreData";
 import { useLibraryFilters } from "@/lib/LibraryFilterContext";
 import { usePlayer } from "@/lib/PlayerContext";
@@ -327,6 +328,18 @@ export function SongLibrary() {
     const byId = new Map(songs.map((song) => [song.id, song]));
     return frozen.ids.flatMap((id) => byId.get(id) ?? []);
   }, [frozen, viewKey, filteredSongs, songs]);
+
+  // The table renders the first rows only and adds a page while the sentinel at
+  // its end stays in view (issue #63). `viewKey` is the reset key: a new list
+  // starts again, an inline edit keeps its rows. The full `rows` still feed the
+  // header count, `aria-rowcount` and the player.
+  const { count: revealedCount, sentinelRef } = useRevealedRows(rows.length, viewKey);
+
+  // A new list starts at the top: the first page is all that is rendered, so a
+  // scroll position from the previous list would point past its end.
+  useEffect(() => {
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
+  }, [viewKey]);
   rowsRef.current = rows;
 
   // A new search, filter or sort thaws the order for good: going back to an
@@ -595,7 +608,7 @@ export function SongLibrary() {
             <TableSkeleton gridTemplate={gridTemplate} columns={visibleColumns} />
           ) : (
             <>
-              <div role="table" aria-label="Library" aria-rowcount={rows.length} className="w-max min-w-full">
+              <div role="table" aria-label="Library" aria-rowcount={rows.length + 1} className="w-max min-w-full">
                 <SongTableHeader
                   columnConfig={columnConfig}
                   filters={filters}
@@ -605,7 +618,7 @@ export function SongLibrary() {
                   onSortChange={setSort}
                 />
                 <div role="rowgroup">
-                  {rows.map((song, index) => (
+                  {rows.slice(0, revealedCount).map((song, index) => (
                     <SongTableRow
                       key={song.id}
                       song={song}
@@ -625,6 +638,11 @@ export function SongLibrary() {
                     />
                   ))}
                 </div>
+                {/* Reveals the next page when it comes into view. It sits outside
+                    `role="rowgroup"`: a rowgroup may only hold rows. */}
+                {revealedCount < rows.length && (
+                  <div ref={sentinelRef} aria-hidden="true" className="h-1 w-full" />
+                )}
               </div>
               {rows.length === 0 && songs.length > 0 && (
                 <div className="sticky left-0 w-full max-w-3xl p-5 md:p-8">

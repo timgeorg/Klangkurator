@@ -36,3 +36,5 @@ tags:
 - [[MCP_SERVER_PLAN.md]] — technical plan for issue #47: the three backend prerequisites, the 24-tool surface, the mcp 2.x API, and the three open questions answered.
 - [[MCP_SERVER_BEHAVIOR_CONTRACT.md]] — given/when/then clauses for #47, judged source-blind by the Validator with curl and an MCP client.
 - [[SETTINGS_PORTABILITY_PLAN.md]] — technical plan for issue #51: preferences into `settings.json`, genres into `library.json`, the one-time migration, and the corrupt-file guard.
+- [[LAZY_ROWS_PLAN.md]] — plan for lazy library rows (issue #63): the prefix rule, the pure step function, the observer root, the reset key and the files.
+- [[LAZY_ROWS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for lazy rows (issue #63), judged black-box against a sandbox copy of the 1,907-track library.

@@ -139,6 +139,9 @@ export function SongTableHeader({
     <div role="rowgroup" className="k-ground sticky top-0 z-10 border-b border-border">
       <div
         role="row"
+        // The header is the table's first row, so the body's absolute positions
+        // start at 2 (issue #63): an `aria-rowindex` must exceed every previous one.
+        aria-rowindex={1}
         className="grid h-9 items-center gap-2 px-3 text-xs font-medium text-muted-foreground"
         style={{ gridTemplateColumns: gridTemplate }}
       >
