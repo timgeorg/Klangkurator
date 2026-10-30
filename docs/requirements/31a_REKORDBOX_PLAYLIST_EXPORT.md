@@ -16,9 +16,10 @@ version 1.0.0), and its own *Preferences → Advanced → Database → rekordbox
 path both writes that file and reads one back. No Rekordbox database is touched,
 no proprietary library is parsed, and nothing needs to be installed.
 
-The practical catch is not the format, it is the **file location**: a
-`Location` in that XML is an absolute `file://` URI, so an exported XML is bound
-to the machine and the drive where the audio lives. Two ways out, both normal:
+The practical catch is the **file location**, not the format. A `Location` in
+that XML is an absolute `file://` URI. An exported XML is therefore bound to the
+machine and the drive that hold the audio. Two ways out exist, and both are
+normal:
 
 1. **Export on the machine that holds the music.** Rekordbox resolves the paths
    itself. This is what a local-first tool should do.
@@ -36,9 +37,9 @@ Four routes exist in the wild, in order of how well they fit this app:
 | **`master.db` (SQLite)** | Write into Rekordbox's own database | Fragile: the schema is undocumented and version-bound, Rekordbox must be closed, and a bad write corrupts the collection. Not worth it |
 | **Drag and drop from the Finder** | Manual | What people do who have no tool for it |
 
-So: XML. It is the format Rekordbox itself exports, which means our file is the
-same shape as the one Rekordbox writes — and that is also how it can be tested
-without Rekordbox in the loop.
+So: XML. Rekordbox itself exports that format. Our file therefore has the same
+shape as the one Rekordbox writes. That is also how we test it without Rekordbox
+in the loop.
 
 ## The format, as much as we need
 
@@ -73,13 +74,13 @@ Facts that matter, each from the spec or measured against a real export:
 - **`TotalTime`** is whole seconds.
 - **`AverageBpm`** is a float with two decimals.
 - **`Tonality`** is Rekordbox's own spelling (`Gm`, `F#m`, `Ab`). Klangkurator
-  stores the short standard form already, so most values pass through; the
-  sharps/flats that Rekordbox writes with flats (`A#` vs `Bb`) need a mapping,
-  because the same key written differently is a different key to a human.
+  already stores the short standard form, so most values pass through. Some keys
+  need a mapping, because Rekordbox writes some of them with flats (`A#` vs
+  `Bb`). The same key written differently is a different key to a human.
 - **`Rating`** is not 1–5: `0, 51, 102, 153, 204, 255`. Klangkurator's `rank`
   (0–5 stars) maps onto it by that table.
-- **`TrackID` / `Key`**: `TrackID` is unique inside the file; a playlist entry
-  references it by `Key`. They need not match any Rekordbox id.
+- **`TrackID` and `Key`.** `TrackID` is unique inside the file. A playlist entry
+  references it by `Key`. Neither value must match a Rekordbox id.
 - **`Entries`** must equal the real count on both `COLLECTION` and the leaf
   `NODE`, or Rekordbox refuses or truncates.
 - **Only tracks that are in a playlist need to be in `COLLECTION`.** The spec
@@ -91,12 +92,12 @@ Facts that matter, each from the spec or measured against a real export:
 - **One `NODE Type="1"` per set.** Its name is the set name.
 - **The order is the set's `position` order.** That is the point of exporting a
   set rather than a crate.
-- **Per track**, the fields the spec has a slot for and the app actually knows:
+- **Per track**, the fields the spec has a slot for and the app knows. These are
   `Name`, `Artist`, `Genre` (main genre), `Size`, `TotalTime`, `AverageBpm`,
-  `Tonality`, `DateAdded`, `Comments` (the transition note — this is where the
-  set planning survives the trip), `Rating` (from `rank`).
-- **Nothing invented.** No `Tonality` when the key is unknown, no
-  `AverageBpm="0"` when BPM is missing — an absent attribute is better than a
+  `Tonality`, `DateAdded` and `Rating` (from `rank`). The transition note goes
+  into `Comments`, and that is where the set planning survives the trip.
+- **Nothing invented.** No `Tonality` when the key is unknown. No
+  `AverageBpm="0"` when BPM is missing. An absent attribute is better than a
   wrong one, and Rekordbox shows an empty cell either way.
 - **Variants (issue #65):** the primary's path, because that is the file that
   plays.
@@ -112,20 +113,21 @@ Facts that matter, each from the spec or measured against a real export:
   the tracks, so the result is a USB-ready bundle.
 
 ## Acceptance
-1. When the user exports a set, the app writes one XML file that Rekordbox
-   imports without an error, and the playlist appears with the set's name.
-2. The playlist holds exactly the set's tracks, in the set's order.
-3. BPM, key, genre and the transition note arrive in Rekordbox's matching
+1. The app writes one XML file when the user exports a set.
+2. Rekordbox imports that file without an error.
+3. The playlist appears in Rekordbox with the set's name.
+4. The playlist holds exactly the set's tracks, in the set's order.
+5. BPM, key, genre and the transition note arrive in Rekordbox's matching
    columns.
-4. A track with no BPM or no key exports without that attribute, not with a
-   `0`/empty value.
-5. A path containing a space, `#`, an apostrophe or a non-ASCII character
+6. A track with no BPM exports without an `AverageBpm` attribute.
+7. A track with no key exports without a `Tonality` attribute.
+8. A path containing a space, `#`, an apostrophe or a non-ASCII character
    imports as a found track, not as a missing file.
-6. A set with 47 tracks produces an XML under 100 KB and an export that takes
-   under 1 second.
-7. `Entries` matches the real count on every node.
-8. Exporting all sets writes one file, and each set is its own `NODE`.
-9. The export never writes into Rekordbox's `master.db`.
+9. A set with 47 tracks produces an XML under 100 KB.
+10. That export takes under 1 second.
+11. `Entries` matches the real count on every node.
+12. Exporting all sets writes one file with one `NODE` per set.
+13. The export never writes into Rekordbox's `master.db`.
 
 ## Files in scope
 - `backend/services/rekordbox_xml.py` — the writer, pure and unit-testable
@@ -139,9 +141,9 @@ Facts that matter, each from the spec or measured against a real export:
 - **Reading a Rekordbox XML back** (cue points, play counts, a library sync).
   That is section 1 of `30_REKORDBOX_INTEGRATION.md` and a separate ticket.
 - **Writing `master.db`.** Never.
-- **Recreating Rekordbox's analysis.** We write our BPM and key; Rekordbox
-  keeps its own and may show its own value for a track it has analysed.
+- **Recreating Rekordbox's analysis.** We write our BPM and key. Rekordbox keeps
+  its own values and may show its own number for a track that it analysed.
 - **USB export with a full Rekordbox database.** The XML plus copies is the
-  first step; a device-ready database is a different problem.
+  first step. A device-ready database is a different problem.
 
 Branch: `feat_<this issue>_rekordbox-playlist-export` from `main`.
