@@ -25,13 +25,15 @@ from mcp_server import config, tools  # noqa: E402
 app_client = TestClient(app)
 
 READ_TOOLS = {
-    "list_crates", "search_tracks", "get_track", "scan_status", "get_library_root",
-    "analyze_status", "list_tags", "list_playlists", "list_relationships", "get_transitions",
+    "list_crates", "search_tracks", "get_track", "scan_status",
+    "list_music_locations", "analyze_status", "list_tags", "list_playlists",
+    "list_relationships", "get_transitions",
 }
 WRITE_TOOLS = {
-    "update_track", "scan_library", "set_library_root", "analyze_all", "analyze_track",
-    "scan_artwork", "create_tag", "tag_track", "untag_track", "create_playlist",
-    "playlist_add", "playlist_remove", "link_tracks", "export_library",
+    "update_track", "scan_library", "add_music_location", "remove_music_location",
+    "analyze_all", "analyze_track", "scan_artwork", "create_tag", "tag_track",
+    "untag_track", "create_playlist", "playlist_add", "playlist_remove",
+    "link_tracks", "export_library",
 }
 
 
@@ -103,13 +105,19 @@ def song() -> dict:
 
 
 def test_exactly_the_curated_tools_are_listed():
-    """BC-6: 24 tools, nothing generated, nothing destructive."""
+    """BC-6: the curated list, nothing generated, nothing destructive.
+
+    25 tools since the music-location CRUD replaced the single root pair
+    (issue #11): `list_music_locations`, `add_music_location` and
+    `remove_music_location` in place of `get_library_root` and
+    `set_library_root`.
+    """
     import asyncio
 
     listed = asyncio.run(tools.server.list_tools())
     names = {tool.name for tool in listed}
 
-    assert len(listed) == 24
+    assert len(listed) == 25
     assert names == READ_TOOLS | WRITE_TOOLS
     assert not any(name.startswith("delete_") for name in names)
 
@@ -142,13 +150,15 @@ def test_list_crates_sums_to_the_track_total():
     for index in range(3):
         app_client.post("/api/songs", json={
             "title": f"t{index}", "artist": "a",
-            "file_path": f"/music/c{index}.mp3", "root_folder": "techno" if index < 2 else "house",
+            "file_path": f"/music/{'techno' if index < 2 else 'house'}/c{index}.mp3",
         })
 
     crates = tools.list_crates()
 
     assert sum(crate["track_count"] for crate in crates) == 3
     assert {crate["name"] for crate in crates} == {"techno", "house"}
+    # Two crates, two ids: the id is what a filter takes (issue #11).
+    assert len({crate["id"] for crate in crates}) == 2
 
 
 def test_search_returns_slim_rows_and_pages_without_overlap():
@@ -176,11 +186,33 @@ def test_search_missing_bpm_excludes_the_bpm_bounds():
 
 def test_search_matches_the_table_on_crate_and_genre(song):
     """BC-10: the same fields the table filters on."""
-    get_library_store().update_song(song["id"], {"root_folder": "techno", "mainGenre": "Techno"})
+    crate = _crate_of(song["file_path"].rsplit("/", 1)[0].rsplit("/", 1)[1])
+    get_library_store().update_song(song["id"], {"crate_id": crate, "mainGenre": "Techno"})
 
-    assert [t["id"] for t in tools.search_tracks(crate="techno")["tracks"]] == [song["id"]]
+    assert [t["id"] for t in tools.search_tracks(crate=crate)["tracks"]] == [song["id"]]
     assert [t["id"] for t in tools.search_tracks(genre="Techno")["tracks"]] == [song["id"]]
-    assert tools.search_tracks(crate="house")["total"] == 0
+    assert tools.search_tracks(crate="no-such-crate")["total"] == 0
+
+
+def _crate_of(name: str) -> str:
+    """The registry id a hand-made row's folder resolves to.
+
+    A row posted straight to the API carries no crate id, so the scan's own
+    rule is applied once here, the way a scan would.
+    """
+    from backend.storage import crate_registry
+
+    crate = {
+        "id": crate_registry.crate_id("/music", name),
+        "name": name,
+        "location_path": "/music",
+    }
+    config = get_library_store()._data.setdefault("_config", {})
+    crates = crate_registry.crate_lookup(config)
+    crates[crate["id"]] = crate
+    config[crate_registry.CRATE_KEY] = list(crates.values())
+    config[crate_registry.LOCATION_KEY] = [{"id": "loc", "path": "/music"}]
+    return crate["id"]
 
 
 def test_only_get_track_carries_the_peaks(song):
@@ -334,7 +366,8 @@ def test_read_only_refuses_every_writing_tool(song, monkeypatch):
         "playlist_remove": lambda: tools.playlist_remove("p", song["id"]),
         "link_tracks": lambda: tools.link_tracks("a", "b", "remix"),
         "scan_library": lambda: tools.scan_library("/tmp"),
-        "set_library_root": lambda: tools.set_library_root("/tmp"),
+        "add_music_location": lambda: tools.add_music_location("/tmp"),
+        "remove_music_location": lambda: tools.remove_music_location("loc"),
         "analyze_all": lambda: tools.analyze_all(),
         "analyze_track": lambda: tools.analyze_track(song["id"]),
         "scan_artwork": lambda: tools.scan_artwork(),
@@ -360,7 +393,7 @@ def test_the_roots_allowlist_refuses_before_any_request(monkeypatch, tmp_path):
     with pytest.raises(ToolError, match="outside the folders"):
         tools.scan_library(str(tmp_path / "elsewhere"))
     with pytest.raises(ToolError, match="outside the folders"):
-        tools.set_library_root("/etc")
+        tools.add_music_location("/etc")
     assert requests == []
 
 
@@ -582,7 +615,7 @@ def test_search_filters_ignore_case_and_empty_values(song):
     """Crate, key and genre match in any case; an empty one is no filter."""
     tools.update_track(song["id"], musical_key="Am", main_genre="Techno")
 
-    assert tools.search_tracks(crate="MUSIC")["total"] == 1
+    assert tools.search_tracks(crate=song.get("crate_id") or "MUSIC")["total"] == 1
     assert tools.search_tracks(key="am")["total"] == 1
     assert tools.search_tracks(genre="techno")["total"] == 1
     assert tools.search_tracks(crate="", genre="", key="")["total"] == 1
@@ -591,12 +624,18 @@ def test_search_filters_ignore_case_and_empty_values(song):
 # ── Success paths of the root, scan and analysis tools ──
 
 
-def test_root_tools_set_and_read_the_music_folder(monkeypatch, tmp_path):
-    """set_library_root stores the folder; get_library_root reads it back."""
+def test_the_location_tools_add_list_and_remove_a_folder(monkeypatch, tmp_path):
+    """add_music_location registers; list_music_locations reads it back."""
     monkeypatch.setenv("KLANGKURATOR_ROOTS", str(tmp_path))
 
-    assert tools.set_library_root(str(tmp_path)) == {"root_path": str(tmp_path.resolve())}
-    assert tools.get_library_root()["root_path"] == str(tmp_path.resolve())
+    added = tools.add_music_location(str(tmp_path))
+    assert added["path"] == str(tmp_path.resolve())
+    assert added["exists"] is True
+    assert [loc["id"] for loc in tools.list_music_locations()] == [added["id"]]
+
+    removed = tools.remove_music_location(added["id"])
+    assert removed["songs_flagged"] == 0
+    assert tools.list_music_locations() == []
 
 
 def test_scan_tools_start_a_scan_and_report_it(monkeypatch, tmp_path):

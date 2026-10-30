@@ -48,6 +48,8 @@ export interface ScanProgress {
   currentCrate: string;
   result: ScanResult | null;
   error: string | null;
+  /** Set when the location was not there: nothing scanned, nothing disturbed. */
+  warning: string | null;
 }
 
 /** An analysis as the views show it, in camelCase. */
@@ -76,6 +78,7 @@ interface ScanStatusResponse {
   errors: string[];
   result: ScanResult | null;
   error: string | null;
+  warning: string | null;
 }
 
 interface AnalysisStatusResponse {
@@ -87,6 +90,13 @@ interface AnalysisStatusResponse {
   current_title: string;
   result: AnalysisResult | null;
   error: string | null;
+}
+
+/** POST /library/scan answers a started job, or the absent-location warning. */
+interface ScanStartResponse {
+  started: boolean;
+  total: number;
+  warning?: string | null;
 }
 
 /** POST /library/analyze-all answers either a started-job marker or a summary. */
@@ -105,8 +115,11 @@ export interface BackgroundJobsContextValue {
   analysis: AnalysisProgress;
   /** True while either job runs or one is being started — the Import page disables its starts then. */
   busy: boolean;
-  /** Start a scan of `root`. Throws when the backend refuses it. */
-  startScan: (root: string) => Promise<void>;
+  /**
+   * Start a scan of one music location (issue #11). Throws when the backend
+   * refuses it; an absent location resolves with a `warning` instead.
+   */
+  startScan: (locationId: string) => Promise<void>;
   /** Start the BPM/key analysis. Throws when the backend refuses it. */
   startAnalysis: () => Promise<void>;
   /** Ask the running analysis to stop after the track it is on. */
@@ -127,6 +140,7 @@ const IDLE_SCAN: ScanProgress = {
   currentCrate: "",
   result: null,
   error: null,
+  warning: null,
 };
 
 const IDLE_ANALYSIS: AnalysisProgress = {
@@ -151,6 +165,7 @@ const toScanProgress = (status: ScanStatusResponse): ScanProgress => ({
   currentCrate: status.current_crate,
   result: status.result,
   error: status.error,
+  warning: status.warning ?? null,
 });
 
 const toAnalysisProgress = (status: AnalysisStatusResponse): AnalysisProgress => ({
@@ -327,10 +342,16 @@ export function BackgroundJobsProvider({ children }: { children: React.ReactNode
   );
 
   const startScan = useCallback(
-    async (root: string) => {
+    async (locationId: string) => {
       const res = await startJob(() =>
-        api.post<{ started: boolean; total: number }>("/library/scan", { root_path: root }),
+        api.post<ScanStartResponse>("/library/scan", { location_id: locationId }),
       );
+      if (res?.started === false) {
+        // An absent location: a no-op with a warning, never a failure that
+        // disturbs the other locations (issue #11).
+        setScan({ ...IDLE_SCAN, warning: res.warning ?? "The music location is not there right now." });
+        return;
+      }
       scanRunning.current = true;
       setScanRun((run) => run + 1);
       setScan({ ...IDLE_SCAN, running: true, total: res?.total ?? 0 });

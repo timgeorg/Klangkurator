@@ -62,7 +62,10 @@ export interface Song {
   phase_tags?: string[];
   vibe_tags?: string[];
   transition_notes?: string;
-  root_folder?: string;
+  /** The crate's registry id (issue #11); the name is resolved for display. */
+  crate_id?: string;
+  /** Set when the song's music location was removed; the song is kept, flagged. */
+  missing_since?: string;
   waveform_peaks?: number[];
   /** Other files of the same recording. `file_path` stays the primary (INV-14). */
   audio_variants?: AudioVariant[];

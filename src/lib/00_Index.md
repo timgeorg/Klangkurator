@@ -27,3 +27,5 @@ tags:
 - [[settings.test.ts]] — tests for that module: both documents are the only store (nothing reaches the browser), unchanged values are not re-sent, a burst debounces to one request, a genre write and a preference write both land, and loading survives denied browser storage.
 - [[theme.tsx]] — the theme provider that replaced `next-themes`: the choice lives in `settings.json` alone, so a copied data folder reproduces the theme; "system" follows the computer.
 - [[setItems.ts]] — Reading a set's items against the library (issue #64): the referenced id across the stored shapes, whether a set already holds a song in its items or its phases, and the normalised, renumbered `items` a save should send.
+- [[crates.ts]] — the crate and music-location registry (issue #11): crates as `{id, name, location_path}` entries loaded before the first row renders, a name resolved from an id at display time, and the ids a location holds.
+- [[crates.test.ts]] — tests for that module: two crates with one name stay apart, an unknown id still shows something honest, a location's crates come from its path, and an unmounted location reports itself.

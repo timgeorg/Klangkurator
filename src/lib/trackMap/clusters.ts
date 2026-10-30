@@ -5,6 +5,8 @@
 // that order, the first inside the `C_MIN`–`C_MAX` band, then the one nearest
 // the band, then the crate and artist-initial fallbacks, and only when nothing
 // can split the tracks the last resort (the first `T` tracks by title).
+import { crateName } from "@/lib/crates";
+
 import { connectionSet, type Connections } from "./connections";
 import { allNearest, linksFromNearest } from "./similarity";
 import { toFeatures } from "./features";
@@ -50,8 +52,8 @@ export const CLUSTER_DIMENSION_LABELS: Record<ClusterDimension, string> = {
  */
 export interface ClusterTrack extends TrackFeatures {
   artist?: string;
-  /** The track's crate, the storage field `root_folder`. */
-  root_folder?: string;
+  /** The track's crate name, resolved from its `crate_id` for the label. */
+  crate?: string;
 }
 
 /** A track's group value for one dimension, the string a `ClusterFilter` matches. */
@@ -66,7 +68,7 @@ export function groupKey(track: ClusterTrack, dimension: ClusterDimension): stri
     case "energy":
       return energyKey(track.energy);
     case "crate":
-      return track.root_folder?.trim() || "No crate";
+      return track.crate?.trim() || "No crate";
     case "artistInitial":
       return artistInitialKey(track.artist);
     default:
@@ -190,10 +192,10 @@ export function shouldCluster(count: number, threshold: number = DEFAULT_NODE_TH
  * @param feature - The song's features, paired up by song id.
  */
 export function withClusterFields(
-  song: Pick<TrackMapSong, "artist" | "root_folder">,
+  song: Pick<TrackMapSong, "artist" | "crate_id">,
   feature: TrackFeatures,
 ): ClusterTrack {
-  return { ...feature, artist: song.artist, root_folder: song.root_folder };
+  return { ...feature, artist: song.artist, crate: crateName(song.crate_id) };
 }
 
 /** Whether a track is kept by every chosen cluster filter: its `groupKey` for

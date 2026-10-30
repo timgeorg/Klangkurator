@@ -78,6 +78,7 @@ import {
   type SongTag,
   type Tag,
 } from "@/lib/storage";
+import { crateName } from "@/lib/crates";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { buildModel } from "@/lib/trackMap/buildModel";
 import {
@@ -261,7 +262,11 @@ export default function TrackMap() {
           color: isMinorKey(key) ? "hsl(var(--info))" : "hsl(var(--foreground))",
         })),
       tags: tags.map((tag) => ({ label: tag.name, value: tag.id, color: tag.color })),
-      rootFolders: [...crates].sort(collator.compare).map((crate) => ({ label: crate, value: crate })),
+      // Crate options are keyed by id and labelled by name (issue #11), so the
+      // map's filter and the table's pick the same crate.
+      crates: [...crates]
+        .map((id) => ({ label: crateName(id), value: id }))
+        .sort((a, b) => collator.compare(a.label, b.label)),
     };
   }, [songs, tags]);
 

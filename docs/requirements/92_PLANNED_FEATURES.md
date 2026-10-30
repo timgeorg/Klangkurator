@@ -18,7 +18,8 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-8 | Python PyWebView backend implementation | Against the 3-file JSON schema |
 | PF-9 | Smart playlists | is_smart_playlist + search_criteria fields exist in schema, logic not built |
 | PF-10 | Full audio metadata extraction via `mutagen` | Phase 2 — requires PyWebView/Python |
-| PF-11 | Nested crate folders as tree view | Currently flattened with `/` separator; tree view is future |
+| PF-11 | Nested crate folders as tree view | The app always flattens a nested crate into a `/`-joined name (`house/deep`). No tree view exists. This item covers only how the app shows crates, and it adds no locations |
+| PF-84 | Music locations beyond one root folder | **Built 2026-10-31** (issue #11). The single root folder became a **list of music locations**, and the app scans each one as a root. A crate became a registry entry `{id, name, location_path}`, and a song stores `crate_id` instead of `root_folder`. The Crate column, the crate tabs and the Crate filter key on the id, so two crates that share a name stay apart. Settings owns add, remove and rescan per location. Removing a location flags its songs as missing and keeps them. Re-adding the location re-resolves them by path. An old `library.json` migrates when the app reads it: 1,907 songs in, 1,907 out, and a second read changes nothing. Spec: `10_LIBRARY_AND_FILE_LOADING.md`. Plan: `docs/plans/MUSIC_LOCATIONS_PLAN.md` |
 
 ## Library UX Backlog (Tim, 2026-09-24)
 

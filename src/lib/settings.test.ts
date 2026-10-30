@@ -32,6 +32,9 @@ function stubBackend(initial: { settings?: unknown; genres?: unknown } = {}) {
       genres = body;
       return json(genres);
     }
+    // The crate registry loads beside them (issue #11); an empty one keeps
+    // these tests about the settings document alone.
+    if (path === "/library/crates" || path === "/library/locations") return json([]);
     return json({}, 404);
   });
 

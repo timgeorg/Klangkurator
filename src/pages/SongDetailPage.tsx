@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Waveform } from "@/components/ui/waveform";
 import { getMainGenreColor } from "@/lib/genreData";
 import { MAP_PATH } from "@/lib/mapRoute";
+import { crateName } from "@/lib/crates";
 import { usePlayer } from "@/lib/PlayerContext";
 import { relationshipPhrase } from "@/lib/relationshipStyle";
 import { storage, Song, SongRelationship, Tag } from "@/lib/storage";
@@ -146,7 +147,7 @@ export default function SongDetailPage() {
   const isCurrent = current?.id === song.id;
   const { main, version } = splitTitle(song.title);
   const genre = song.mainGenre || song.genres?.[0] || song.genre;
-  const crate = crateOf(song);
+  const crate = crateName(crateOf(song));
   const notes = NOTE_FIELDS.map((f) => ({
     ...f,
     text: (song[f.key] ?? "").trim(),

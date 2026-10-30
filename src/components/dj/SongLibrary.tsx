@@ -18,6 +18,7 @@ import { usePlayer } from "@/lib/PlayerContext";
 import { createSongWriter, type SongWriter } from "@/lib/songWriter";
 import { getSettings, saveSettings } from "@/lib/settings";
 import { storage, Song, SongPatch, SongTag, Tag } from "@/lib/storage";
+import { crateById, getCrates, subscribeCrates } from "@/lib/crates";
 import { crateOf, isMinorKey } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +45,7 @@ const SORT_VALUE: Record<string, (s: Song) => string | number | undefined | null
   title: (s) => s.title,
   artist: (s) => s.artist,
   album: (s) => s.album,
-  rootFolder: (s) => crateOf(s),
+  crate: (s) => crateOf(s),
   bpm: (s) => s.bpm,
   key: (s) => s.musical_key,
   energy: (s) => s.energy,
@@ -67,6 +68,27 @@ function readCratesExpanded(): boolean {
 /** Store the crate tabs' expand choice (settings.json, issue #51). */
 function writeCratesExpanded(expanded: boolean): void {
   saveSettings({ crateTabsExpanded: expanded });
+}
+
+/** A counter that changes whenever the crate registry does (issue #11). */
+function useCrateRegistryTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => subscribeCrates(() => setTick((value) => value + 1)), []);
+  return tick;
+}
+
+/**
+ * A crate tab's tooltip: the crate's own folder inside its music location, so
+ * two crates with one name are told apart without opening the settings.
+ *
+ * @param crateId - The crate the tab stands for.
+ * @returns The path the crate lives at, or nothing when the registry is empty.
+ */
+function crateTitle(crateId: string): string | undefined {
+  const crate = crateById(crateId);
+  if (!crate) return undefined;
+  const name = crate.location_path.replace(/\/$/, "");
+  return `${name}/${crate.name}`;
 }
 
 /** A patch applied the way the backend applies it: null clears the field. */
@@ -119,6 +141,7 @@ export function SongLibrary() {
   // choice is read once, lazily, from storage; a browser without storage
   // starts collapsed.
   const [cratesExpanded, setCratesExpanded] = useState(readCratesExpanded);
+  const crateRegistryTick = useCrateRegistryTick();
   const cratesToggleRef = useRef<HTMLButtonElement>(null);
   const allTracksTabRef = useRef<HTMLButtonElement>(null);
 
@@ -278,6 +301,18 @@ export function SongLibrary() {
     setEditDialogOpen(true);
   }, []);
 
+  /** Every crate's displayed name, by id (issue #11).
+   *
+   * The registry lives outside React, so the tick is the only signal that it
+   * changed; the read itself cannot be a dependency the linter can see.
+   */
+  const crateNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const crate of getCrates()) names.set(crate.id, crate.name);
+    return names;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crateRegistryTick]);
+
   // Filter options come from the loaded data (NFR-4: memoised)
   const filterOptions: FilterOptions = useMemo(() => {
     const mainGenres = new Set<string>();
@@ -302,18 +337,26 @@ export function SongLibrary() {
           color: isMinorKey(k) ? "hsl(var(--info))" : "hsl(var(--foreground))",
         })),
       tags: allTags.map((tag) => ({ label: tag.name, value: tag.id, color: tag.color })),
-      rootFolders: [...crates].sort(collator.compare).map((f) => ({ label: f, value: f })),
+      // A crate's value is its id and its label its name (issue #11), so two
+      // crates called "House" in two music locations stay two options.
+      crates: [...crates]
+        .map((id) => ({ label: crateNames.get(id) ?? id, value: id }))
+        .sort((a, b) => collator.compare(a.label, b.label)),
     };
-  }, [songs, allTags]);
+  }, [songs, allTags, crateNames]);
 
+  /** The crates the library holds, in tab order: by displayed name, then id. */
   const crateCounts = useMemo(() => {
     const counts = new Map<string, number>();
     songs.forEach((s) => {
       const c = crateOf(s);
       if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
     });
-    return [...counts.entries()].sort((a, b) => collator.compare(a[0], b[0]));
-  }, [songs]);
+    return [...counts.entries()].sort((a, b) =>
+      collator.compare(crateNames.get(a[0]) ?? a[0], crateNames.get(b[0]) ?? b[0]) ||
+      collator.compare(a[0], b[0]),
+    );
+  }, [songs, crateNames]);
 
   const filteredSongs = useMemo(() => {
     // The predicate itself is `filterSongs` in libraryTable.ts, shared with the
@@ -438,7 +481,7 @@ export function SongLibrary() {
     };
   }, [rows.length, gridTemplate, initialLoadDone]);
 
-  const crateTotal = filterOptions.rootFolders.length;
+  const crateTotal = filterOptions.crates.length;
   const meta = !initialLoadDone
     ? undefined
     : tableIsFiltering
@@ -446,12 +489,13 @@ export function SongLibrary() {
       : `${songs.length} ${songs.length === 1 ? "track" : "tracks"}` +
         (crateTotal > 0 ? ` · ${crateTotal} ${crateTotal === 1 ? "crate" : "crates"}` : "");
 
-  const crateNames = crateCounts.map(([crate]) => crate);
+  // The ids drive the tab bar; the names are only ever displayed.
+  const crateIds = crateCounts.map(([crate]) => crate);
   // Which tabs show, and how many stay hidden (issue #49). Pure: recomputed
   // per render, cheap enough to stay out of a memo.
   const { shown: shownCrates, hidden: hiddenCrates } = visibleCrates(
-    crateNames,
-    filters.rootFolder,
+    crateIds,
+    filters.crate,
     cratesExpanded,
     CRATE_TAB_LIMIT,
   );
@@ -462,10 +506,10 @@ export function SongLibrary() {
   // whether it survives is decided from the next selection, before the filter
   // changes.
   const handleCrateClick = (crate: string, additive: boolean, tab: HTMLButtonElement) => {
-    const next = additive ? toggleCrate(filters.rootFolder, crate) : clickCrate(filters.rootFolder, crate);
+    const next = additive ? toggleCrate(filters.crate, crate) : clickCrate(filters.crate, crate);
     const hadFocus = document.activeElement === tab;
-    const { shown } = visibleCrates(crateNames, next, cratesExpanded, CRATE_TAB_LIMIT);
-    updateFilter("rootFolder", next);
+    const { shown } = visibleCrates(crateIds, next, cratesExpanded, CRATE_TAB_LIMIT);
+    updateFilter("crate", next);
     if (!hadFocus || shown.includes(crate)) return;
     requestAnimationFrame(() => (cratesToggleRef.current ?? allTracksTabRef.current)?.focus());
   };
@@ -479,8 +523,8 @@ export function SongLibrary() {
     setCratesExpanded(next);
     writeCratesExpanded(next);
     const toggleSurvives =
-      crateNames.length > CRATE_TAB_LIMIT &&
-      (next || visibleCrates(crateNames, filters.rootFolder, next, CRATE_TAB_LIMIT).hidden > 0);
+      crateIds.length > CRATE_TAB_LIMIT &&
+      (next || visibleCrates(crateIds, filters.crate, next, CRATE_TAB_LIMIT).hidden > 0);
     requestAnimationFrame(() => (toggleSurvives ? cratesToggleRef.current : allTracksTabRef.current)?.focus());
   };
 
@@ -533,22 +577,22 @@ export function SongLibrary() {
                   ref={allTracksTabRef}
                   label="All tracks"
                   count={songs.length}
-                  active={filters.rootFolder.length === 0}
-                  onClick={() => updateFilter("rootFolder", [])}
+                  active={filters.crate.length === 0}
+                  onClick={() => updateFilter("crate", [])}
                 />
                 {crateCounts
                   .filter(([crate]) => shownCrates.includes(crate))
                   .map(([crate, count]) => (
                     <CrateTab
                       key={crate}
-                      label={crate}
+                      label={crateNames.get(crate) ?? crate}
                       count={count}
-                      active={filters.rootFolder.includes(crate)}
-                      title="Shift+click to add or remove"
+                      active={filters.crate.includes(crate)}
+                      title={crateTitle(crate)}
                       onClick={(additive, tab) => handleCrateClick(crate, additive, tab)}
                     />
                   ))}
-                {crateNames.length > CRATE_TAB_LIMIT && (cratesExpanded || hiddenCrates > 0) && (
+                {crateIds.length > CRATE_TAB_LIMIT && (cratesExpanded || hiddenCrates > 0) && (
                   <button
                     ref={cratesToggleRef}
                     type="button"
