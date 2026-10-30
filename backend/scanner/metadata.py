@@ -107,6 +107,65 @@ def _get_tag(tags, *keys) -> str | None:
     return None
 
 
+def file_facts(file_path: str) -> dict:
+    """What the file itself is: format, duration, bitrate, sample rate, bit depth, size.
+
+    A variant records these instead of re-probing the file at render time: a
+    `.wav` beside an `.mp3` is 36 MB and 9.9 MB, and probing every row of a
+    listing is not affordable ([[18_AUDIO_VARIANTS]]).
+
+    Args:
+        file_path (str): The audio file.
+
+    Returns:
+        dict: `format` (the suffix without the dot, lowercased), `duration`,
+        `bitrate`, `sample_rate`, `bit_depth`, `size_bytes`. A value that
+        cannot be read is None. `format` falls back to the suffix when
+        `mutagen` cannot open the file, so an attach never fails on that.
+    """
+    path = Path(file_path)
+    facts: dict = {
+        "format": path.suffix.lstrip(".").lower(),
+        "duration": None,
+        "bitrate": None,
+        "sample_rate": None,
+        "bit_depth": None,
+        "size_bytes": None,
+    }
+    try:
+        facts["size_bytes"] = path.stat().st_size
+    except OSError:
+        pass
+
+    try:
+        audio = mutagen.File(file_path)
+    except Exception:  # noqa: BLE001 — facts stay None; the attach still lands
+        audio = None
+    info = getattr(audio, "info", None)
+    if info is None:
+        return facts
+
+    facts["duration"] = _number(info, "length")
+    # Mutagen reports bits per second; the UI talks kbps.
+    bitrate = _number(info, "bitrate")
+    facts["bitrate"] = int(round(bitrate / 1000)) if bitrate else None
+    facts["sample_rate"] = _int(info, "sample_rate")
+    facts["bit_depth"] = _int(info, "bits_per_sample") or _int(info, "bit_depth")
+    return facts
+
+
+def _number(info, attr: str) -> float | None:
+    """One numeric attribute of a mutagen info object, or None."""
+    value = getattr(info, attr, None)
+    return float(value) if isinstance(value, (int, float)) and value > 0 else None
+
+
+def _int(info, attr: str) -> int | None:
+    """One integer attribute of a mutagen info object, or None."""
+    value = getattr(info, attr, None)
+    return int(value) if isinstance(value, (int, float)) and value > 0 else None
+
+
 def _fallback_metadata(path: Path, reason: str = "", duration: float | None = None) -> dict:
     """Return metadata with fallbacks when tag extraction fails."""
     return {

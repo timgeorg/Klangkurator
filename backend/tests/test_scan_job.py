@@ -101,7 +101,9 @@ def test_a_scan_starts_at_once_and_reports_its_count(music):
     assert status["running"] is False
     assert status["finished"] is True
     assert status["done"] == status["total"] == FILES
-    assert status["result"] == {"total": FILES, "added": FILES, "skipped": 0, "errors": []}
+    assert status["result"] == {
+        "total": FILES, "added": FILES, "skipped": 0, "offered": 0, "offers": [], "errors": [],
+    }
 
 
 def test_a_second_scan_is_refused_while_one_runs(music, monkeypatch):
@@ -192,7 +194,9 @@ def test_an_empty_folder_gives_a_total_of_zero(tmp_path):
     _wait_until(_jobs_idle)
     status = _status()
     assert status["running"] is False
-    assert status["result"] == {"total": 0, "added": 0, "skipped": 0, "errors": []}
+    assert status["result"] == {
+        "total": 0, "added": 0, "skipped": 0, "offered": 0, "offers": [], "errors": [],
+    }
 
 
 def test_an_analysis_is_refused_while_a_scan_runs(music, monkeypatch):

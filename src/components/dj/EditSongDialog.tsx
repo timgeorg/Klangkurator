@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { type Song, type SongPatch, storage } from "@/lib/storage";
 import { keyName, MUSICAL_KEYS, trackGenre } from "@/lib/trackFormat";
 
+import { AudioFilesSection } from "./AudioFilesSection";
 import { LyricsDialog } from "./LyricsDialog";
 import { SongRelationshipsDialog } from "./SongRelationshipsDialog";
 
@@ -304,6 +305,14 @@ export function EditSongDialog({ song, open, onOpenChange, onSave, onDataChange 
                 />
               </Field>
             ))}
+          </FormSection>
+
+          <FormSection title="Files">
+            <AudioFilesSection song={currentSong ?? song} onChanged={(updated) => {
+              setCurrentSong(updated);
+              onDataChange?.();
+              onSave(updated);
+            }} />
           </FormSection>
 
           <FormSection title="Lyrics and relationships">

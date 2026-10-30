@@ -1,7 +1,7 @@
 # Constraints And Invariants
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-31
 Source: Requirements.md section 2.4
 
 ## Invariant Table
@@ -22,4 +22,6 @@ Source: Requirements.md section 2.4
 | INV-12 | An import never writes a foreign song id — matched tracks keep the local id, added tracks get fresh uuids (INV-1 holds across machines) | Import merge, `import_merge.apply_import` (issue #10) |
 | INV-13 | Analysis never overwrites a human-set BPM/key silently. The library-wide job only fills **missing** values (INV-5); the per-track re-analyze is the one explicit override, it is user-initiated, and it shows before → after. A BPM hint that the signal cannot honestly satisfy is reported and the stored BPM is left alone | `analyze_all_missing_bpm` skip policy; `POST /api/library/analyze/{song_id}` + the re-analyze popup (issue #6) |
 | INV-14 | A track has exactly one primary audio file (`file_path`); every other file of the same recording is a variant, never a second song row. A variant carries no BPM, key, ratings, notes, tags or relationships | `audio_variants` on the song model; the scan attaches a re-found file instead of adding a row ([[18_AUDIO_VARIANTS]]) |
-| INV-15 | Removing a variant detaches it from the track only. It never deletes the audio file from disk | The variant removal endpoint and its confirmation copy ([[18_AUDIO_VARIANTS]]) |
+| INV-15 | Removing a variant detaches it from the track only. It never deletes the audio file from disk | The variant removal endpoint and its confirmation copy ([[18_AUDIO_VARIANTS]]) — built 2026-10-31, `DELETE /api/songs/{id}/variants/{variant_id}` and the Files section |
+| INV-16 | A derived fact is never stored. The model computes `missing` on a variant and `primary_missing` on a song from the file system on every read. So a moved file never leaves a stale flag in `library.json` or in an export | `AudioVariant` and `Song` model validators. `library_store._clean_variants` strips the key on every write |
+| INV-17 | Playback uses the primary. A variant plays only when the primary's file is not on this machine. That case is a repair, and the UI names the file it played | `audio.choose_playable`, `X-Klangkurator-Source`, `NowPlaying`'s played-file line (issue #65) |

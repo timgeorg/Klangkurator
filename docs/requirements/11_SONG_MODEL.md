@@ -1,7 +1,7 @@
 # Song Model
 
 Status: Active
-Last Updated: 2026-10-29
+Last Updated: 2026-10-31
 Source: Requirements.md section 3
 
 ## Song Entity
@@ -75,14 +75,33 @@ everything, I'll re-add those ratings"*); old keys still sitting in an existing
 | `created_at` | ISO timestamp | First import time |
 | `updated_at` | ISO timestamp | Last modification time |
 
-### Audio Files (proposed 2026-10-30)
+### Audio Files (built 2026-10-31, issue #65)
 
 | Field | Type | Description |
 |---|---|---|
 | `file_path` | string | The **primary** audio file — the one that plays |
 | `audio_variants` | AudioVariant[] | Other files of the *same* recording (an `.mp3` beside the `.wav`). A variant has no BPM, key, ratings, notes or tags of its own: those belong to the track, once. See [[18_AUDIO_VARIANTS]] |
+| `primary_missing` | boolean | **Derived on read, never stored.** The primary's file is not on this machine, so playback uses a variant |
 
-One track plays once, however many files it ships in.
+An `AudioVariant` carries `id`, `file_path`, `format`, `duration`, `bitrate`,
+`sample_rate`, `bit_depth`, `size_bytes` and `added_at`, plus two optional keys:
+`bpm_reading` (advisory, see below) and `missing` (derived on read, never
+stored). The format facts are recorded at attach time, so a listing never probes
+a 36 MB `.wav` for every row.
+
+One track plays once, however many files it ships in. **The row's BPM, key and
+duration come from the primary.** A variant records its own duration, so the UI
+can tell two genuine edits apart. It also keeps its own `bpm_reading`, so a
+half-tempo disagreement is visible in the re-analyze popup. Neither value
+overrides the track's.
+
+The Files section lists every file of the track. It appears in the edit dialog
+and on the song page. The primary comes first, then each variant with its
+format, duration, size and path.
+
+- **Make primary** swaps the two paths. Every other field stays.
+- **Detach from track** takes the file off the track. The file stays on disk.
+- The primary has no detach action: nothing would be left to play.
 
 ## Design Note: Notes Are The Core Asset
 

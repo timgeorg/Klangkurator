@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { describeApiError } from "@/lib/api";
+import { octaveApart } from "@/lib/audioVariants";
 import { storage, Song, type BpmRange, type ReanalyzeResult } from "@/lib/storage";
 import { BPM_RANGE, formatBpm, keyName } from "@/lib/trackFormat";
 
@@ -36,6 +37,40 @@ function readRange(low: string, high: string): BpmRange | null | string {
 
 const fieldText = (song: Song, field: "bpm" | "musical_key") =>
   field === "bpm" ? formatBpm(song.bpm) : song.musical_key ? `${song.musical_key} · ${keyName(song.musical_key)}` : "–";
+
+/**
+ * The primary's tempo beside a variant's own reading, when they disagree.
+ *
+ * Issue #65 (AC-13, AC-14): the ticket's fault was one recording read 132.0 from
+ * its `.wav` and 66.3 from its `.mp3`. Averages hide that; the app shows both
+ * numbers and offers the double/halve repair as a BPM range, which the user then
+ * runs — it never picks a value itself.
+ */
+function OctaveReport({ song, result }: { song: Song; result: ReanalyzeResult | null }) {
+  const primary = result?.primary_bpm ?? song.bpm ?? null;
+  const variant = result?.variant_bpm ?? song.audio_variants?.find((v) => v.bpm_reading && v.bpm_reading !== song.bpm)?.bpm_reading ?? null;
+  const apart = result?.octave_disagreement ?? octaveApart(primary, variant);
+  if (!apart || !primary || !variant) return null;
+  return (
+    <div className="space-y-1 rounded-md border border-warning/50 bg-warning/5 px-4 py-3 text-[13px]" role="status">
+      <p className="text-warning">
+        A file of this track reads a different tempo:
+      </p>
+      <p>
+        primary <span className="k-num">{formatBpm(primary)}</span> / variant{" "}
+        <span className="k-num">{formatBpm(variant)}</span>
+      </p>
+      <p className="text-muted-foreground">
+        One octave apart — the same music, one metrical level off. The stored BPM is the primary's and is
+        unchanged. To repair it, re-analyze within{" "}
+        <span className="k-num">
+          {formatBpm(Math.round(primary * 0.9))}–{formatBpm(Math.round(primary * 1.1))}
+        </span>{" "}
+        and compare before and after; nothing is picked for you.
+      </p>
+    </div>
+  );
+}
 
 /**
  * Re-analyze one track's BPM and key (issue #6, PF-79).
@@ -169,6 +204,8 @@ export function ReanalyzeDialog({ song, open, onOpenChange, onSave }: ReanalyzeD
             detected as 117. It steers the detector; it cannot force a value the audio does not support.
           </p>
         </div>
+
+        <OctaveReport song={song} result={result} />
 
         {result && (
           <div className={result.bpm === null || !result.bpm_fit ? "text-[13px] text-warning" : "text-[13px]"} role="status">

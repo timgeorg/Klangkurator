@@ -15,6 +15,25 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _clean_variants(variants) -> list[dict]:
+    """Variant payloads as they are stored: no derived key.
+
+    `missing` is computed from the filesystem on every read (issue #65). A
+    stored copy would go stale the moment a file moved, so it never reaches
+    library.json — and through it neither the export nor an import.
+    """
+    if not isinstance(variants, list):
+        return []
+    return [{k: v for k, v in dict(v).items() if k != "missing"} for v in variants]
+
+
+def _with_clean_variants(row: dict) -> dict:
+    """A song row or update with its variant list stripped of derived keys."""
+    if "audio_variants" not in row:
+        return row
+    return {**row, "audio_variants": _clean_variants(row["audio_variants"])}
+
+
 class LibraryStore:
     """CRUD for songs, tags, genres, song_tags, relationships, playlists, playlist_songs.
 
@@ -46,7 +65,7 @@ class LibraryStore:
 
     def add_song(self, song_data: dict) -> dict:
         song = {
-            **song_data,
+            **_with_clean_variants(song_data),
             "id": _new_id(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -58,10 +77,11 @@ class LibraryStore:
     def update_song(self, song_id: str, updates: dict) -> dict | None:
         # Under the save lock: a save running in another thread never
         # serialises a song while it changes.
+        clean = _with_clean_variants(updates)
         with self._lock:
             for s in self._data["songs"]:
                 if s["id"] == song_id:
-                    s.update(updates)
+                    s.update(clean)
                     s["updated_at"] = _now()
                     self._save_fn()
                     return s
@@ -88,6 +108,106 @@ class LibraryStore:
             if s["file_path"] == file_path:
                 return s
         return None
+
+    def find_song_by_any_path(self, file_path: str) -> dict | None:
+        """The track that holds `file_path`, as its primary or as a variant.
+
+        The scan asks this before it adds a row: a file that is already a
+        variant of a track is not a new track (INV-14).
+
+        Args:
+            file_path (str): The absolute path to look for.
+
+        Returns:
+            dict | None: The owning song, or None.
+        """
+        for s in self._data["songs"]:
+            if s.get("file_path") == file_path:
+                return s
+            for v in s.get("audio_variants") or []:
+                if v.get("file_path") == file_path:
+                    return s
+        return None
+
+    # ── Audio variants (issue #65, [[18_AUDIO_VARIANTS]]) ──
+
+    def add_variant(self, song_id: str, variant: dict) -> dict | None:
+        """Attach one more file to a track; the track keeps every other field.
+
+        Args:
+            song_id (str): The track.
+            variant (dict): The variant, already carrying its format facts.
+
+        Returns:
+            dict | None: The updated song, or None for an unknown id.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        existing = list(song.get("audio_variants") or [])
+        if any(v.get("file_path") == variant.get("file_path") for v in existing):
+            return song
+        return self.update_song(song_id, {"audio_variants": [*existing, variant]})
+
+    def remove_variant(self, song_id: str, variant_id: str) -> dict | None:
+        """Detach a variant from a track. The audio file stays on disk.
+
+        Args:
+            song_id (str): The track.
+            variant_id (str): The variant to take off.
+
+        Returns:
+            dict | None: The updated song, or None when the track or the
+            variant is unknown.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        variants = list(song.get("audio_variants") or [])
+        kept = [v for v in variants if v.get("id") != variant_id]
+        if len(kept) == len(variants):
+            return None
+        return self.update_song(song_id, {"audio_variants": kept})
+
+    def make_primary(self, song_id: str, variant_id: str, demoted_facts: dict) -> dict | None:
+        """Swap a variant with the primary. Only the paths change.
+
+        The old primary becomes a variant described by `demoted_facts`, so a
+        second *Make primary* returns to exactly the row the first one started
+        from. BPM, key, ratings, notes and tags are untouched (AC-7).
+
+        Args:
+            song_id (str): The track.
+            variant_id (str): The variant to promote.
+            demoted_facts (dict): What the caller read from the current
+                primary's file (`format`, `duration`, `bitrate`,
+                `sample_rate`, `bit_depth`, `size_bytes`).
+
+        Returns:
+            dict | None: The updated song, or None for an unknown track or
+            variant.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        variants = list(song.get("audio_variants") or [])
+        promoted = next((v for v in variants if v.get("id") == variant_id), None)
+        if promoted is None:
+            return None
+        demoted = {
+            **demoted_facts,
+            "id": _new_id(),
+            "file_path": song["file_path"],
+            "added_at": song.get("created_at") or _now(),
+        }
+        rest = [v for v in variants if v.get("id") != variant_id]
+        return self.update_song(
+            song_id,
+            {
+                "file_path": promoted["file_path"],
+                "audio_variants": [*rest, _clean_variants([demoted])[0]],
+            },
+        )
 
     def find_song_by_artist_title(self, artist: str, title: str) -> dict | None:
         for s in self._data["songs"]:

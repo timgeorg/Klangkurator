@@ -1,11 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check, Plus, Star } from "lucide-react";
+import { Check, Layers, Plus, Star } from "lucide-react";
 
 import { ColorChip } from "@/components/ui/color-chip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
+import { extensionOf } from "@/lib/audioVariants";
 import { addSubgenre, getGenreConfig, getMainGenreColor, getSubgenresForMainGenre } from "@/lib/genreData";
 import { useSettingsTick } from "@/lib/settings";
 import type { Song, SongPatch } from "@/lib/storage";
@@ -717,5 +718,42 @@ export function LyricsCell({ song, onOpen }: { song: Song; onOpen: (song: Song) 
         <span className="text-xs text-muted-foreground/60">No lyrics</span>
       )}
     </CellButton>
+  );
+}
+
+// ── Audio variants: the row's file count (issue #65) ──────
+
+/**
+ * The stacked badge a row shows when its track has more than one audio file.
+ *
+ * It states a fact about the row, as 18_AUDIO_VARIANTS asks: it is not a
+ * control and does not expand anything. The count is the number of *extra*
+ * files — two files read "2", meaning the track ships in two versions.
+ *
+ * @param song The track.
+ */
+export function VariantBadge({ song }: { song: Song }) {
+  const extra = song.audio_variants?.length ?? 0;
+  if (extra === 0) return null;
+  const total = extra + 1;
+  const formats = [extensionOf(song.file_path), ...(song.audio_variants ?? []).map((v) => v.format || extensionOf(v.file_path))]
+    .filter(Boolean)
+    .map((format) => format.toUpperCase());
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="k-num inline-flex shrink-0 items-center gap-1 rounded-sm border border-border bg-muted px-1 py-px text-[10px] leading-none text-muted-foreground"
+          aria-label={`${total} audio files: ${formats.join(", ")}`}
+          data-testid="variant-badge"
+        >
+          <Layers className="h-2.5 w-2.5" aria-hidden />
+          {total}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {total} files: {formats.join(" · ")}
+      </TooltipContent>
+    </Tooltip>
   );
 }
