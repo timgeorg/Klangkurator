@@ -117,6 +117,22 @@ unchanged ("A, B" for two crates, "N selected" beyond).
 - The browser's own find (Ctrl+F) finds rendered rows only. The app's search
   covers every track.
 
+### Instant typing (REQ-13-ST, built 2026-10-30, issue #68)
+
+- The search field is bound to the **live** query. It shows each character at
+  once, and the table follows a deferred copy at low priority. There is no fixed
+  delay: the results appear as soon as the device is free.
+- While the table catches up it keeps its previous rows. React drops a
+  half-built table when the next key arrives, so the field never waits for it.
+- The header count, `aria-rowcount` and the empty-state text describe the
+  **deferred** query, the same one the rows use, so they always agree with the
+  table. The field itself shows the live text.
+- The deferral lives in the library view. The map's field and the library's
+  field keep reading the same live string. A deferred value in the shared filter
+  context would drop characters (TM-R11).
+- The match rules do not change. `filterSongs` still matches the title, the
+  artist, the genres and the key.
+
 ## Columns
 
 | Column | Type | Notes |
