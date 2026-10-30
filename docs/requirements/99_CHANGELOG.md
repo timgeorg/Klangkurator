@@ -5,6 +5,23 @@ Last Updated: 2026-10-30
 
 ## 2026-10-30
 
+### The BPM detector reads the wrong metrical level (issue #66)
+
+Five tracks in the Halloween set were stored at half or two-thirds of their real
+tempo: `Bitch Don't Kill My Vibe (Darren After Edit)` at 86.1, `Love The Right Way`
+and `Make Believe` at 89.1, `Crazy` and `Pon De Replay` at 63.0 — all really
+129.2. Re-analysing with a 125–133 hint returned 129.2 for every one, so the
+values are corrected; the fault itself is #66.
+
+- **Root cause:** `analyze_track` calls `librosa.beat.beat_track` with no
+  `prior`, and the library-wide job never passes a hint, so nothing steers the
+  estimate away from a lower metrical level.
+- **Scale:** 271 of the 1,907 tracks sit in a dance crate at 55–100 BPM, which
+  is very likely the same fault. The drum & bass crate shows it in the other
+  direction: 13 tracks at 86.1 that are really 172.3.
+- **Not fixed by a bulk rewrite.** INV-13 stands: the background job only fills
+  missing values. The ticket asks for a reviewable repair pass instead.
+
 ### Audio variants: one track, several files (proposed, issue #65)
 
 Tim: *"Wir müssen irgendwas neues noch einbauen, dass es 2 Varianten (Audio
