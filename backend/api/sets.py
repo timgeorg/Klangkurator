@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from backend.models.set import DJSet, DJSetCreate, DJSetUpdate
+from backend.models.set import DJSet, DJSetBase, DJSetCreate, DJSetUpdate
 from backend.storage import get_sets_store
 
 router = APIRouter(prefix="/api/sets", tags=["sets"])
+
+# Fields a client may clear by sending an explicit null: the optional ones.
+# `target_duration_min` matters here — a set is often a pool rather than a
+# timed plan, and without this a target could be set once and never removed.
+# Required fields and lists ignore a null instead of being blanked.
+_CLEARABLE = {
+    field.alias or name for name, field in DJSetBase.model_fields.items() if field.default is None
+}
 
 
 @router.get("", response_model=list[DJSet])
@@ -32,7 +40,8 @@ def create_set(body: DJSetCreate):
 @router.put("/{set_id}", response_model=DJSet)
 def update_set(set_id: str, body: DJSetUpdate):
     store = get_sets_store()
-    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    raw = body.model_dump(exclude_unset=True)
+    updates = {k: v for k, v in raw.items() if v is not None or k in _CLEARABLE}
     dj_set = store.update_set(set_id, updates)
     if dj_set is None:
         raise HTTPException(404, "Set not found")

@@ -5,6 +5,37 @@ Last Updated: 2026-10-30
 
 ## 2026-10-30
 
+### A set can be a pool: the target duration is now removable
+
+Tim: *"Ja, die Länge ist egal. Ein Set ist grade eher mehr ein Pool. Also viel
+kann, weniger muss."*
+
+`PUT /api/sets/{id}` dropped every null, so a `target_duration_min` that had been
+set could never be taken off again — the pool still claimed a length it did not
+have. The endpoint now uses the same rule as a song update: an explicit null
+clears an optional field, a field left out is untouched, and a required field
+(`name`) ignores a null instead of being blanked. Four tests in
+`test_set_update.py`.
+
+The Halloween set therefore carries no target length; its 47 tracks are a pool
+along the arc, not a timed plan.
+
+### Rekordbox playlist export specified (proposed)
+
+Tim: *"Ist es theoretisch möglich aus so einem Set eine rekordbox playlist zu
+erstellen? Oder wie macht man das normalerweise?"*
+
+- **Yes, through the XML file Pioneer documents** (`XML file format for
+  playlists sharing`, version 1.0.0): Rekordbox imports a playlist from it, and it
+  is the same file Rekordbox itself exports. New spec
+  `31a_REKORDBOX_PLAYLIST_EXPORT.md`, and section 2 of
+  `30_REKORDBOX_INTEGRATION.md` points at it.
+- **The real constraint is `Location`**: an absolute `file://` URI, so an export
+  is bound to the machine and drive that hold the audio (this library lives on
+  `/media/tim/Extreme SSD/#MUSIC`, with a space and a `#` to encode).
+- **Writing `master.db` is explicitly out of scope** — undocumented schema,
+  version-bound, and a bad write corrupts the collection.
+
 ### The BPM detector reads the wrong metrical level (issue #66)
 
 Five tracks in the Halloween set were stored at half or two-thirds of their real
