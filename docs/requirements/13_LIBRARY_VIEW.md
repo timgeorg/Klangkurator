@@ -99,6 +99,24 @@ unchanged ("A, B" for two crates, "N selected" beyond).
   orange cut on its cover, an orange index and title, an orange waveform and
   a tinted row
 
+### Lazy rows (REQ-13-LR, built 2026-10-30, issue #63)
+
+- The table renders the **first 50 rows** of the matching list. It adds the
+  next 50 when the user scrolls to the last rendered row. This repeats until
+  every matching row renders. A list of 50 rows or fewer renders in full. It
+  adds nothing.
+- The rendered rows are always a **prefix** of the list. Row numbers stay
+  absolute. The `#` column counts 01, 02, … across every page.
+- A **new list** starts again at 50 rows and scrolls the table to the top. The
+  list changes when the search, a filter, the crate or the sort changes.
+- An **inline edit** is not a new list. The table keeps its rows and its scroll
+  position.
+- The header count, `aria-rowcount` and the player's run still cover **every**
+  matching track, not only the rendered ones. A screen reader hears each
+  rendered row's absolute position.
+- The browser's own find (Ctrl+F) finds rendered rows only. The app's search
+  covers every track.
+
 ## Columns
 
 | Column | Type | Notes |

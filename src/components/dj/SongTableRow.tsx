@@ -270,8 +270,12 @@ function SongTableRowImpl({
   };
 
   return (
+    // Only the first rows render (issue #63): the position must be explicit, or a
+    // screen reader counts the rendered rows as the whole table. The header row is
+    // row 1, so the first track is row 2.
     <div
       role="row"
+      aria-rowindex={index + 2}
       data-current={isCurrent || undefined}
       aria-current={isCurrent ? "true" : undefined}
       className={cn(

@@ -72,6 +72,22 @@ Library gleichzeitig angezeigt."*
 - `.wav` files have no embedded artwork and no useful tags, so they are worth
   keeping but are not worth showing as their own rows.
 
+### The library table renders 50 rows and adds 50 while scrolling (#63)
+
+Tim: *"I want to see the crates immediately. Tracks can be rendered lazy and more
+added only when scrolling."*
+
+The table built every matching row in one React commit. The crate tabs therefore
+waited for all 1,907 rows. It now renders the first 50 rows and adds the next 50 when the
+sentinel after them comes into view. A new search, filter, crate or sort starts
+again at 50 rows and at the top. An inline edit keeps the rows and the scroll
+position. The rows stay a prefix of the list, so row numbers stay absolute. The
+header count, `aria-rowcount` and the player's run still cover every matching
+track, and each rendered row now announces its absolute position.
+
+REQ-13-LR is new in `13_LIBRARY_VIEW.md`. NFR-3 now states a measurable budget
+instead of "comfortably".
+
 ## 2026-10-29
 
 ### Settings and genres into the data folder (#51, PF-89)
