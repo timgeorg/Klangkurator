@@ -24,7 +24,30 @@ Each song stores:
 | Field | Type | Description |
 |---|---|---|
 | `bpm` | number? | Beats per minute |
-| `musical_key` | string? | Musical key (e.g. `Am`, `C#`, `7A` — Camelot or standard). Analysis and the Edit dialog write the short standard form (`Am`, `F#`); a key in another notation from file tags is kept as it is |
+| `musical_key` | string? | Musical key (e.g. `Am`, `C#`, `7A` — Camelot or standard). Analysis and the Edit dialog write the short standard form (`Am`, `F#`). A key in another notation from file tags stays as it is |
+| `bpm_fit` | boolean? | True when the detection landed inside the window the caller supplied. False says the detector could not place the tempo in that window, so the stored value is honest but doubtful |
+
+#### The metrical level (REQ-11-ML, built 2026-10-31, issue #66)
+
+`librosa.beat.beat_track` reads one half, two thirds or two fifths of the real
+tempo on part of this library. A sub-multiple is a genuine autocorrelation
+harmonic, so "which grid fits the onsets better" cannot settle it. One asymmetry
+does settle it: how many pulses the detected level claims per beat. A beat holds
+two pulses, and a mis-read claims three or four.
+
+- The detector takes the **tatum** — the strongest sub-beat inter-onset interval —
+  from the mode of the histogram of all onset pairs.
+- It measures the detected period in pulses. A **3- or 4-pulse claim snaps down to
+  two**. A 2-pulse claim, and every other claim, stays as it is.
+- A genuinely slow track has no sub-beat pulse, so the tatum is absent and the
+  detection stands.
+- The detector drops a correction outside the 60–220 BPM the app allows. That
+  would be a new error rather than a repair.
+
+The prior is **not** the answer. A 120–145 prior responds 129.2 for a genuinely
+slow 60.1 BPM track **and** reports `bpm_fit=True`, so nothing flags the error. A
+caller can still pass it as an explicit hint. The detector never applies one by
+default.
 
 ### Genre Hierarchy
 | Field | Type | Description |
