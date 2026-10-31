@@ -82,11 +82,18 @@ export function keyName(key?: string | null): string {
 }
 
 /**
- * The crate a track belongs to: the backend's root_folder (the subfolder of the
- * library root). Falls back to the file's parent folder for older records.
+ * The crate key of a track: the crate id it stores (issue #11).
+ *
+ * The key is an id, never a name, so two crates called "House" in two music
+ * locations stay apart. A row the registry does not know falls back to its
+ * file's parent folder, which keeps an unresolved row visible instead of
+ * dropping it out of every bucket.
+ *
+ * @param song - The song, or the two fields that answer the question.
+ * @returns The crate id, or the file's parent folder name, or "".
  */
-export function crateOf(song: Pick<Song, "root_folder" | "file_path">): string {
-  if (song.root_folder) return song.root_folder;
+export function crateOf(song: Pick<Song, "crate_id" | "file_path">): string {
+  if (song.crate_id) return song.crate_id;
   const parts = (song.file_path || "").replace(/\\/g, "/").split("/").filter(Boolean);
   return parts.length >= 2 ? parts[parts.length - 2] : "";
 }

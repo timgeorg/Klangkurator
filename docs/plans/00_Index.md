@@ -44,3 +44,5 @@ tags:
 - [[SMOOTH_SEARCH_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for instant search (issue #68), judged black-box against the sandbox library with all tracks selected.
 - [[ADD_TO_SET_PLAN.md]] — plan for adding a song to a set from the library and the song page (issue #64): the normalisation and renumber rules, phases, and the wider `#` column.
 - [[ADD_TO_SET_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for add-to-set (issue #64), judged black-box against the sandbox library.
+- [[MUSIC_LOCATIONS_PLAN.md]] — plan for music locations and the crate registry (issue #11): Tim's two gating decisions, the id-from-path design, the migration and its 18-check proof on the real library, the API change set, and what stayed out of scope.
+- [[MUSIC_LOCATIONS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for music locations (issue #11), judged black-box against a sandbox copy: migration, name collisions, removal and re-adding, an absent location, and the data-directory guard.

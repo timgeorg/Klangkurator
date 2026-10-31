@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { api, describeApiError } from "@/lib/api";
+import { refreshCrates } from "@/lib/crates";
 import { toast } from "@/hooks/use-toast";
 import type { GenreConfig } from "@/lib/genreData";
 
@@ -195,6 +196,9 @@ export async function loadSettings(): Promise<void> {
   const [settingsDoc, genreList] = await Promise.all([
     api.get<SettingsDocument>("/settings"),
     api.get<GenreConfig[]>("/genres"),
+    // The crate registry is read here too: the library table, the crate tabs
+    // and the Crate column all need it before the first row renders (#11).
+    refreshCrates(),
   ]);
   settings = settingsDoc ?? {};
   genres = genreList ?? [];

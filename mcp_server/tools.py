@@ -81,10 +81,15 @@ def _slim(song: dict) -> dict:
 
 @server.tool(annotations=READ)
 def list_crates() -> list[dict]:
-    """List the library's crates (its music subfolders) with their track counts.
+    """List the library's crates with their track counts.
+
+    A crate is a registry entry (issue #11), so a name repeated in two music
+    locations is two crates with two ids. Pass an id — not a name — to
+    `search_tracks(crate=…)`.
 
     Returns:
-        list[dict]: One `{name, track_count}` per crate.
+        list[dict]: One `{id, name, location_path, track_count,
+        missing_track_count}` per crate.
     """
     return call("GET", "/api/library/crates")
 
@@ -106,7 +111,7 @@ def search_tracks(
     Args:
         query (str | None): Matches title, artist, main genre, subgenres,
             genres, legacy genre, key or album.
-        crate (str | None): The crate (the song's `root_folder`), any case.
+        crate (str | None): The crate id a song carries, any case.
         genre (str | None): Any of main genre, genres or legacy genre, any case.
         key (str | None): The musical key, any case. An empty crate, genre or
             key is no filter.
@@ -216,7 +221,7 @@ def _matches_bpm(
 
 
 def _crate_of(song: dict) -> str:
-    """A song's crate, with the same rule `list_crates` counts by.
+    """A song's crate id, with the same rule `list_crates` counts by.
 
     Kept identical to the app's `crateOf` (src/lib/trackFormat.ts) and the
     backend's `crate_of`, so a crate an agent is told about can be filtered to.
@@ -225,10 +230,11 @@ def _crate_of(song: dict) -> str:
         song (dict): A song row.
 
     Returns:
-        str: `root_folder`, else the file's parent folder, else "Unknown".
+        str: `crate_id`, else the file's parent folder, else "Unknown".
     """
-    if song.get("root_folder"):
-        return str(song["root_folder"])
+    key = song.get("crate_id")
+    if isinstance(key, str) and key:
+        return key
     path = song.get("file_path")
     parent = Path(str(path)).parent.name if path else ""
     return parent or "Unknown"
@@ -285,7 +291,7 @@ def update_track(
     phase_tags: list[str] | None = None,
     vibe_tags: list[str] | None = None,
     transition_notes: str | None = None,
-    root_folder: str | None = None,
+    crate_id: str | None = None,
 ) -> dict:
     """Change the fields you name, and only those.
 
@@ -392,11 +398,16 @@ def _named_fields(
 def scan_library(root_path: str) -> dict:
     """Start a background scan of a folder; poll `scan_status` for progress.
 
+    The folder is scanned as a music location of its own (issue #11), so a
+    library may read several places. An absent folder is a no-op with a
+    warning, not an error.
+
     Args:
         root_path (str): The music folder, inside the allowed roots.
 
     Returns:
-        dict: `{started, total}`.
+        dict: `{started, total}`; `started` is false with a `warning` when the
+        folder is not there.
     """
     _require_write()
     root = _require_allowed_root(root_path)
@@ -415,28 +426,50 @@ def scan_status() -> dict:
 
 
 @server.tool(annotations=READ)
-def get_library_root() -> dict:
-    """The music folder the app is configured to read.
+def list_music_locations() -> list[dict]:
+    """The music folders the app reads, each scanned like a root (issue #11).
 
     Returns:
-        dict: `{root_path}` (`None` when unset).
+        list[dict]: One `{id, path, exists, crate_count, track_count}` per
+        location. `exists` is false when the drive is not mounted.
     """
-    return call("GET", "/api/library/root")
+    return call("GET", "/api/library/locations")
 
 
 @server.tool(annotations=IDEMPOTENT)
-def set_library_root(root_path: str) -> dict:
-    """Point the app at a music folder. Changes no track on its own.
+def add_music_location(path: str) -> dict:
+    """Register a music folder. Changes no track on its own.
+
+    Adding the same folder twice changes nothing. Scan it afterwards with
+    `scan_library` to import its files.
 
     Args:
-        root_path (str): The folder, inside the allowed roots.
+        path (str): The folder, inside the allowed roots.
 
     Returns:
-        dict: `{root_path}`.
+        dict: The location, with `added_crates` and `exists`.
     """
     _require_write()
-    root = _require_allowed_root(root_path)
-    return call("PUT", "/api/library/root", json={"root_path": root})
+    root = _require_allowed_root(path)
+    return call("POST", "/api/library/locations", json={"path": root})
+
+
+@server.tool(annotations=WRITE)
+def remove_music_location(location_id: str) -> dict:
+    """Stop reading a music folder. Its songs are kept and flagged missing.
+
+    Nothing is deleted (issue #11): the tracks keep their notes, tags and
+    ratings and gain `missing_since`. Re-adding the folder brings them back by
+    path.
+
+    Args:
+        location_id (str): The location's id, from `list_music_locations`.
+
+    Returns:
+        dict: `{id, path, songs_flagged, crates_removed}`.
+    """
+    _require_write()
+    return call("DELETE", f"/api/library/locations/{_require_id(location_id, 'location')}")
 
 
 # ── Analysis ────────────────────────────────────────────
@@ -873,8 +906,7 @@ def _require_allowed_root(root_path: str) -> str:
     requested = Path(root_path).expanduser().resolve()
     allowed = config.allowed_roots()
     if allowed is None:
-        configured = call("GET", "/api/library/root").get("root_path")
-        allowed = [configured] if configured else []
+        allowed = [loc["path"] for loc in call("GET", "/api/library/locations")]
     roots = [Path(entry).expanduser().resolve() for entry in allowed]
     if any(requested == root or root in requested.parents for root in roots):
         return str(requested)

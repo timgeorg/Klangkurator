@@ -7,6 +7,7 @@ import { AddToSetButton, AddToSetMenu } from "@/components/sets/AddToSetMenu";
 import { CoverArt } from "@/components/brand";
 import { TagSelector } from "@/components/ui/tag-selector";
 import { Waveform } from "@/components/ui/waveform";
+import { crateById, crateName } from "@/lib/crates";
 import { Song, Tag } from "@/lib/storage";
 import { BPM_RANGE, crateOf, formatBpm, formatDuration, parseBpm, splitTitle } from "@/lib/trackFormat";
 import { cn } from "@/lib/utils";
@@ -177,11 +178,16 @@ function SongTableRowImpl({
           </TextCell>
         );
 
-      case "rootFolder": {
-        const crate = crateOf(song);
+      case "crate": {
+        const key = crateOf(song);
+        const crate = crateById(key);
         return (
-          <span className="truncate text-muted-foreground" title={song.file_path}>
-            {crate || "–"}
+          <span
+            className={cn("truncate text-muted-foreground", song.missing_since && "italic")}
+            title={crate ? `${crate.location_path}/${crate.name}` : song.file_path}
+          >
+            {crateName(key) || "–"}
+            {song.missing_since && <span className="sr-only"> (missing)</span>}
           </span>
         );
       }

@@ -47,6 +47,51 @@ popup's second number has nowhere else to come from. The duration-based attach
 offer also requires a matching title, because a duration alone claimed two
 unrelated tracks as one recording.
 
+### Music locations, and a crate registry (issue #11)
+
+Tim: *"We have a root folder that starts all 'crates'. But maybe I have crates
+in different destinations and want to manually add crates that are not in the
+root folder."*
+
+The library no longer has one root. It has **a list of music locations**, and
+the app scans each one as a root. A crate is no longer a string derived from a
+folder name. It is a **registry entry** `{id, name, location_path}`, and a song
+stores `crate_id`. Two folders called `House` in two locations give two crates
+with two ids. The name collision that the single root made tolerable is now
+impossible by construction. The Crate column, the crate tabs and the Crate
+filter all key on the id, and the app looks up the name for the screen.
+
+**The old shape migrates when the app reads the file.** `root_folder` becomes
+`crate_id`, and the app consumes `_config.root_path`. The pass is idempotent,
+so a second read changes nothing and writes nothing. Proven on the real
+library: 1,907 songs in, 1,907 out, all 27 crates found, each old name mapping
+to exactly one crate, no crate renamed. The migration also found a second
+location that no one had listed: 92 songs sit under `~/Vault/downloads/…`, on a
+different drive from the configured root.
+
+- An **absent location** gives a no-op with a warning, never an error. It
+  cannot disturb another location or flag a song
+- **Removing a location** in Settings asks once, then flags its songs as
+  missing and keeps every row with its notes, tags and ratings. Re-adding the
+  folder finds the songs again by path, so the same crate ids come back. This
+  flow replaces the old "orphan the songs on a root change" behaviour
+- The MCP server's `get_library_root` and `set_library_root` became
+  `list_music_locations`, `add_music_location` and `remove_music_location`
+- Spec: `10_LIBRARY_AND_FILE_LOADING.md`, `21_DATA_MODEL_LIBRARY_JSON.md`,
+  INV-16 to INV-22. Plan and behaviour contract:
+  `docs/plans/MUSIC_LOCATIONS_PLAN.md` and
+  `docs/plans/MUSIC_LOCATIONS_BEHAVIOR_CONTRACT.md`. Feature row: PF-84
+
+### The data directory refuses the real home when asked
+
+The app resolves `DATA_DIR` when it first imports `backend`. A scratch script
+that points `HOME` at a temporary folder **after** that import still holds the
+real path. A probe of exactly that shape wrote over the real library on
+2026-10-31. The library came back from a copy, and the cause is now a guard.
+`KLANGKURATOR_REQUIRE_HOME` makes `ensure_data_dir()` raise instead of creating
+a data directory outside the required folder. The test suite sets it, so a test
+session that resolved the real home fails loudly. Two tests cover the guard.
+
 ## 2026-10-30
 
 ### A set exports as a Rekordbox playlist (#67)

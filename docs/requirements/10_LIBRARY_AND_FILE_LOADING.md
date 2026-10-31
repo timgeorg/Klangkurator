@@ -1,48 +1,90 @@
 # Library And File Loading
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-10-31
 Source: Requirements.md sections 4, 12; new set-planning workflow
 
-## Root Folder Concept
+## Music Locations (issue #11)
 
-The library is organized around a **root folder** — the top-level directory
-that contains all music subfolders. This mirrors how DJs actually organize
-their crates: a `Music/` folder with subfolders like `Melodic Techno/`,
-`Deep House/`, `Afro House/`.
+The library reads **a list of music locations**. A music location is a folder
+that the app scans as a root. The walk is recursive, and every folder inside it
+holds crates. This mirrors how DJs organize: a `Music/` folder with subfolders
+like `Melodic Techno/`, `Deep House/`, `Afro House/` — and, when the collection
+outgrows one drive, a second folder somewhere else.
 
-### Root Folder Selection
+The single-root model is gone. The key `_config.root_path` no longer exists,
+because the migration below consumes it. The app has no "one extra folder as a
+crate" side door. A music location is the one concept, and it has one scanning
+path.
 
-The root folder is **the unit of import**. Loading individual audio files
-is explicitly not an import mode — a library is built from folders, never
-from loose file picks.
+### Location Selection
 
-- The Import page (route `/load-files`, formerly "Load Files") is the single
-  import surface
-- Folder selection happens in a **native OS folder picker** (a real
-  directory dialog — never a browser file-input dialog and never manual
-  path typing as the primary flow)
-  - Desktop (PyWebView): native FOLDER_DIALOG via `POST /api/library/pick-folder`
-  - Browser against a local backend: the backend's GTK portal dialog via
+**A folder is the unit of import.** The app does not import single audio files.
+A library grows from folders, never from loose file picks.
+
+- The Import page (route `/load-files`) is the import surface
+- The user picks a folder in a **native OS folder dialog**. It is a real
+  directory dialog, never a browser file-input control. Manual path typing is
+  never the primary flow
+  - Desktop (PyWebView): native FOLDER_DIALOG through `POST /api/library/pick-folder`
+  - Browser against a local backend: the backend's GTK portal dialog through
     the same endpoint (localhost is trusted, same machine)
-  - Manual path entry stays as a fallback only (collapsed under
-    "Advanced" — for headless/SSH setups)
-- Selecting a folder **sets the root and immediately scans it** — one
-  action, not "save then separately press Scan"
-- A root with **no subfolders** is valid: all audio files in the root
-  itself are imported; the crate name is the root folder's own name
-- The root path is persisted in settings; re-scans only add new files
-  (idempotent — INV-5). A folder chosen in the desktop dialog is saved as the
-  root before it is scanned (fixed 2026-10-08: it was scanned but not saved,
-  so the page forgot it after a reload)
+  - Manual path entry stays as a fallback only, collapsed under "Advanced",
+    for headless and SSH setups
+- Selecting a folder **registers it as a music location and scans it at once**.
+  This is one action, not "save" and then a separate "Scan"
+- A location with **no subfolders** is valid. The app imports all audio files
+  in it, and the crate takes the name of the location folder
+- The app saves each location path in `library.json`. A re-scan adds new files
+  only (INV-5, INV-20)
+- **The Import page carries the first location.** The user adds, removes and
+  rescans further locations in **Settings** (`REQ-17-LOC`)
+- An **absent location** — an unmounted drive, a moved folder — gives a
+  **no-op with a warning**. `POST /api/library/scan` answers
+  `{started: false, total: 0, warning}`, and no other location changes. The
+  app never treats this case as an error
 
 ### Folder → Crate Mapping
-- Each **subfolder** inside the root becomes a **crate** (selectable collection)
-- The folder name is the crate name
-- Nested folders (e.g. `House/Deep/`) are flattened with `/` as separator
-  (e.g. `House/Deep`) or shown as a tree — TBD, see [92_PLANNED_FEATURES]
-- The song's `root_folder` property is derived from its parent folder name
-  inside the library root
+
+- **Every folder inside a location is a crate**, at any depth. The walk is
+  recursive, so `House/`, `House/Deep/` and `House/Deep/Late/` give three
+  crates. The rule is not "direct subfolders only"
+- A crate name is its **path below its music location**, with `/` between the
+  components (`house/deep`). The app **always flattens** nested crates into
+  that name. It has never built a tree view (PF-11)
+- A file directly in a location gives a crate named after that location
+- A crate is a **registry entry** (INV-19), not a derived string. Each entry
+  holds `{id, name, location_path}` in `_config.crates`. The song stores the
+  **id**, never the name. Two folders called `House` in two locations give two
+  crates with two ids, so a name collision can no longer merge them
+
+### The crate registry and the one-time migration
+
+A `library.json` written by the single-root model holds a `root_folder` string
+on every song and one `_config.root_path`. The app migrates that file **when it
+reads the file**:
+
+- Each song's `root_folder` becomes a `crate_id`, resolved against the crate
+  registry keyed by crate path. The app then removes the old field. No state
+  ever holds both shapes
+- The app consumes `_config.root_path`. The value gives the location that the
+  old crates belong to, and the app then removes the key. There is no derived
+  mirror of it: a second copy would be a second truth
+- **The migration keeps each crate name.** An upgrade renames nothing
+- A crate whose files sit outside the old root becomes **its own music
+  location**, which the app discovers from the paths. The real library needed
+  this: 92 songs sit under `~/Vault/downloads/…`, and the configured root is on
+  an external drive
+- **A second read changes nothing** and writes nothing. The pass is idempotent
+- A **missing or corrupt registry self-heals** from the song rows. It never
+  raises, so a hand-edited or truncated `_config` cannot cost the library
+- **A row the migration cannot place keeps its old value, and the app logs it.**
+  The app never drops the row and never blanks the value (INV-18)
+- The pass repairs a song whose crate id the registry does not know. Such a row
+  comes from an import made on another machine, or from a lost registry entry.
+  The file path decides, because the path is the truth
+- The pass leaves a **flagged-missing** song alone. Its crate is gone because
+  the user removed that location. A rebuild would undo the removal
 
 ### Crate Selection for Set Planning
 - When planning a set, the user selects which crates to work with
@@ -143,14 +185,31 @@ Access denied: … is outside your home directory (/home/tim)`.
   403 and the same message shape, naming what was refused.
 - `parent` is `null` at both boundaries (home and root), so the dialog's "up"
   control stops there.
-- A library with no root configured falls back to the home folder alone.
-- The widening is the browser's, not the scan's: neither `POST /scan` nor `PUT
-  /root` changes what it accepts.
+- A library with no music location falls back to the home folder alone.
+- The widening is the browser's, not the scan's: neither `POST /scan` nor
+  `POST /locations` changes what it accepts.
 
 ### Re-scan
-- Re-scanning the same root folder only adds new files — existing songs are
-  never overwritten (preserves user-entered notes/tags/ratings)
-- Files that no longer exist on disk are flagged but NOT deleted (user confirms)
+- Re-scanning the same music location adds new files only. The app never
+  overwrites an existing song, so the user's notes, tags and ratings stay
+- The app flags a file that no longer exists on disk and keeps it, until the
+  user agrees to a cleanup
+- A location that is not connected gives a warning and no scan (see above).
+  The app never flags its songs from that run, because an unmounted drive is
+  not proof that the files are gone
+
+### Removing a music location (REQ-17-LOC)
+The user removes a location in Settings. The app asks once, then flags that
+location's songs as missing and keeps every row. A song stays in this flow,
+with its data.
+- The app keeps every song: each one holds its path, notes, tags, ratings and
+  relationships, and gains a `missing_since` marker
+- Re-adding the same folder re-resolves those songs by path, so they return
+  with their data. Crate ids come from the crate path, so the same ids come
+  back
+- This flow replaces the old "orphan the songs on a root change" behaviour
+- The scan, the Crate column and the crate tabs all read the same marker: a
+  missing song still shows its crate name, marked as missing
 
 ### Audio analysis progress (REQ-10-AP)
 - "Analyze BPM and key" runs as a **background job with visible progress**. A

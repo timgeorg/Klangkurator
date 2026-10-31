@@ -47,7 +47,7 @@ describe("syntheticLibrary", () => {
     expect(features.every((feature) => feature.bpm !== undefined)).toBe(true);
     expect(features.every((feature) => feature.key !== undefined)).toBe(true);
     expect(features.every((feature) => feature.genre !== undefined)).toBe(true);
-    expect(songs.every((song) => !!song.root_folder)).toBe(true);
+    expect(songs.every((song) => !!song.crate_id)).toBe(true);
   });
 
   it("produces ratings on the 0–5 scale with one decimal", () => {
@@ -87,7 +87,7 @@ describe("syntheticLibrary — the fixture shapes (phase 6)", () => {
     expect(new Set(eight.flatMap((song) => song.subgenres ?? [])).size).toBe(8);
 
     const twelve = syntheticLibrary({ count: 600, seed: 13, crateCount: 12 });
-    expect(new Set(twelve.map((song) => song.root_folder)).size).toBe(12);
+    expect(new Set(twelve.map((song) => song.crate_id)).size).toBe(12);
 
     // More than the pool is clamped to the pool, never past it.
     const clamped = syntheticLibrary({ count: 600, seed: 14, genreCount: 999 });
@@ -129,7 +129,7 @@ describe("syntheticLibrary — the fixture shapes (phase 6)", () => {
     expect(bare.every((song) => (song.subgenres ?? []).length === 0)).toBe(true);
     expect(bare.every((song) => song.energy === 0)).toBe(true);
     expect(bare.every((song) => (song.people ?? 0) === 0)).toBe(true);
-    expect(bare.every((song) => song.root_folder === undefined)).toBe(true);
+    expect(bare.every((song) => song.crate_id === undefined)).toBe(true);
   });
 
   it("spreads the artists by crate, across the alphabet, or not at all", () => {

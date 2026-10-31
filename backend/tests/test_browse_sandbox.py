@@ -1,8 +1,8 @@
-"""The widened browse sandbox (REQ-10-BW, issue #47).
+"""The browse sandbox (REQ-10-BW, issue #47; music locations, issue #11).
 
 Browsing reached only `$HOME`, so a library on an external drive could be
 scanned and set as the root but never picked in the browser's folder dialog.
-The configured root is now a second boundary.
+Every music location is now a boundary beside the home folder.
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ def music_root(tmp_path) -> Path:
     root = tmp_path / "Extreme SSD" / "#MUSIC"
     (root / "techno").mkdir(parents=True)
     (root / "house").mkdir(parents=True)
-    get_library_store().set_config("root_path", str(root))
+    get_library_store().add_location(str(root))
     return root
 
 
@@ -80,10 +80,9 @@ def test_a_sibling_of_the_root_is_refused(music_root):
     assert res.status_code == 403
 
 
-def test_without_a_configured_root_only_home_is_reachable(tmp_path):
+def test_without_a_music_location_only_home_is_reachable(tmp_path):
     """A fresh install can browse home and nothing else."""
     outside = tmp_path / "elsewhere"
     outside.mkdir()
-    get_library_store().set_config("root_path", None)
 
     assert client.get("/api/library/browse", params={"path": str(outside)}).status_code == 403

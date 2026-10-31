@@ -5,9 +5,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
-#: Song keys the model no longer has (issue #48: `people` replaced both). Rows
-#: saved before keep them; nothing reads them, and the export leaves them out.
-RETIRED_SONG_KEYS = frozenset({"danceability", "social_acceptance"})
+#: Song keys the model no longer has: `people` replaced both ratings (issue #48)
+#: and `root_folder` became a crate id (issue #11). Rows saved before keep
+#: them; nothing reads them, and the export leaves them out.
+RETIRED_SONG_KEYS = frozenset({"danceability", "social_acceptance", "root_folder"})
 
 
 class AudioVariant(BaseModel):
@@ -74,7 +75,10 @@ class SongBase(BaseModel):
     phase_tags: list[str] = Field(default_factory=list)
     vibe_tags: list[str] = Field(default_factory=list)
     transition_notes: str | None = None
-    root_folder: str | None = None
+    # The crate's registry id (issue #11); the name is resolved for display.
+    crate_id: str | None = None
+    # Set when the song's music location was removed. The song is kept, flagged.
+    missing_since: str | None = None
     waveform_peaks: list[float] | None = None
     #: Other files of the same recording. `file_path` stays the primary; these
     #: never become rows of their own (INV-14).
@@ -113,7 +117,8 @@ class SongUpdate(BaseModel):
     phase_tags: list[str] | None = None
     vibe_tags: list[str] | None = None
     transition_notes: str | None = None
-    root_folder: str | None = None
+    crate_id: str | None = None
+    missing_since: str | None = None
     waveform_peaks: list[float] | None = None
     audio_variants: list[AudioVariant] | None = None
 
