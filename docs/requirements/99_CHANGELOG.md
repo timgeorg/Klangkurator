@@ -92,7 +92,28 @@ real path. A probe of exactly that shape wrote over the real library on
 a data directory outside the required folder. The test suite sets it, so a test
 session that resolved the real home fails loudly. Two tests cover the guard.
 
-## 2026-10-30
+## 2026-10-31
+
+### The BPM detector reads the right metrical level (#66)
+
+Tim: *"Wir müssen irgendwas neues noch einbauen, dass es 2 Varianten (Audio Files)
+vom gleichen Track geben kann."* — and the reading underneath it was wrong.
+
+`beat_track` reported one half, two thirds or two fifths of the real tempo on part
+of this library, five tracks in the Halloween set alone. Every periodicity test
+failed to separate the levels. A sub-multiple is a genuine autocorrelation
+harmonic. What is asymmetric is the number of pulses the detected level claims per
+beat. The detector now measures the tatum and snaps a 3- or 4-pulse claim down to
+two. A 2-pulse claim stands, and a genuinely slow track has no sub-beat pulse,
+so it keeps its value.
+
+Measured: all five wrong readings return 129.2, and the 60.1 BPM intro stays at
+60.1. A 40-track sample across the dance crates changed 6 values, each a 1.55×,
+2.0× or 2.05× correction.
+
+A 120–145 prior is **not** the answer. It turns the 60.1 intro into 129.2 **and**
+reports `bpm_fit=True`, so the error stays invisible. `REQ-11-ML` records the rule
+and that finding.
 
 ### A set exports as a Rekordbox playlist (#67)
 
