@@ -78,8 +78,8 @@ describe("groupKey — energy", () => {
 
 describe("groupKey — the fallbacks", () => {
   it("crate is the root folder, or No crate", () => {
-    expect(groupKey(t({ id: "a", root_folder: "Crate A" }), "crate")).toBe("Crate A");
-    expect(groupKey(t({ id: "a", root_folder: "  " }), "crate")).toBe("No crate");
+    expect(groupKey(t({ id: "a", crate: "Crate A" }), "crate")).toBe("Crate A");
+    expect(groupKey(t({ id: "a", crate: "  " }), "crate")).toBe("No crate");
     expect(groupKey(t({ id: "a" }), "crate")).toBe("No crate");
   });
 
@@ -184,7 +184,7 @@ describe("chooseClusterDimension — the nearest band", () => {
 
 describe("chooseClusterDimension — the fallbacks", () => {
   it("clusters 1,200 tracks without metadata by crate", () => {
-    const tracks = many(1200, (index) => ({ root_folder: `Crate ${index % 12}`, artist: "Same Artist" }));
+    const tracks = many(1200, (index) => ({ crate: `Crate ${index % 12}`, artist: "Same Artist" }));
     expect(groupCount(tracks, "genre")).toBe(1);
     expect(groupCount(tracks, "bpmRange")).toBe(1);
     expect(groupCount(tracks, "subgenre")).toBe(1);
@@ -195,7 +195,7 @@ describe("chooseClusterDimension — the fallbacks", () => {
 
   it("falls to the artist's first letter when one crate holds them all", () => {
     const tracks = many(1200, (index) => ({
-      root_folder: "One Crate",
+      crate: "One Crate",
       artist: index % 2 ? "Alice" : "Bob",
     }));
     expect(groupCount(tracks, "crate")).toBe(1);
@@ -204,7 +204,7 @@ describe("chooseClusterDimension — the fallbacks", () => {
   });
 
   it("gives null (the last resort) when one crate and one artist hold them all", () => {
-    const tracks = many(1200, () => ({ root_folder: "One Crate", artist: "One Artist" }));
+    const tracks = many(1200, () => ({ crate: "One Crate", artist: "One Artist" }));
     expect(groupCount(tracks, "crate")).toBe(1);
     expect(groupCount(tracks, "artistInitial")).toBe(1);
     expect(chooseClusterDimension(tracks)).toBeNull();
@@ -213,7 +213,7 @@ describe("chooseClusterDimension — the fallbacks", () => {
   it("keeps the fallback order crate, then artist initial", () => {
     expect(FALLBACK_DIMENSIONS).toEqual(["crate", "artistInitial"]);
     const tracks = many(4, (index) => ({
-      root_folder: `Crate ${index}`,
+      crate: `Crate ${index}`,
       artist: index % 2 ? "Alice" : "Bob",
     }));
     expect(groupCount(tracks, "crate")).toBe(4);
@@ -245,13 +245,13 @@ describe("clusterChoice — the reason, for the rail (TM-C1)", () => {
   });
 
   it("says fallback for the crate and the artist, and lastResort for nothing", () => {
-    const crate = many(1200, (index) => ({ root_folder: `Crate ${index % 12}`, artist: "Same Artist" }));
+    const crate = many(1200, (index) => ({ crate: `Crate ${index % 12}`, artist: "Same Artist" }));
     expect(clusterChoice(crate)).toEqual({ dimension: "crate", count: 12, reason: "fallback" });
 
-    const artist = many(1200, (index) => ({ root_folder: "One Crate", artist: index % 2 ? "Alice" : "Bob" }));
+    const artist = many(1200, (index) => ({ crate: "One Crate", artist: index % 2 ? "Alice" : "Bob" }));
     expect(clusterChoice(artist)).toEqual({ dimension: "artistInitial", count: 2, reason: "fallback" });
 
-    const stuck = many(1200, () => ({ root_folder: "One Crate", artist: "One Artist" }));
+    const stuck = many(1200, () => ({ crate: "One Crate", artist: "One Artist" }));
     expect(clusterChoice(stuck)).toEqual({ dimension: null, count: 0, reason: "lastResort" });
   });
 });
@@ -262,7 +262,7 @@ describe("withClusterFields — a song in its cluster view", () => {
     const [feature] = buildFeatures([song]);
     const track = withClusterFields(song, feature);
     expect(track.artist).toBe(song.artist);
-    expect(track.root_folder).toBe(song.root_folder);
+    expect(track.crate).toBe(song.crate_id);
     expect(track.bpm).toBe(feature.bpm);
   });
 });

@@ -4,6 +4,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from backend.storage import crate_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,6 +15,25 @@ def _new_id() -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _clean_variants(variants) -> list[dict]:
+    """Variant payloads as they are stored: no derived key.
+
+    `missing` is computed from the filesystem on every read (issue #65). A
+    stored copy would go stale the moment a file moved, so it never reaches
+    library.json — and through it neither the export nor an import.
+    """
+    if not isinstance(variants, list):
+        return []
+    return [{k: v for k, v in dict(v).items() if k != "missing"} for v in variants]
+
+
+def _with_clean_variants(row: dict) -> dict:
+    """A song row or update with its variant list stripped of derived keys."""
+    if "audio_variants" not in row:
+        return row
+    return {**row, "audio_variants": _clean_variants(row["audio_variants"])}
 
 
 class LibraryStore:
@@ -33,6 +54,52 @@ class LibraryStore:
             if key not in self._data:
                 self._data[key] = []
 
+        self._migrate_crates()
+
+    def _migrate_crates(self) -> dict:
+        """Bring the crate registry and the song rows up to date on read.
+
+        The one-time pass the multi-location model needs (issue #11): a file
+        written by the single-root model holds `root_folder` strings and a
+        single `root_path`, and becomes a crate registry with `crate_id`s. The
+        pass is idempotent, so a second read changes nothing and writes nothing.
+
+        It also heals a registry that went missing or was hand-edited, which is
+        why it runs on **every** read rather than behind a version flag: the
+        song rows and the registry can only ever be in the one shape.
+
+        Returns:
+            dict: The pass's report — counters and any warning it logged.
+        """
+        config = self._data.get("_config")
+        if not isinstance(config, dict):
+            config = {}
+            self._data["_config"] = config
+        report = crate_registry.migrate(config, self._data["songs"])
+        for warning in report["warnings"]:
+            logger.warning("Crate registry: %s", warning)
+        if report["changed"]:
+            logger.info(
+                "Crate registry updated: %d songs migrated, %d crates over %d music "
+                "locations, %d rows left unresolved",
+                report["songs_migrated"], report["crates"], report["locations"],
+                len(report["songs_unresolved"]),
+            )
+            self._save_fn()
+        return report
+
+    def migrate_crates(self) -> dict:
+        """Run the crate-registry pass again and report what it did.
+
+        Read does it already; this is the seam a caller uses to see the report,
+        and the seam the tests exercise.
+
+        Returns:
+            dict: The pass's report.
+        """
+        with self._lock:
+            return self._migrate_crates()
+
     # ── Songs ──────────────────────────────────────────────
 
     def get_songs(self) -> list[dict]:
@@ -46,7 +113,7 @@ class LibraryStore:
 
     def add_song(self, song_data: dict) -> dict:
         song = {
-            **song_data,
+            **_with_clean_variants(song_data),
             "id": _new_id(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -58,10 +125,11 @@ class LibraryStore:
     def update_song(self, song_id: str, updates: dict) -> dict | None:
         # Under the save lock: a save running in another thread never
         # serialises a song while it changes.
+        clean = _with_clean_variants(updates)
         with self._lock:
             for s in self._data["songs"]:
                 if s["id"] == song_id:
-                    s.update(updates)
+                    s.update(clean)
                     s["updated_at"] = _now()
                     self._save_fn()
                     return s
@@ -88,6 +156,106 @@ class LibraryStore:
             if s["file_path"] == file_path:
                 return s
         return None
+
+    def find_song_by_any_path(self, file_path: str) -> dict | None:
+        """The track that holds `file_path`, as its primary or as a variant.
+
+        The scan asks this before it adds a row: a file that is already a
+        variant of a track is not a new track (INV-14).
+
+        Args:
+            file_path (str): The absolute path to look for.
+
+        Returns:
+            dict | None: The owning song, or None.
+        """
+        for s in self._data["songs"]:
+            if s.get("file_path") == file_path:
+                return s
+            for v in s.get("audio_variants") or []:
+                if v.get("file_path") == file_path:
+                    return s
+        return None
+
+    # ── Audio variants (issue #65, [[18_AUDIO_VARIANTS]]) ──
+
+    def add_variant(self, song_id: str, variant: dict) -> dict | None:
+        """Attach one more file to a track; the track keeps every other field.
+
+        Args:
+            song_id (str): The track.
+            variant (dict): The variant, already carrying its format facts.
+
+        Returns:
+            dict | None: The updated song, or None for an unknown id.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        existing = list(song.get("audio_variants") or [])
+        if any(v.get("file_path") == variant.get("file_path") for v in existing):
+            return song
+        return self.update_song(song_id, {"audio_variants": [*existing, variant]})
+
+    def remove_variant(self, song_id: str, variant_id: str) -> dict | None:
+        """Detach a variant from a track. The audio file stays on disk.
+
+        Args:
+            song_id (str): The track.
+            variant_id (str): The variant to take off.
+
+        Returns:
+            dict | None: The updated song, or None when the track or the
+            variant is unknown.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        variants = list(song.get("audio_variants") or [])
+        kept = [v for v in variants if v.get("id") != variant_id]
+        if len(kept) == len(variants):
+            return None
+        return self.update_song(song_id, {"audio_variants": kept})
+
+    def make_primary(self, song_id: str, variant_id: str, demoted_facts: dict) -> dict | None:
+        """Swap a variant with the primary. Only the paths change.
+
+        The old primary becomes a variant described by `demoted_facts`, so a
+        second *Make primary* returns to exactly the row the first one started
+        from. BPM, key, ratings, notes and tags are untouched (AC-7).
+
+        Args:
+            song_id (str): The track.
+            variant_id (str): The variant to promote.
+            demoted_facts (dict): What the caller read from the current
+                primary's file (`format`, `duration`, `bitrate`,
+                `sample_rate`, `bit_depth`, `size_bytes`).
+
+        Returns:
+            dict | None: The updated song, or None for an unknown track or
+            variant.
+        """
+        song = self.get_song(song_id)
+        if song is None:
+            return None
+        variants = list(song.get("audio_variants") or [])
+        promoted = next((v for v in variants if v.get("id") == variant_id), None)
+        if promoted is None:
+            return None
+        demoted = {
+            **demoted_facts,
+            "id": _new_id(),
+            "file_path": song["file_path"],
+            "added_at": song.get("created_at") or _now(),
+        }
+        rest = [v for v in variants if v.get("id") != variant_id]
+        return self.update_song(
+            song_id,
+            {
+                "file_path": promoted["file_path"],
+                "audio_variants": [*rest, _clean_variants([demoted])[0]],
+            },
+        )
 
     def find_song_by_artist_title(self, artist: str, title: str) -> dict | None:
         for s in self._data["songs"]:
@@ -337,6 +505,161 @@ class LibraryStore:
         if "_config" not in self._data:
             self._data["_config"] = {}
         self._data["_config"][key] = value
+        self._save_fn()
+
+    # ── Music locations and crates (issue #11) ─────────────
+    # A music location is a folder scanned like a root. A crate is a folder
+    # inside one, with an id, a name and the location that holds it. Both live
+    # in `_config`, so they travel with the library and survive a restart.
+
+    def get_locations(self) -> list[dict]:
+        """The music locations, each `{id, path}` in path order.
+
+        Returns:
+            list[dict]: The stored locations.
+        """
+        return list(crate_registry.location_lookup(self._data.get("_config", {})).values())
+
+    def get_crates(self) -> list[dict]:
+        """The crates, each `{id, name, location_path}`, in name order.
+
+        Returns:
+            list[dict]: The stored crates.
+        """
+        crates = crate_registry.crate_lookup(self._data.get("_config", {}))
+        return sorted(crates.values(), key=lambda c: (c["name"].casefold(), c["location_path"]))
+
+    def add_location(self, path: str) -> dict:
+        """Register a music location and adopt the crates already under it.
+
+        A location that is already registered is returned unchanged, so a
+        repeated add (a retry, a second tab) changes nothing.
+
+        Args:
+            path (str): The folder to scan as a music location.
+
+        Returns:
+            dict: `{id, path, added_crates}` — how many crates the location
+            brought with it.
+        """
+        normalized = crate_registry.normalize_path(path)
+        # Register against the current shape: a location added to a file that
+        # still holds `root_folder` strings must see the crates it adopts.
+        self._migrate_crates()
+        config = self._data.setdefault("_config", {})
+        locations = crate_registry.location_lookup(config)
+        crates = crate_registry.crate_lookup(config)
+
+        location = locations.get(crate_registry.location_id(normalized))
+        if location is None:
+            location = {"id": crate_registry.location_id(normalized), "path": normalized}
+            locations[location["id"]] = location
+        # Songs already in the library are adopted by path — the same rule a
+        # rescan uses. This is what makes re-adding a removed location bring
+        # its songs back, and it is safe to repeat: the file path is the
+        # identity, so a second add finds the same crate.
+        added = self._adopt_orphans(normalized, crates)
+        self._write_registry(locations, crates)
+        return {**location, "added_crates": added}
+
+    def _adopt_orphans(self, location_path: str, crates: dict) -> int:
+        """Point songs that sit under a location at the crates of that location.
+
+        Args:
+            location_path (str): The location just added.
+            crates (dict): The crate registry, updated in place.
+
+        Returns:
+            int: How many crates the adoption created or reused.
+        """
+        added = 0
+        for song in self._data["songs"]:
+            file_path = song.get("file_path")
+            if not isinstance(file_path, str) or not file_path:
+                continue
+            if crate_registry.location_of([location_path], file_path) is None:
+                continue
+            name = crate_registry.crate_name_for(location_path, file_path)
+            crate = crate_registry.crate_id(location_path, name)
+            if crate not in crates:
+                crates[crate] = {"id": crate, "name": name, "location_path": location_path}
+                added += 1
+            if song.get(crate_registry.SONG_KEY) != crate:
+                song[crate_registry.SONG_KEY] = crate
+            # The flag clears whenever the location holds the file again, not
+            # only when the id changed: crate ids are derived from the path, so
+            # a re-added location restores the very same id and a "did it
+            # change" test would leave the song flagged missing forever.
+            song.pop(crate_registry.MISSING_KEY, None)
+        return added
+
+    def remove_location(self, location_id: str) -> dict | None:
+        """Unregister a music location and flag its songs as missing.
+
+        Nothing is deleted: the songs, their notes, tags and ratings stay, and
+        each gets `missing_since`. Re-adding the location re-resolves them by
+        path, because the crate ids are derived from the path.
+
+        Args:
+            location_id (str): The location to remove.
+
+        Returns:
+            dict | None: `{id, path, songs_flagged, crates_removed}`, or None
+            when no location carries that id.
+        """
+        self._migrate_crates()
+        config = self._data.setdefault("_config", {})
+        locations = crate_registry.location_lookup(config)
+        crates = crate_registry.crate_lookup(config)
+        location = locations.pop(location_id, None)
+        if location is None:
+            return None
+
+        removed = {
+            key for key, crate in crates.items()
+            if crate["location_path"] == location["path"]
+        }
+        for key in removed:
+            crates.pop(key, None)
+
+        flagged = 0
+        stamp = _now()
+        for song in self._data["songs"]:
+            if song.get(crate_registry.SONG_KEY) in removed:
+                song[crate_registry.MISSING_KEY] = stamp
+                flagged += 1
+        self._write_registry(locations, crates)
+        return {**location, "songs_flagged": flagged, "crates_removed": len(removed)}
+
+    def crates_of_location(self, location_id: str) -> list[dict]:
+        """The crates one music location holds.
+
+        Args:
+            location_id (str): The location's id.
+
+        Returns:
+            list[dict]: The crates, in name order; empty for an unknown id.
+        """
+        location = crate_registry.location_lookup(self._data.get("_config", {})).get(location_id)
+        if location is None:
+            return []
+        return [crate for crate in self.get_crates() if crate["location_path"] == location["path"]]
+
+    def _write_registry(self, locations: dict, crates: dict) -> None:
+        """Persist the two registries in their stored order.
+
+        Args:
+            locations (dict): Locations by id.
+            crates (dict): Crates by id.
+        """
+        config = self._data.setdefault("_config", {})
+        config[crate_registry.LOCATION_KEY] = [
+            locations[key] for key in sorted(locations, key=lambda k: locations[k]["path"])
+        ]
+        config[crate_registry.CRATE_KEY] = [
+            crates[key]
+            for key in sorted(crates, key=lambda k: (crates[k]["name"].casefold(), crates[k]["location_path"]))
+        ]
         self._save_fn()
 
 

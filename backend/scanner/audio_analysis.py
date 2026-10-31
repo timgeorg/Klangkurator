@@ -81,8 +81,22 @@ def analyze_track(
         # the answer — measured 2 of 14 library tracks land on a different BPM.
         # beat_track has exposed `prior` since 0.10, so it steers the same
         # estimator the app already ships and the no-hint answer is identical.
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, prior=prior)
-        value = round(float(np.asarray(tempo).item()), 1)
+        # beat_track builds its onset envelope with aggregate=np.median, so
+        # passing that same envelope reproduces its no-hint answer exactly. The
+        # envelope is kept because the metrical-level test below needs it.
+        onset_envelope = librosa.onset.onset_strength(
+            y=y, sr=sr, hop_length=512, aggregate=np.median
+        )
+        tempo, _ = librosa.beat.beat_track(
+            onset_envelope=onset_envelope, sr=sr, hop_length=512, prior=prior
+        )
+        tempo = float(np.asarray(tempo).item())
+        # beat_track reads one half, two thirds or two fifths of the real tempo
+        # on ~14% of this library. The sub-multiple is a genuine harmonic of the
+        # autocorrelation, so no grid-fit test separates it; `_metrical_level`
+        # measures the detected period in pulses instead.
+        tempo = _metrical_level(tempo, onset_envelope, librosa, np, sr)
+        value = round(float(tempo), 1)
         # beat_track answers 0.0 when the onset envelope has no onsets at all
         # (silence, a beatless pad, a long reverb-only intro). That is a failed
         # detection, not a tempo — 0 BPM is outside the 40–250 the app allows,
@@ -114,6 +128,87 @@ def analyze_track(
         "duration": full_duration,
         "bpm_fit": bpm_fit,
     }
+
+
+HOP_LENGTH = 512
+"""Hop used for the onset envelope — the same one librosa's beat_track uses."""
+
+
+def _pulse_period(onset_envelope, librosa, np, sr: int, hop_length: int = HOP_LENGTH) -> float | None:
+    """The strongest sub-beat inter-onset interval (the tatum), in seconds.
+
+    Every mis-read tempo in this library sits three or four pulses per beat
+    instead of two, so the pulse is the reference the level test needs. It is
+    taken as the mode of the histogram of *all* onset pairs — not consecutive
+    ones, because a groove omits onsets and consecutive gaps then skip pulses —
+    and refined to the median of the intervals in that mode's neighbourhood,
+    since one histogram bin is coarser than the accuracy needed.
+    """
+    frames = librosa.onset.onset_detect(
+        onset_envelope=onset_envelope, sr=sr, hop_length=hop_length,
+        backtrack=False, units="frames", delta=0.03, wait=1,
+    )
+    if len(frames) < 8:
+        return None
+    times = frames * hop_length / float(sr)
+    lo_s, hi_s, bin_s, win_s = 0.14, 0.60, 0.004, 0.020
+    gaps = times[None, :] - times[:, None]
+    gaps = gaps[np.triu_indices(len(times), k=1)]
+    gaps = gaps[(gaps >= lo_s) & (gaps <= hi_s)]
+    if len(gaps) < 20:
+        return None
+    bins = np.arange(lo_s, hi_s + bin_s, bin_s)
+    counts, edges = np.histogram(gaps, bins=bins)
+    smooth = np.convolve(counts, np.ones(3) / 3, mode="same")
+    # Only bins that hold samples are candidates: an empty bin in the middle of
+    # a peak would otherwise win on the smoothed value alone.
+    index = int(np.argmax(np.where(counts > 0, smooth, -1)))
+    centre = 0.5 * (edges[index] + edges[index + 1])
+    near = gaps[np.abs(gaps - centre) <= win_s]
+    return float(np.median(near)) if len(near) >= 10 else float(centre)
+
+
+def _metrical_level(detected_bpm, onset_envelope, librosa, np, sr: int):
+    """Choose the right metrical level for a detected tempo.
+
+    `beat_track` reports one half, two thirds or two fifths of the real tempo on
+    part of this library. Every candidate level explains the onsets at least as
+    well as the beat — a sub-multiple is a genuine autocorrelation harmonic — so
+    "which grid fits better" has no answer, and none of the periodicity tests
+    tried here (tempogram column support, onset comb filtering, band-limited
+    kick/snare comb filtering, ACF lag ratios) picks the right level.
+
+    What is asymmetric is how many pulses the detected level claims per beat. A
+    beat is two pulses; a mis-read claims three or four. So this measures the
+    detected period in pulses and snaps a 3- or 4-pulse claim down to two,
+    leaving a 2-pulse claim — and anything else — untouched. That asymmetry is
+    what keeps a genuinely slow track slow: a 60 BPM pulse has no sub-beat
+    pulse at all, so `_pulse_period` returns nothing and the detection stands.
+
+    Args:
+        detected_bpm: The tempo `beat_track` reported.
+        onset_envelope: The envelope `beat_track` was given.
+        librosa, np: The modules `analyze_track` already imported.
+        sr: The sample rate the envelope was built at.
+
+    Returns:
+        float: The chosen tempo. Equal to `detected_bpm` whenever the level is
+        not clearly a 3- or 4-pulse claim.
+    """
+    if not detected_bpm or detected_bpm <= 0:
+        return detected_bpm
+    tempo = float(np.asarray(detected_bpm).item())
+    pulse = _pulse_period(onset_envelope, librosa, np, sr)
+    if not pulse:
+        return tempo
+    pulses_per_beat = (60.0 / tempo) / pulse
+    claim = round(pulses_per_beat)
+    if claim not in (3, 4) or abs(pulses_per_beat - claim) > 0.22:
+        return tempo
+    corrected = 60.0 / (2.0 * pulse)
+    # A corrected value outside the range the app allows would be a new error,
+    # not a repair, so leave the detection alone in that case.
+    return corrected if 60.0 <= corrected <= 220.0 else tempo
 
 
 def _bpm_prior(bpm_min: float, bpm_max: float):

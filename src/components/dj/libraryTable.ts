@@ -15,7 +15,8 @@ export interface FilterState {
   title: string;
   artist: string;
   album: string;
-  rootFolder: string[];
+  /** Crate **ids** (issue #11), never names: the name is only for display. */
+  crate: string[];
   genre: string[];
   subgenres: string[];
   bpm: RangeValue;
@@ -38,7 +39,8 @@ export interface FilterOptions {
   subgenres: FilterOption[];
   keys: FilterOption[];
   tags: FilterOption[];
-  rootFolders: FilterOption[];
+  /** One option per crate: `value` is the id, `label` the name. */
+  crates: FilterOption[];
 }
 
 export type SortState = { column: string; dir: "asc" | "desc" } | null;
@@ -53,7 +55,7 @@ export const FILTER_CONFIG: Record<
   title: { type: "text", placeholder: "Filter titles…" },
   artist: { type: "text", placeholder: "Filter artists…" },
   album: { type: "text", placeholder: "Filter albums…" },
-  rootFolder: { type: "multiselect", optionsKey: "rootFolders" },
+  crate: { type: "multiselect", optionsKey: "crates" },
   bpm: { type: "range", min: 60, max: 200 },
   key: { type: "multiselect", optionsKey: "keys" },
   genre: { type: "multiselect", optionsKey: "mainGenres" },
@@ -70,7 +72,7 @@ export const INITIAL_FILTERS: FilterState = {
   title: "",
   artist: "",
   album: "",
-  rootFolder: [],
+  crate: [],
   genre: [],
   subgenres: [],
   bpm: {},
@@ -120,7 +122,7 @@ export function filterSongs(
     if (filters.title && !song.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
     if (filters.artist && !song.artist.toLowerCase().includes(filters.artist.toLowerCase())) return false;
     if (filters.album && !song.album?.toLowerCase().includes(filters.album.toLowerCase())) return false;
-    if (filters.rootFolder.length > 0 && !filters.rootFolder.includes(crateOf(song))) return false;
+    if (filters.crate.length > 0 && !filters.crate.includes(crateOf(song))) return false;
     if (filters.genre.length > 0) {
       const g = [song.mainGenre, ...(song.genres || []), song.genre].filter(Boolean) as string[];
       if (!g.some((x) => filters.genre.includes(x))) return false;

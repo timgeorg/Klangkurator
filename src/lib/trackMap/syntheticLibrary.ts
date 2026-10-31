@@ -71,7 +71,7 @@ const ALPHABET_ARTISTS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => 
  *
  * Every track carries the fields the features read (`bpm`, a key in one of
  * the three notations, genre, subgenre, ratings, year, duration and a
- * `root_folder`). `seed` fixes every value, so two calls with the same
+ * `crate_id`). `seed` fixes every value, so two calls with the same
  * options give the same tracks.
  *
  * The options shape the library for a fixture: how many genres, subgenres and
@@ -118,7 +118,9 @@ export function syntheticLibrary(options: SyntheticLibraryOptions = {}): Synthet
       artwork_url: undefined,
       energy: omit.energy ? 0 : energy,
       people: omit.ratings ? 0 : rating(random),
-      root_folder: omit.crate || !crates.length ? undefined : crates[index % crates.length],
+      // The fixture has no registry, so the crate id *is* its name: `crateName`
+      // falls back to the id for a crate it does not know (issue #11).
+      crate_id: omit.crate || !crates.length ? undefined : crates[index % crates.length],
     });
   }
   return songs;

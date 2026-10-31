@@ -1,6 +1,6 @@
 # Rekordbox Playlist Export (from a Set)
 
-Status: Proposed (issue #67)
+Status: Built (issue #67)
 Last Updated: 2026-10-30
 Source: Tim, 2026-10-30 (verbatim ask at the end) + Pioneer's official
 `XML file format for playlists sharing`

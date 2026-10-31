@@ -12,6 +12,8 @@ tags:
 - [[PHASE_4_DESKTOP_PACKAGING.md]] — PyWebView launcher, static file serving, native folder picker, clean shutdown.
 - [[PHASE_5_ANALYSIS_PROGRESS.md]] — audio analysis progress job (REQ-10-AP): in-memory job + polled status endpoint, frontend progress bar; includes testing guide T1-T4.
 - [[BACKLOG_ORCHESTRATION.ipynb]] — working notebook for the six library-UX backlog features (PF-12..PF-17): sprint board, per-feature subtasks, verification cells, session log.
+- [[AUDIO_VARIANTS_PLAN.md]] — plan for the audio variants (issue #65): one primary path plus a variant list, the nine build steps, and the risks with their handling.
+- [[AUDIO_VARIANTS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the variants (issue #65), from the scan's offer through Files, make primary, playback fallback, the octave report and export, judged black-box against a sandbox copy.
 - [[PLAYER_RUN_PLAN.md]] — plan for the player stepping through a run (issue #5, PF-80): Tim's decisions, the queue model, data flow, interaction semantics, files.
 - [[PLAYER_RUN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for next/previous and auto-advance (issue #5), judged black-box against a sandbox copy of the library.
 - [[TRACK_MAP_PLAN.md]] — plan for the track map (issue #8, PF-81): shared types, the similarity/cluster/transition algorithm contract, and seven phases as PRs into int.
@@ -42,3 +44,5 @@ tags:
 - [[SMOOTH_SEARCH_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for instant search (issue #68), judged black-box against the sandbox library with all tracks selected.
 - [[ADD_TO_SET_PLAN.md]] — plan for adding a song to a set from the library and the song page (issue #64): the normalisation and renumber rules, phases, and the wider `#` column.
 - [[ADD_TO_SET_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for add-to-set (issue #64), judged black-box against the sandbox library.
+- [[MUSIC_LOCATIONS_PLAN.md]] — plan for music locations and the crate registry (issue #11): Tim's two gating decisions, the id-from-path design, the migration and its 18-check proof on the real library, the API change set, and what stayed out of scope.
+- [[MUSIC_LOCATIONS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for music locations (issue #11), judged black-box against a sandbox copy: migration, name collisions, removal and re-adding, an absent location, and the data-directory guard.

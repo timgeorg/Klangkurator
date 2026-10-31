@@ -199,5 +199,5 @@ export type TrackMapSong = Pick<
   | "artwork_url"
   | "energy"
   | "people"
-  | "root_folder"
+  | "crate_id"
 >;

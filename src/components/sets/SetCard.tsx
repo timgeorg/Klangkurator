@@ -1,7 +1,8 @@
-import { Pencil, Play, Trash2 } from "lucide-react";
+import { Download, Pencil, Play, Trash2 } from "lucide-react";
 
 import { Shape } from "@/components/brand";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 import { usePlayer } from "@/lib/PlayerContext";
 import type { DJSet } from "@/lib/storage";
 import { formatDuration, formatTotal } from "@/lib/trackFormat";
@@ -79,6 +80,19 @@ export function SetCard({ set, items, onOpen, onDelete }: SetCardProps) {
           <Button variant="outline" size="sm" onClick={onOpen} aria-label={`Edit ${set.name}`}>
             <Pencil />
             Edit
+          </Button>
+          {/* A real link, not a handler: the endpoint answers a file download, so the
+              browser saves it and the app never holds the XML. Rekordbox imports the
+              result as a playlist of this set, in this order. */}
+          <Button variant="ghost" size="sm" asChild>
+            <a
+              href={`${API_BASE}/sets/${set.id}/export/rekordbox`}
+              download
+              aria-label={`Export ${set.name} for Rekordbox`}
+              title="Export for Rekordbox"
+            >
+              <Download />
+            </a>
           </Button>
           <Button variant="ghost" size="sm" onClick={onDelete} aria-label={`Delete ${set.name}`} title="Delete set">
             <Trash2 />

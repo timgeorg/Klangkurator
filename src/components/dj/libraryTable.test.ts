@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { clickCrate, toggleCrate, visibleCrates } from "./libraryTable";
+import { crateOf } from "@/lib/trackFormat";
+import type { Song } from "@/lib/storage";
+
+import { INITIAL_FILTERS, clickCrate, filterSongs, toggleCrate, visibleCrates } from "./libraryTable";
 
 /** N crates in tab order: "crate-1", "crate-2", … */
 function crateNames(count: number): string[] {
@@ -76,5 +79,31 @@ describe("visibleCrates", () => {
     const result = visibleCrates(crates, ["crate-3"], false);
     expect(result.shown).toEqual(crates.slice(0, 10));
     expect(result.hidden).toBe(17);
+  });
+});
+
+describe("the Crate filter keys on ids (issue #11)", () => {
+  const songs = [
+    { id: "s1", title: "A", artist: "X", file_path: "/a/House/a.mp3", crate_id: "crate_a", energy: 0 },
+    { id: "s2", title: "B", artist: "Y", file_path: "/b/House/b.mp3", crate_id: "crate_b", energy: 0 },
+    { id: "s3", title: "C", artist: "Z", file_path: "/a/techno/c.mp3", crate_id: "crate_c", energy: 0 },
+  ] as unknown as Song[];
+
+  it("selects one of two crates that share a name", () => {
+    const only = filterSongs(songs, {}, { ...INITIAL_FILTERS, crate: ["crate_a"] }, "");
+
+    expect(only.map((song) => song.id)).toEqual(["s1"]);
+  });
+
+  it("keeps both crates apart when both are selected", () => {
+    const both = filterSongs(songs, {}, { ...INITIAL_FILTERS, crate: ["crate_a", "crate_b"] }, "");
+
+    expect(both.map((song) => song.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("uses the file's folder for a row the registry never saw", () => {
+    const unplaced = [{ id: "s4", title: "D", artist: "W", file_path: "/a/House/d.mp3", energy: 0 }] as unknown as Song[];
+
+    expect(crateOf(unplaced[0])).toBe("House");
   });
 });

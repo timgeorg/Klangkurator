@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { ChevronRight, Download, Monitor, Moon, Pencil, Plus, Sun, Trash2, Upload, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronRight, Download, FolderOpen, Monitor, Moon, Pencil, Plus, RefreshCw, Sun, Trash2, Upload, X } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 
+import { FolderBrowserDialog } from "@/components/dj/FolderBrowserDialog";
 import { ImportMergeDialog, type Conflict, type ImportSummary } from "@/components/dj/ImportMergeDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSection } from "@/components/layout/PageSection";
@@ -26,11 +28,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { toast } from "@/hooks/use-toast";
 import { api, API_BASE, describeApiError } from "@/lib/api";
+import { refreshCratesQuietly, type MusicLocation } from "@/lib/crates";
 import { useCoverStyle } from "@/lib/appearance";
 import { getGenreConfig, saveGenreConfig, type GenreConfig } from "@/lib/genreData";
 import { refreshGenres, saveSettings, useSettingsTick } from "@/lib/settings";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { usePlayer } from "@/lib/PlayerContext";
+import { cn } from "@/lib/utils";
 import { storage, type Tag } from "@/lib/storage";
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
@@ -45,7 +49,8 @@ type Editing =
 type PendingDelete =
   | { kind: "tag"; tag: Tag; uses: number }
   | { kind: "genre"; genre: GenreConfig }
-  | { kind: "subgenre"; main: string; sub: string };
+  | { kind: "subgenre"; main: string; sub: string }
+  | { kind: "location"; location: MusicLocation };
 
 export default function Settings() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -63,6 +68,91 @@ export default function Settings() {
   const [editOpen, setEditOpen] = useState(false);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // ── Music locations (issue #11) ──────────────────────────
+  // The UI home for add / remove / rescan. Import stays the first-location
+  // flow; this page owns the ongoing list.
+  const [locations, setLocations] = useState<MusicLocation[]>([]);
+  const [locationsStatus, setLocationsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [locationsError, setLocationsError] = useState("");
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [manualLocation, setManualLocation] = useState("");
+  const [manualLocationError, setManualLocationError] = useState("");
+  const [addingLocation, setAddingLocation] = useState(false);
+  const [rescanning, setRescanning] = useState<Set<string>>(new Set());
+
+  const loadLocations = useCallback(async () => {
+    try {
+      await refreshCratesQuietly();
+      setLocations(await api.get<MusicLocation[]>("/library/locations"));
+      setLocationsStatus("ready");
+    } catch (error) {
+      setLocationsError(describeApiError(error));
+      setLocationsStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLocations();
+  }, [loadLocations]);
+
+  /** Register a folder; a folder already in the list changes nothing. */
+  const addLocation = async (path: string) => {
+    const trimmed = path.trim();
+    if (!trimmed) {
+      setManualLocationError("Type the full path of the folder, e.g. /home/you/Music.");
+      return;
+    }
+    setAddingLocation(true);
+    try {
+      await api.post<MusicLocation>("/library/locations", { path: trimmed });
+      setManualLocation("");
+      setManualLocationError("");
+      await loadLocations();
+      window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
+    } catch (error) {
+      setManualLocationError(describeApiError(error));
+    } finally {
+      setAddingLocation(false);
+    }
+  };
+
+  /** Pick a folder in the system dialog, falling back to the in-app browser. */
+  const pickLocation = async () => {
+    try {
+      const result = await api.post<{ path: string | null }>("/library/pick-folder");
+      if (result.path) await addLocation(result.path);
+      return;
+    } catch {
+      // Not in desktop mode — the in-app browser opens instead.
+    }
+    setBrowserOpen(true);
+  };
+
+  /** Scan one location: the same job the Import page starts (REQ-10-SP). */
+  const rescanLocation = async (location: MusicLocation) => {
+    setRescanning((prev) => new Set(prev).add(location.id));
+    try {
+      const res = await api.post<{ started: boolean; total: number; warning?: string | null }>(
+        "/library/scan",
+        { location_id: location.id },
+      );
+      toast({
+        title: res.started ? "Scanning" : "Nothing to scan",
+        description: res.started
+          ? `${plural(res.total, "file")} in ${location.path}.`
+          : res.warning ?? "The folder is not there right now.",
+      });
+    } catch (error) {
+      toast({ title: "The scan did not start", description: describeApiError(error), variant: "destructive" });
+    } finally {
+      setRescanning((prev) => {
+        const next = new Set(prev);
+        next.delete(location.id);
+        return next;
+      });
+    }
+  };
 
   // ── Backup & Export (issue #10, PF-83) ───────────────────
   const [exporting, setExporting] = useState(false);
@@ -223,10 +313,27 @@ export default function Settings() {
       }
     } else if (pending.kind === "genre") {
       updateGenres(genres.filter((g) => g.name !== pending.genre.name));
-    } else {
+    } else if (pending.kind === "subgenre") {
       updateGenres(
         genres.map((g) => (g.name === pending.main ? { ...g, subgenres: g.subgenres.filter((s) => s !== pending.sub) } : g)),
       );
+    } else {
+      try {
+        const result = await api.delete<{
+          songs_flagged: number;
+          crates_removed: number;
+        }>(`/library/locations/${pending.location.id}`);
+        toast({
+          title: "Music folder removed",
+          description:
+            `${plural(result.songs_flagged, "track")} flagged as missing — nothing was deleted. ` +
+            "Add the folder again to bring them back.",
+        });
+        await loadLocations();
+        window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
+      } catch (error) {
+        toast({ title: "The folder wasn't removed", description: describeApiError(error), variant: "destructive" });
+      }
     }
   };
 
@@ -237,6 +344,118 @@ export default function Settings() {
       <div className="max-w-5xl px-5 pb-20 md:px-8">
         <PageSection id="appearance" title="Appearance" description="How Klangkurator looks. Saved on this computer, for this app.">
           <AppearanceSettings />
+        </PageSection>
+
+        <PageSection
+          id="locations"
+          title="Music folders"
+          description="Each folder is read like a root: everything inside it is scanned, and every subfolder is a crate. Two folders may hold a crate of the same name — they stay two crates. A folder that is not connected is left alone."
+          actions={
+            <Button variant="outline" size="sm" onClick={pickLocation} disabled={addingLocation}>
+              <Plus />
+              Add folder
+            </Button>
+          }
+        >
+          {locationsStatus === "loading" ? (
+            <div role="status" aria-label="Loading music folders" className="space-y-3">
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-2/3" />
+            </div>
+          ) : locationsStatus === "error" ? (
+            <div role="alert" className="text-[13px]">
+              <p className="text-destructive">The music folders didn't load: {locationsError}.</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => loadLocations()}>
+                Try again
+              </Button>
+            </div>
+          ) : locations.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">
+              No music folder yet. <Link to="/load-files" className="underline underline-offset-2">Import your first one.</Link>
+            </p>
+          ) : (
+            <ul className="border-t border-border">
+              {locations.map((location) => (
+                <li
+                  key={location.id}
+                  className="relative flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2.5"
+                >
+                  <FolderOpen aria-hidden className="h-4 w-4 shrink-0 self-start text-muted-foreground" />
+                  {/* The last segment leads, so a narrow screen still tells two
+                      locations apart; the full path is the line below it and
+                      the tooltip. The counts wrap under, never beside, on a
+                      narrow screen: they would squeeze the name to nothing. */}
+                  <span className="min-w-0 flex-1">
+                    <code className="k-num block truncate text-[13px]" title={location.path}>
+                      {location.path.split("/").filter(Boolean).pop() ?? location.path}
+                    </code>
+                    <span className="k-num block truncate text-[11px] text-muted-foreground" title={location.path}>
+                      {location.path}
+                    </span>
+                    <span className="k-num mt-0.5 block text-xs text-muted-foreground sm:hidden">
+                      {plural(location.crate_count, "crate")} · {plural(location.track_count, "track")}
+                    </span>
+                  </span>
+                  <span className="k-num hidden shrink-0 text-xs text-muted-foreground sm:inline">
+                    {plural(location.crate_count, "crate")} · {plural(location.track_count, "track")}
+                  </span>
+                  {!location.exists && (
+                    <span className="shrink-0 rounded-chip border border-dashed border-input px-2 py-0.5 text-xs text-muted-foreground">
+                      Not connected
+                    </span>
+                  )}
+                  <span className="flex shrink-0 items-center">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => rescanLocation(location)}
+                      disabled={rescanning.has(location.id)}
+                      aria-label={`Rescan ${location.path}`}
+                      title="Rescan"
+                    >
+                      <RefreshCw className={cn(rescanning.has(location.id) && "animate-spin")} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => askDelete({ kind: "location", location })}
+                      aria-label={`Remove ${location.path}`}
+                      title="Remove"
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 max-w-xl space-y-2">
+            <Label htmlFor="location-path">Add a folder by path</Label>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                id="location-path"
+                placeholder="/home/you/Music"
+                value={manualLocation}
+                onChange={(e) => {
+                  setManualLocation(e.target.value);
+                  if (manualLocationError) setManualLocationError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && addLocation(manualLocation)}
+                aria-invalid={!!manualLocationError}
+                aria-describedby="location-path-help"
+                className="k-num min-w-[14rem] flex-1 text-[13px]"
+              />
+              <Button variant="outline" onClick={() => addLocation(manualLocation)} disabled={addingLocation}>
+                Add
+              </Button>
+            </div>
+            <p id="location-path-help" className={manualLocationError ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+              {manualLocationError ||
+                "For a folder the picker cannot reach, e.g. a mounted drive over SSH. Adding it does not scan it — press Rescan."}
+            </p>
+          </div>
         </PageSection>
 
         <PageSection
@@ -416,6 +635,8 @@ export default function Settings() {
         </PageSection>
       </div>
 
+      <FolderBrowserDialog open={browserOpen} onOpenChange={setBrowserOpen} onSelect={(path) => addLocation(path)} />
+
       {importPlan && (
         <ImportMergeDialog
           open
@@ -454,7 +675,7 @@ export default function Settings() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
-                  Delete {pending.kind}
+                  {pending.kind === "location" ? "Remove folder" : `Delete ${pending.kind}`}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>
@@ -689,6 +910,7 @@ function EditForm({
 function deleteTitle(pending: PendingDelete): string {
   if (pending.kind === "tag") return `Delete the tag “${pending.tag.name}”?`;
   if (pending.kind === "genre") return `Delete the genre “${pending.genre.name}”?`;
+  if (pending.kind === "location") return `Remove the music folder “${pending.location.path}”?`;
   return `Delete the subgenre “${pending.sub}”?`;
 }
 
@@ -699,6 +921,13 @@ function deleteBody(pending: PendingDelete): string {
   if (pending.kind === "genre") {
     const subs = pending.genre.subgenres.length;
     return `${pending.genre.name}${subs ? ` and its ${plural(subs, "subgenre")}` : ""} leave the list. Tracks that use them keep the names until you change them.`;
+  }
+  if (pending.kind === "location") {
+    const count = plural(pending.location.track_count, "track");
+    return (
+      `Its ${count} stay in the library and are flagged as missing — nothing is deleted. ` +
+      "Add the folder again and they come back, with their notes and tags."
+    );
   }
   return `It leaves the ${pending.main} list. Tracks that use it keep the name until you change them.`;
 }

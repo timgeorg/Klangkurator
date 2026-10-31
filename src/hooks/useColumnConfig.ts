@@ -24,7 +24,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
   title: { id: 'title', label: 'Title', minWidth: 120, maxWidth: 480, defaultWidth: 216, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   artist: { id: 'artist', label: 'Artist', minWidth: 80, maxWidth: 300, defaultWidth: 112, resizable: true, filterable: true, sortable: true, filterType: 'text' },
   album: { id: 'album', label: 'Album', minWidth: 80, maxWidth: 300, defaultWidth: 120, resizable: true, filterable: true, sortable: true, filterType: 'text' },
-  rootFolder: { id: 'rootFolder', label: 'Crate', minWidth: 80, maxWidth: 260, defaultWidth: 140, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
+  crate: { id: 'crate', label: 'Crate', minWidth: 80, maxWidth: 260, defaultWidth: 140, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
   bpm: { id: 'bpm', label: 'BPM', minWidth: 60, maxWidth: 120, defaultWidth: 60, resizable: true, filterable: true, sortable: true, filterType: 'range' },
   key: { id: 'key', label: 'Key', minWidth: 56, maxWidth: 100, defaultWidth: 56, resizable: true, filterable: true, sortable: true, filterType: 'multiselect' },
   genre: { id: 'genre', label: 'Genre', minWidth: 80, maxWidth: 220, defaultWidth: 96, resizable: true, filterable: true, sortable: false, filterType: 'multiselect' },
@@ -44,7 +44,7 @@ export const COLUMN_DEFINITIONS: Record<string, ColumnDef> = {
 // with the player panel docked.
 const DEFAULT_COLUMN_ORDER = [
   'play', 'cover', 'title', 'artist', 'genre', 'bpm', 'key', 'preview', 'duration',
-  'subgenres', 'energy', 'people', 'rank', 'album', 'rootFolder',
+  'subgenres', 'energy', 'people', 'rank', 'album', 'crate',
   'tags', 'lyrics', 'notes'
 ];
 
@@ -114,10 +114,20 @@ const normaliseColumnConfig = (value: unknown): ColumnConfig | null => {
         next.splice(idx >= 0 ? idx + 1 : next.length, 0, 'rank');
         return next;
       })();
-  const vis = visibility as Record<string, boolean>;
-  const wid = widths as Record<string, number>;
+  // Migration: the Crate column was `rootFolder` before the crate registry
+  // (issue #11). The stored id is renamed in place so a saved layout keeps the
+  // column where the user put it.
+  const cratedOrder = rankedOrder.map((id) => (id === 'rootFolder' ? 'crate' : id));
+  const visRaw = visibility as Record<string, boolean | undefined>;
+  const vis = Object.fromEntries(
+    Object.entries(visRaw).map(([id, shown]) => [id === 'rootFolder' ? 'crate' : id, shown]),
+  ) as Record<string, boolean>;
+  const widRaw = widths as Record<string, number | undefined>;
+  const wid = Object.fromEntries(
+    Object.entries(widRaw).map(([id, width]) => [id === 'rootFolder' ? 'crate' : id, width]),
+  ) as Record<string, number>;
   return {
-    order: rankedOrder,
+    order: cratedOrder,
     visibility: { ...vis, cover: vis.cover ?? true, rank: vis.rank ?? true },
     // Migration: a stored '# width from before issue #64 is too narrow for the
     // third row action, so it is lifted to the new minimum.

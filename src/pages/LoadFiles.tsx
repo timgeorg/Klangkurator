@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, FolderOpen, Loader2, RefreshCw, ScanLine } from "lucide-react";
 
 import { FolderBrowserDialog } from "@/components/dj/FolderBrowserDialog";
@@ -12,13 +13,17 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { fileName } from "@/lib/audioVariants";
 import { api, apiStatus, describeApiError } from "@/lib/api";
-import { useBackgroundJobs, type AnalysisResult, type ScanResult } from "@/lib/BackgroundJobsContext";
-
-interface Crate {
-  name: string;
-  track_count: number;
-}
+import {
+  useBackgroundJobs,
+  type AnalysisResult,
+  type AttachOffer,
+  type ScanResult,
+} from "@/lib/BackgroundJobsContext";
+import { refreshCratesQuietly, type Crate, type MusicLocation } from "@/lib/crates";
+import { storage } from "@/lib/storage";
+import { formatDuration } from "@/lib/trackFormat";
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -26,7 +31,7 @@ export default function LoadFiles() {
   const { scan, analysis, busy, startScan, startAnalysis, abortAnalysis } = useBackgroundJobs();
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [crates, setCrates] = useState<Crate[]>([]);
-  const [currentRoot, setCurrentRoot] = useState<string | null>(null);
+  const [locations, setLocations] = useState<MusicLocation[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState("");
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -36,12 +41,16 @@ export default function LoadFiles() {
 
   const loadCurrentState = useCallback(async () => {
     try {
-      const [rootRes, cratesRes] = await Promise.all([
-        api.get<{ root_path: string | null }>("/library/root"),
+      // The registry is the single source for crates and locations (issue #11):
+      // a first import adds the library's first music location, so this page
+      // reads the same list Settings manages.
+      await refreshCratesQuietly();
+      const [cratesRes, locationsRes] = await Promise.all([
         api.get<Crate[]>("/library/crates"),
+        api.get<MusicLocation[]>("/library/locations"),
       ]);
-      setCurrentRoot(rootRes.root_path);
       setCrates(cratesRes);
+      setLocations(locationsRes);
       setStatus("ready");
     } catch (error) {
       setLoadError(describeApiError(error));
@@ -74,10 +83,10 @@ export default function LoadFiles() {
   // this page (issue #46). This page only starts the jobs and shows what the
   // context reports.
 
-  const scanRoot = async (root: string) => {
+  const scanLocation = async (locationId: string) => {
     setScanResult(null);
     try {
-      await startScan(root);
+      await startScan(locationId);
     } catch (error) {
       // 409: another job already runs; the context has picked up its progress,
       // so this is information, not a failure.
@@ -86,12 +95,12 @@ export default function LoadFiles() {
     }
   };
 
-  /** Save a folder as the music folder, then scan it. */
+  /** Register a folder as a music location, then scan it — one action. */
   const adoptFolder = async (path: string) => {
     try {
-      await api.put("/library/root", { root_path: path });
-      setCurrentRoot(path);
-      await scanRoot(path);
+      const location = await api.post<MusicLocation>("/library/locations", { path });
+      await loadCurrentState();
+      await scanLocation(location.id);
     } catch (error) {
       toast({ title: "That folder can't be used", description: describeApiError(error), variant: "destructive" });
     }
@@ -113,7 +122,8 @@ export default function LoadFiles() {
   };
 
   const handleRescan = async () => {
-    if (currentRoot) await scanRoot(currentRoot);
+    const first = locations[0];
+    if (first) await scanLocation(first.id);
   };
 
   // Manual path entry — fallback only (headless/SSH setups).
@@ -126,15 +136,12 @@ export default function LoadFiles() {
       return;
     }
     try {
-      await api.put("/library/root", { root_path: path });
-      setCurrentRoot(path);
+      const location = await api.post<MusicLocation>("/library/locations", { path });
       setManualPath("");
       setManualError("");
-      if (alsoScan) await scanRoot(path);
-      else {
-        toast({ title: "Music folder saved" });
-        loadCurrentState();
-      }
+      await loadCurrentState();
+      if (alsoScan) await scanLocation(location.id);
+      else toast({ title: "Music location saved" });
     } catch (error) {
       setManualError(describeApiError(error));
     }
@@ -158,6 +165,9 @@ export default function LoadFiles() {
   };
 
   const trackTotal = crates.reduce((sum, crate) => sum + crate.track_count, 0);
+  // The Import page is the first-location flow (issue #11). Further locations
+  // are added, removed and rescanned in Settings, which is their home.
+  const firstLocation = locations[0];
   const lastAnalysis: AnalysisResult | null = !analysis.running ? analysis.result : null;
 
   const advanced = (
@@ -202,9 +212,9 @@ export default function LoadFiles() {
     <div className="min-h-full">
       <PageHeader
         title="Import"
-        meta={status === "ready" && currentRoot ? `${count(trackTotal, "track")} · ${count(crates.length, "crate")}` : undefined}
+        meta={status === "ready" && firstLocation ? `${count(trackTotal, "track")} · ${count(crates.length, "crate")}` : undefined}
         actions={
-          status === "ready" && currentRoot ? (
+          status === "ready" && firstLocation ? (
             <Button variant="outline" onClick={handleRescan} disabled={busy}>
               {scan.running ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {scan.running ? "Scanning…" : "Re-scan"}
@@ -230,7 +240,7 @@ export default function LoadFiles() {
             Try again
           </Button>
         </div>
-      ) : !currentRoot ? (
+      ) : !firstLocation ? (
         <>
           <section aria-labelledby="start-heading" className="k-grain border-b border-border px-5 py-12 md:px-8 md:py-16">
             <div className="grid max-w-5xl items-center gap-12 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -276,16 +286,31 @@ export default function LoadFiles() {
         <div className="max-w-5xl px-5 pb-20 md:px-8">
           <PageSection
             id="folder"
-            title="Music folder"
-            description="Klangkurator reads this folder and everything inside it. Each subfolder is a crate."
+            title="Music folders"
+            description="Klangkurator reads each folder below and everything inside it. Every subfolder is a crate."
           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-4 py-3">
-              <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <code className="k-num min-w-0 flex-1 truncate text-[13px]" title={currentRoot}>
-                {currentRoot}
-              </code>
+            <ul className="space-y-2">
+              {locations.map((location) => (
+                <li
+                  key={location.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-4 py-3"
+                >
+                  <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <code className="k-num min-w-0 flex-1 truncate text-[13px]" title={location.path}>
+                    {location.path}
+                  </code>
+                  <span className="k-num shrink-0 text-xs text-muted-foreground">
+                    {count(location.crate_count, "crate")} · {count(location.track_count, "track")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handlePickFolder} disabled={busy}>
-                Change folder
+                Add a folder
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/settings#locations">Manage folders</Link>
               </Button>
             </div>
             <p className="mt-2.5 text-xs text-muted-foreground">
@@ -311,6 +336,7 @@ export default function LoadFiles() {
               </div>
             )}
             {scanResult && <ScanSummary result={scanResult} />}
+            {scanResult && <AttachOffers offers={scanResult.offers ?? []} />}
           </PageSection>
 
           <PageSection
@@ -364,7 +390,7 @@ export default function LoadFiles() {
             )}
           </PageSection>
 
-          <PageSection id="crates" title="Crates" description="The subfolders of the music folder, with their track counts.">
+          <PageSection id="crates" title="Crates" description="Every folder inside your music folders, with its track count.">
             {crates.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">No tracks yet. Scan the folder to fill your crates.</p>
             ) : (
@@ -390,6 +416,66 @@ export default function LoadFiles() {
   );
 }
 
+/**
+ * The files the scan met that look like another copy of a track it already has.
+ *
+ * Issue #65, AC-1: the scan offers, it never attaches. A `.wav` has no tags, so
+ * its artist comes from the file name and will not equal the `.mp3`'s tag
+ * artist — the match is a guess the user confirms in one click. Applying it
+ * adds a variant, never a row (AC-2).
+ */
+function AttachOffers({ offers }: { offers: AttachOffer[] }) {
+  const [applied, setApplied] = useState<Record<string, "busy" | "done" | "failed">>({});
+  if (offers.length === 0) return null;
+
+  const attach = async (offer: AttachOffer) => {
+    setApplied((prev) => ({ ...prev, [offer.file_path]: "busy" }));
+    try {
+      await storage.attachVariant(offer.song_id, offer.file_path);
+      setApplied((prev) => ({ ...prev, [offer.file_path]: "done" }));
+      toast({ title: "File attached", description: `“${fileName(offer.file_path)}” is now a variant of “${offer.title}”.` });
+    } catch (error) {
+      setApplied((prev) => ({ ...prev, [offer.file_path]: "failed" }));
+      toast({ title: "The file was not attached", description: describeApiError(error), variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="mt-5 max-w-xl space-y-2">
+      <h3 className="text-[13px] font-semibold">Files of tracks you already have</h3>
+      <ul className="divide-y divide-border border-y border-border">
+        {offers.map((offer) => {
+          const state = applied[offer.file_path];
+          return (
+            <li key={offer.file_path} className="flex items-center gap-3 py-2.5 text-[13px]">
+              <div className="min-w-0 flex-1">
+                <p className="truncate" title={offer.file_path}>
+                  {fileName(offer.file_path)}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {offer.match === "duration" ? "Same length as" : "Same artist and title as"} “{offer.title}”
+                  {offer.match === "duration" && ` — ${formatDuration(offer.duration)}`}
+                </p>
+              </div>
+              {state === "done" ? (
+                <span className="shrink-0 text-xs text-muted-foreground">Attached</span>
+              ) : (
+                <Button variant="outline" size="sm" disabled={state === "busy"} onClick={() => attach(offer)}>
+                  {state === "busy" ? "Attaching…" : "Attach as variant"}
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        A variant is another file of the same recording. It joins the track instead of becoming a second row, and
+        the track keeps its notes, ratings and tags.
+      </p>
+    </div>
+  );
+}
+
 function ScanSummary({ result }: { result: ScanResult }) {
   const shownErrors = result.errors.slice(0, 5);
   return (
@@ -397,6 +483,12 @@ function ScanSummary({ result }: { result: ScanResult }) {
       <p>
         Scan finished: <span className="k-num">{result.added}</span> added,{" "}
         <span className="k-num">{result.skipped}</span> already in the library
+        {(result.offered ?? 0) > 0 && (
+          <>
+            , <span className="k-num text-foreground">{result.offered}</span>{" "}
+            {count(result.offered ?? 0, "variant")} offered
+          </>
+        )}
         {result.errors.length > 0 && (
           <>
             , <span className="k-num text-destructive">{result.errors.length}</span> could not be read

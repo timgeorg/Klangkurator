@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Waveform } from "@/components/ui/waveform";
 import { toast } from "@/hooks/use-toast";
 import { WIDE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
+import { fileName, playableFile } from "@/lib/audioVariants";
 import { isMapRoute } from "@/lib/mapRoute";
 import { usePlayer } from "@/lib/PlayerContext";
 import { readSetting, saveSettings } from "@/lib/settings";
@@ -64,6 +65,10 @@ export function NowPlaying() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState<number>(loadVolume);
   const [muted, setMuted] = useState(false);
+  // Which file playback uses, when it is not the primary. Media requests
+  // expose no response headers to script, so the player derives the same
+  // choice from the row that the backend makes (playableFile).
+  const [playedFile, setPlayedFile] = useState<{ name: string; source: "primary" | "variant" } | null>(null);
 
   // Load + play whenever a track starts. Keyed on the queue, not the song:
   // next onto the same song (a set can hold it twice) must restart it too.
@@ -71,6 +76,8 @@ export function NowPlaying() {
     const audio = audioRef.current;
     const song = queue?.tracks[queue.index];
     if (!audio || !song) return;
+    const expected = playableFile(song);
+    setPlayedFile(expected && expected.source === "variant" ? { name: fileName(expected.file_path), source: "variant" } : null);
     audio.src = `/api/audio/${song.id}`;
     loadingRef.current = true;
     setDuration(song.duration ?? 0);
@@ -125,6 +132,7 @@ export function NowPlaying() {
 
   const shared: ViewProps = {
     song: current,
+    playedFile,
     isPlaying,
     run,
     currentTime,
@@ -205,6 +213,8 @@ interface RunControls {
 
 interface ViewProps {
   song: Song;
+  /** The file the browser loaded, when it is not the primary. */
+  playedFile: { name: string; source: "primary" | "variant" } | null;
   isPlaying: boolean;
   run?: RunControls;
   currentTime: number;
@@ -256,6 +266,7 @@ function PanelView(props: ViewProps & { onDock: () => void }) {
               {[genre, song.year].filter(Boolean).join(" · ")}
             </p>
           )}
+          <PlayedFile playedFile={props.playedFile} className="mt-2" />
         </div>
 
         <Scrubber {...props} className="mt-5 h-14" bars="full" />
@@ -295,6 +306,7 @@ function BarView(props: ViewProps & { onUndock?: () => void }) {
         <span className="hidden w-40 min-w-0 flex-col sm:flex lg:w-56">
           <span className="truncate text-[13px] font-medium leading-tight">{song.title}</span>
           <span className="truncate text-xs text-muted-foreground">{song.artist}</span>
+          <PlayedFile playedFile={props.playedFile} />
         </span>
       </Link>
       <Transport isPlaying={isPlaying} onToggle={onToggle} run={run} />
@@ -451,5 +463,32 @@ function VolumeControl({
         className={cn("min-w-0 flex-1", sliderClassName)}
       />
     </div>
+  );
+}
+
+/**
+ * The file that playback used, when it was not the primary.
+ *
+ * 18_AUDIO_VARIANTS: "When the primary's file is missing on disk and a variant
+ * exists, playback uses the variant. The UI says which file it played." The
+ * line is quiet and only appears for the repair case — a primary needs no
+ * announcement, it is what the row's file says.
+ */
+function PlayedFile({
+  playedFile,
+  className,
+}: {
+  playedFile: { name: string; source: "primary" | "variant" } | null;
+  className?: string;
+}) {
+  if (!playedFile || playedFile.source !== "variant") return null;
+  return (
+    <p
+      className={cn("truncate text-[11px] text-warning", className)}
+      title={`Played the variant “${playedFile.name}” — the primary file is missing.`}
+      data-testid="played-file"
+    >
+      Variant: {playedFile.name}
+    </p>
   );
 }

@@ -14,7 +14,7 @@ from backend.scanner.metadata import extract_metadata
 from backend.scanner.waveform import compute_peaks
 from backend.scanner.artwork import extract_artwork
 from backend.scanner.audio_analysis import analyze_track, analyze_all_missing_bpm
-from backend.storage import get_library_store
+from backend.storage import crate_registry, get_library_store
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,19 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 
 
 class ScanRequest(BaseModel):
-    root_path: str
+    """A scan of one music location, named by its id or its path.
+
+    `location_id` is what the app sends; `root_path` stays accepted so an older
+    client and the MCP server's own scan tool keep working, and so a first
+    import can scan a folder the app has not registered yet.
+    """
+
+    location_id: str | None = None
+    root_path: str | None = None
+
+
+class LocationRequest(BaseModel):
+    path: str
 
 
 class PickFolderResponse(BaseModel):
@@ -100,38 +112,57 @@ _scan_state: dict = {
     "current_crate": "",
     "added": 0,
     "skipped": 0,
+    "offered": 0,
+    "offers": [],
     "errors": [],
     "started_at": None,
     "finished": False,
     "result": None,
     "error": None,
+    "warning": None,
 }
 
 
 @router.post("/scan")
 def scan_library(body: ScanRequest):
-    """Start a background import of every audio file under a root folder.
+    """Start a background import of every audio file under one music location.
 
     Decoding a file for its waveform peaks takes about a second, so a large
     folder would otherwise be a silent blocking request (REQ-10-SP). Returns
     at once; poll GET /scan-status for progress.
 
+    A location that is **not there** — an unmounted drive, a renamed folder —
+    is a no-op with a warning, never an error: one absent location must not
+    disturb the others. The files already in the library are left alone, and
+    nothing is flagged missing until the user confirms a cleanup.
+
     Args:
-        body (ScanRequest): The root folder to scan.
+        body (ScanRequest): The location to scan, by `location_id` (what the
+            app sends) or by `root_path` (a first import, the MCP server).
 
     Returns:
-        dict: `{started: True, total: N}`.
+        dict: `{started, total}`, plus `warning` when the location is absent.
 
     Raises:
-        HTTPException: 400 when the folder does not exist, 409 when another
-            job is running.
+        HTTPException: 400 when no folder is named, 404 for an unknown
+            location id, 409 when another job is running.
     """
-    root = Path(body.root_path).expanduser().resolve()
+    store = get_library_store()
+    root = _scan_target(body, store)
+
     if not root.is_dir():
-        raise HTTPException(400, f"Not a directory: {root}")
+        message = f"The music location {root} is not there right now."
+        logger.warning("Scan skipped: %s", message)
+        # Through the same claim as a real scan: an absent location must not
+        # publish a "finished" status over a running job's progress.
+        _claim_job(
+            "scan",
+            lambda: _reset_scan_state(0, running=False, warning=message),
+        )
+        _release_job("scan")
+        return {"started": False, "total": 0, "warning": message}
 
     audio_files = scan_directory(str(root))
-    store = get_library_store()
     _claim_job("scan", lambda: _reset_scan_state(len(audio_files)))
     try:
         _start_scan(root, audio_files, store)
@@ -145,22 +176,56 @@ def scan_library(body: ScanRequest):
     return {"started": True, "total": len(audio_files)}
 
 
-def _reset_scan_state(total: int) -> None:
-    """Replace the scan state with a fresh, running one for `total` files."""
+def _scan_target(body: ScanRequest, store) -> Path:
+    """The folder a scan request names.
+
+    Args:
+        body (ScanRequest): The request.
+        store: The library store, for a location id lookup.
+
+    Returns:
+        Path: The resolved folder. It may not exist; the caller decides.
+
+    Raises:
+        HTTPException: 400 when no folder is named, 404 for an unknown id.
+    """
+    if body.location_id:
+        location = next(
+            (loc for loc in store.get_locations() if loc["id"] == body.location_id), None
+        )
+        if location is None:
+            raise HTTPException(404, f"No music location with id {body.location_id}")
+        return Path(location["path"]).expanduser().resolve()
+    if not (body.root_path or "").strip():
+        raise HTTPException(400, "Name a music location by id or path")
+    return Path(body.root_path).expanduser().resolve()
+
+
+def _reset_scan_state(total: int, running: bool = True, warning: str | None = None) -> None:
+    """Replace the scan state with a fresh one for `total` files.
+
+    Args:
+        total (int): How many files the scan will visit.
+        running (bool): False for a run that ends at once (an absent location).
+        warning (str | None): Why nothing was scanned, when that is the case.
+    """
     global _scan_state
     _scan_state = {
-        "running": True,
+        "running": running,
         "done": 0,
         "total": total,
         "current_file": "",
         "current_crate": "",
         "added": 0,
         "skipped": 0,
+        "offered": 0,
+        "offers": [],
         "errors": [],
         "started_at": _now_iso(),
-        "finished": False,
+        "finished": not running,
         "result": None,
         "error": None,
+        "warning": warning,
     }
 
 
@@ -186,7 +251,7 @@ def _run_scan(root: Path, audio_files: list[Path], store) -> None:
 
 
 def _scan_one(store, root: Path, file_path: Path) -> None:
-    """Import one file and count it — added, skipped or failed — before moving on."""
+    """Import one file and count it — added, skipped, offered or failed."""
     try:
         outcome = _import_file(store, root, file_path)
     except Exception as exc:  # noqa: BLE001 — one bad file never stops the scan
@@ -198,8 +263,104 @@ def _scan_one(store, root: Path, file_path: Path) -> None:
         _scan_state["done"] += 1
 
 
+#: How close two durations must be for the scan to call two files one recording
+#: ([[18_AUDIO_VARIANTS]]: "a duration match within ±2 s"). The same window the
+#: import merge treats as identity.
+VARIANT_DURATION_TOLERANCE_S = 2.0
+
+
+def _variant_offer(store, file_path: Path, meta: dict, title: str, artist: str) -> dict | None:
+    """The attach this file is worth, when it looks like another copy of a track.
+
+    A file is offered as a variant when its artist+title matches a stored track,
+    or when its duration sits within `VARIANT_DURATION_TOLERANCE_S` of one. It is
+    only offered: a `.wav` carries no tags, so its filename-derived artist
+    ("Skrillex") will not equal the `.mp3`'s tag-derived one ("Levex"), and a
+    silent attach would be a guess (AC-1).
+
+    Args:
+        store: The library store.
+        file_path (Path): The file the scan is on.
+        meta (dict): What `extract_metadata` read from it.
+        title (str): The metadata title, or the file name without suffix.
+        artist (str): The metadata artist, or "Unknown Artist".
+
+    Returns:
+        dict | None: `{file_path, song_id, title, artist, match, duration}` for
+        the Import result list, or None when no track looks like this file.
+    """
+    song = store.find_song_by_artist_title(artist, title)
+    match = "artist_title"
+    if song is None:
+        song = _song_within_duration(store, meta.get("duration"), title)
+        match = "duration"
+    if song is None:
+        return None
+    return {
+        "file_path": str(file_path),
+        "song_id": song["id"],
+        "title": song.get("title") or title,
+        "artist": song.get("artist") or artist,
+        "match": match,
+        "duration": meta.get("duration"),
+    }
+
+
+def _normalise_title(text: str) -> str:
+    """A title reduced to the part two copies of one file always share.
+
+    Case, extra whitespace and punctuation go. A leading "Artist - " prefix
+    goes too, because a `.wav` falls back to its file name for the title while
+    the `.mp3` beside it carries the same words in a tag.
+
+    Args:
+        text (str): A title, or a file name without its suffix.
+
+    Returns:
+        str: The comparable form.
+    """
+    lowered = " ".join((text or "").lower().split())
+    if " - " in lowered:
+        lowered = lowered.split(" - ", 1)[1]
+    return "".join(ch for ch in lowered if ch.isalnum() or ch == " ").strip()
+
+
+def _song_within_duration(store, duration, title: str) -> dict | None:
+    """The first track whose duration sits close AND whose title matches.
+
+    The title is required, not decoration. A duration alone would claim any
+    track of a similar length: two unrelated 3:24 tracks are a common pair, and
+    a 0.2 s test tone matches the next 0.2 s test tone. The duration then only
+    bridges the artist disagreement that made the offer necessary — a `.wav`
+    with no tags reads `Unknown Artist`.
+
+    Args:
+        store: The library store.
+        duration (float | None): The candidate file's duration.
+        title (str): The candidate file's title, from tags or its file name.
+
+    Returns:
+        dict | None: The track, or None when the duration is unknown, no track
+        sits close enough, or the titles differ.
+    """
+    if not duration or not title:
+        return None
+    wanted = _normalise_title(title)
+    if not wanted:
+        return None
+    for song in store.get_songs():
+        other = song.get("duration")
+        if not other:
+            continue
+        if abs(float(other) - float(duration)) > VARIANT_DURATION_TOLERANCE_S:
+            continue
+        if _normalise_title(song.get("title") or "") == wanted:
+            return song
+    return None
+
+
 def _import_file(store, root: Path, file_path: Path) -> str:
-    """Add one file to the library unless it is already there.
+    """Add one file to the library, offer it as a variant, or skip it.
 
     Args:
         store: The library store.
@@ -207,23 +368,30 @@ def _import_file(store, root: Path, file_path: Path) -> str:
         file_path (Path): The audio file to import.
 
     Returns:
-        str: "added" or "skipped".
+        str: "added", "skipped" or "offered". "offered" means the file looks
+        like another copy of a stored track and waits for the Import page to
+        attach it (AC-1: one click, never silent).
 
     Raises:
         Exception: Whatever metadata or artwork extraction throws; the caller
             records it against the file.
     """
     file_path_str = str(file_path)
-    if store.find_song_by_path(file_path_str):
+    # Already the primary, or already a variant: nothing to do either way.
+    if store.find_song_by_any_path(file_path_str):
         return "skipped"
 
     meta = extract_metadata(file_path_str)
     title = meta.get("title") or file_path.stem
     artist = meta.get("artist") or "Unknown Artist"
 
-    # Idempotent: also check by artist+title (in case file was moved)
-    if store.find_song_by_artist_title(artist, title):
-        return "skipped"
+    # An artist+title match used to be a silent skip (INV-5's re-scan guard).
+    # It is a variant offer now: the match means "another file of a track I
+    # already have", and the Import page asks before attaching (AC-1).
+    offer = _variant_offer(store, file_path, meta, title, artist)
+    if offer is not None:
+        _scan_state["offers"].append(offer)
+        return "offered"
 
     # PF-13: peaks are computed at scan time and persisted on the song
     # (may be None — the lazy /api/audio/waveform endpoint backfills).
@@ -246,8 +414,11 @@ def _song_data(
 ) -> dict:
     """The song record a new file becomes, with every field the scan sets.
 
+    The crate is stored as its **id**, resolved through the registry, so two
+    folders with the same name in different music locations stay two crates.
+
     Args:
-        root (Path): The scan's root folder, which names the crate.
+        root (Path): The music location being scanned.
         file_path (Path): The audio file.
         meta (dict): What `extract_metadata` read from the file.
         title (str): The metadata title, or the file name without suffix.
@@ -267,7 +438,9 @@ def _song_data(
         "duration": meta.get("duration"),
         "genre": meta.get("genre"),
         "file_path": str(file_path),
-        "root_folder": _crate_name(root, file_path),
+        crate_registry.SONG_KEY: crate_registry.crate_id(
+            str(root), _crate_name(root, file_path)
+        ),
         "waveform_peaks": peaks,
         "artwork_url": None,
         "energy": 0,
@@ -276,12 +449,16 @@ def _song_data(
 
 
 def _crate_name(root: Path, file_path: Path) -> str:
-    """The crate a file belongs to: its folder below `root`, else the root's name."""
-    try:
-        rel_parent = file_path.parent.relative_to(root)
-    except ValueError:
-        return root.name
-    return str(rel_parent) if str(rel_parent) != "." else root.name
+    """The crate a file belongs to: its folder below `root`, else the root's name.
+
+    Args:
+        root (Path): The music location being scanned.
+        file_path (Path): The audio file.
+
+    Returns:
+        str: The crate name, relative to the location.
+    """
+    return crate_registry.crate_name_for(str(root), str(file_path))
 
 
 def _finish_scan() -> None:
@@ -295,6 +472,8 @@ def _finish_scan() -> None:
             "total": _scan_state["total"],
             "added": _scan_state["added"],
             "skipped": _scan_state["skipped"],
+            "offered": _scan_state["offered"],
+            "offers": list(_scan_state["offers"]),
             "errors": list(_scan_state["errors"]),
         }
     _scan_state["finished"] = True
@@ -312,6 +491,7 @@ def scan_status():
     """
     state = dict(_scan_state)
     state["errors"] = list(state["errors"])
+    state["offers"] = list(state["offers"])
     state["result"] = dict(state["result"]) if state["result"] else None
     return state
 
@@ -320,28 +500,53 @@ def scan_status():
 def list_crates():
     """List the library's crates with their track counts.
 
-    The crate rule is the app's `crateOf` (`src/lib/trackFormat.ts`): the
-    stored `root_folder`, else the file's parent folder, else "Unknown". It
-    used to count a row without `root_folder` under "Unknown" while the filter
-    (and the table) called it by its parent folder, so one track belonged to
-    three different crates depending on who asked.
+    A crate is a registry entry (issue #11), so a name repeated in two music
+    locations is two crates with two ids and two counts, and the tabs and the
+    filter can tell them apart. `missing_track_count` counts the songs whose
+    music location was removed: they stay in the library, flagged.
 
     Returns:
-        list[dict]: `{name, track_count}` per crate, sorted by name.
+        list[dict]: `{id, name, location_path, track_count, missing_track_count}`
+        per crate, sorted by name then location.
     """
     store = get_library_store()
     songs = store.get_songs()
 
-    crate_counts: dict[str, int] = {}
+    # Counted by `crate_of`, the same rule the table, the tabs and the filter
+    # use, so one song can never land in two different buckets depending on
+    # who asks. A row without a registry crate (created by hand, or from a
+    # file outside every location) is counted under its file's folder rather
+    # than dropped from the total.
+    counts: dict[str, int] = {}
+    missing: dict[str, int] = {}
     for song in songs:
-        folder = crate_of(song)
-        crate_counts[folder] = crate_counts.get(folder, 0) + 1
+        key = crate_of(song)
+        counts[key] = counts.get(key, 0) + 1
+        if song.get(crate_registry.MISSING_KEY):
+            missing[key] = missing.get(key, 0) + 1
 
-    crates = [
-        {"name": name, "track_count": count}
-        for name, count in sorted(crate_counts.items())
+    known = store.get_crates()
+    rows = [
+        {
+            **crate,
+            "track_count": counts.get(crate["id"], 0),
+            "missing_track_count": missing.get(crate["id"], 0),
+        }
+        for crate in known
     ]
-    return crates
+    registered = {crate["id"] for crate in known}
+    rows.extend(
+        {
+            "id": key,
+            "name": key,
+            "location_path": "",
+            "track_count": count,
+            "missing_track_count": missing.get(key, 0),
+        }
+        for key, count in counts.items()
+        if key not in registered
+    )
+    return sorted(rows, key=lambda row: (row["name"].casefold(), row["location_path"]))
 
 
 # ── Directory browsing (folder-picker support) ────────────
@@ -398,16 +603,21 @@ def browse_directory(path: str | None = None):
 
 
 def crate_of(song: dict) -> str:
-    """The crate a song belongs to: its `root_folder`, else its file's folder.
+    """The crate a song belongs to: its crate id, else its file's folder.
+
+    A row without a crate id is one the migration could not place; it is
+    labelled by the folder that holds it rather than counted under "Unknown",
+    so the table, the tabs and the filter still agree.
 
     Args:
         song (dict): A song row.
 
     Returns:
-        str: The crate name, or "Unknown" when the row carries no path.
+        str: The crate id, or the file's parent folder name, or "Unknown".
     """
-    if song.get("root_folder"):
-        return str(song["root_folder"])
+    key = song.get(crate_registry.SONG_KEY)
+    if isinstance(key, str) and key:
+        return key
     path = song.get("file_path")
     if path:
         parent = Path(str(path)).parent.name
@@ -423,18 +633,18 @@ def _browse_boundaries(home: Path) -> tuple[Path, ...]:
         home (Path): The resolved home folder.
 
     Returns:
-        tuple[Path, ...]: Home first, then the configured root when it is a
+        tuple[Path, ...]: Home first, then each music location that is a
         different folder.
     """
     boundaries = [home]
     try:
-        configured = get_library_store().get_config("root_path")
+        locations = get_library_store().get_locations()
     except Exception:  # noqa: BLE001 — an unreadable store must not break browsing
         return tuple(boundaries)
-    if configured:
-        root = Path(configured).expanduser().resolve()
-        if root != home:
-            boundaries.append(root)
+    for location in locations:
+        folder = Path(location["path"]).expanduser().resolve()
+        if folder not in boundaries:
+            boundaries.append(folder)
     return tuple(boundaries)
 
 
@@ -479,23 +689,110 @@ def _has_subdirs(d: Path) -> bool:
         return False
 
 
-@router.get("/root")
-def get_root():
-    """Get the current root folder path."""
+@router.get("/locations")
+def list_locations():
+    """The music locations the library reads, with their crate counts.
+
+    Each location is a folder scanned like a root (issue #11): one concept, one
+    scanning path. A location that is not mounted is reported as absent, so the
+    Settings page can say so without an error.
+
+    Returns:
+        list[dict]: `{id, path, exists, crate_count, track_count}` per
+        location, in path order.
+    """
     store = get_library_store()
-    root = store.get_config("root_path")
-    return {"root_path": root}
+    crates = store.get_crates()
+    songs = store.get_songs()
+    counts: dict[str, int] = {}
+    for song in songs:
+        key = song.get(crate_registry.SONG_KEY)
+        if isinstance(key, str):
+            counts[key] = counts.get(key, 0) + 1
+
+    result = []
+    for location in store.get_locations():
+        own = [crate for crate in crates if crate["location_path"] == location["path"]]
+        result.append({
+            **location,
+            "exists": Path(location["path"]).is_dir(),
+            "crate_count": len(own),
+            "track_count": sum(counts.get(crate["id"], 0) for crate in own),
+        })
+    return result
 
 
-@router.put("/root")
-def set_root(body: ScanRequest):
-    """Set the root folder path."""
-    root = Path(body.root_path).expanduser().resolve()
-    if not root.is_dir():
-        raise HTTPException(400, f"Not a directory: {root}")
+@router.post("/locations", status_code=201)
+def add_location(body: LocationRequest):
+    """Register a music location so it can be scanned and rescanned.
+
+    Adding the same folder twice changes nothing, so a retry is safe. The
+    folder may be absent right now: registering it is not a promise that the
+    drive is mounted, and the scan is the call that reports absence.
+
+    Args:
+        body (LocationRequest): The folder to add.
+
+    Returns:
+        dict: The location, with `added_crates` and `exists`.
+
+    Raises:
+        HTTPException: 400 when the path is blank.
+    """
+    path = crate_registry.normalize_path(body.path)
+    if not path:
+        raise HTTPException(400, "Name the folder to add")
     store = get_library_store()
-    store.set_config("root_path", str(root))
-    return {"root_path": str(root)}
+    location = store.add_location(path)
+    logger.info("Music location added: %s (%d crates)", location["path"], location["added_crates"])
+    return {**location, "exists": Path(location["path"]).is_dir()}
+
+
+@router.delete("/locations/{location_id}")
+def remove_location(location_id: str):
+    """Remove a music location and flag its songs as missing.
+
+    Nothing is deleted (issue #11): the songs keep their notes, tags, ratings
+    and relationships, and each is marked `missing_since`. Re-adding the folder
+    re-resolves them by path, because crate ids are derived from the path.
+
+    Args:
+        location_id (str): The location to remove.
+
+    Returns:
+        dict: `{id, path, songs_flagged, crates_removed}`.
+
+    Raises:
+        HTTPException: 404 when no location carries that id.
+    """
+    result = get_library_store().remove_location(location_id)
+    if result is None:
+        raise HTTPException(404, f"No music location with id {location_id}")
+    logger.info(
+        "Music location removed: %s (%d songs flagged missing, %d crates)",
+        result["path"], result["songs_flagged"], result["crates_removed"],
+    )
+    return result
+
+
+@router.get("/locations/{location_id}/crates")
+def list_location_crates(location_id: str):
+    """The crates one music location holds, with their track counts.
+
+    Args:
+        location_id (str): The location's id.
+
+    Returns:
+        list[dict]: The crates, in the shape `GET /crates` reports them.
+
+    Raises:
+        HTTPException: 404 when no location carries that id.
+    """
+    store = get_library_store()
+    if not any(loc["id"] == location_id for loc in store.get_locations()):
+        raise HTTPException(404, f"No music location with id {location_id}")
+    own = {crate["id"] for crate in store.crates_of_location(location_id)}
+    return [crate for crate in list_crates() if crate["id"] in own]
 
 
 @router.post("/pick-folder", response_model=PickFolderResponse)
@@ -561,6 +858,14 @@ class ReanalyzeResponse(BaseModel):
     #: The fields that were actually written — a hint that did not fit leaves
     #: bpm out, so the caller can state the truth without re-deriving it.
     applied: dict
+    #: What the primary reads now, and what a variant recorded for the same
+    #: recording — the pair the popup shows when they disagree by a metrical
+    #: level (AC-13). Both are reported; neither is chosen (AC-14).
+    primary_bpm: float | None = None
+    variant_bpm: float | None = None
+    #: True when `variant_bpm` is the primary's tempo doubled or halved within
+    #: 3 %, which is the octave fault the ticket names.
+    octave_disagreement: bool = False
 
 
 class ArtworkScanResponse(BaseModel):
@@ -789,6 +1094,11 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
 
     result, changed = _reanalyze(store, song_id, file_path, bpm_range, song)
 
+    # Read the row again: `_reanalyze` may have written a BPM, and the pair the
+    # popup shows must describe what the track holds now.
+    current = store.get_song(song_id) or song
+    primary_bpm, variant_bpm = _bpm_pair(current)
+
     return ReanalyzeResponse(
         song_id=song_id,
         bpm=result.get("bpm"),
@@ -796,7 +1106,58 @@ def analyze_one_song(song_id: str, body: ReanalyzeRequest | None = None):
         duration=result.get("duration"),
         bpm_fit=bool(result.get("bpm_fit", True)),
         applied=changed,
+        primary_bpm=primary_bpm,
+        variant_bpm=variant_bpm,
+        octave_disagreement=_is_octave_apart(primary_bpm, variant_bpm),
     )
+
+
+#: How close a doubled or halved tempo must land to count as the same reading
+#: one metrical level away. 3 % covers a detector's own jitter on a real track.
+OCTAVE_TOLERANCE = 0.03
+
+
+def _bpm_pair(song: dict) -> tuple[float | None, float | None]:
+    """The primary's BPM and the first variant reading that disagrees.
+
+    Args:
+        song (dict): The track, as stored.
+
+    Returns:
+        tuple[float | None, float | None]: The stored BPM, and a variant's own
+        reading when one exists and differs. Both None when there is nothing to
+        compare — no stored BPM, or no variant that ever recorded one.
+    """
+    primary = song.get("bpm")
+    if primary is None:
+        return None, None
+    for variant in song.get("audio_variants") or []:
+        reading = variant.get("bpm_reading")
+        if reading is not None and reading != primary:
+            return primary, reading
+    return primary, None
+
+
+def _is_octave_apart(primary: float | None, variant: float | None) -> bool:
+    """Whether two tempos are the same reading one metrical level apart.
+
+    A factor of two either way is the case the ticket measured: one file read
+    132.0 and the other 66.3.
+
+    Args:
+        primary (float | None): The track's BPM.
+        variant (float | None): A variant's reading.
+
+    Returns:
+        bool: True when doubling or halving one lands within
+        `OCTAVE_TOLERANCE` of the other.
+    """
+    if not primary or not variant:
+        return False
+    for factor in (2.0, 0.5):
+        if abs(primary * factor - variant) <= OCTAVE_TOLERANCE * variant:
+            return True
+    return False
 
 
 def _reanalyze(store, song_id: str, file_path: str, bpm_range, song: dict) -> tuple[dict, dict]:

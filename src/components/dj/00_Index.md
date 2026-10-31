@@ -7,7 +7,8 @@ tags:
 
 - [[ColumnSettingsDialog.tsx]] — Modal dialog to toggle column visibility, reorder columns, and reset to defaults in the library table.
 - [[EditSongDialog.tsx]] — Edit track dialog: title, artist, album, year, BPM, key, genres, ratings and notes; Cancel discards, emptied fields clear; opens the lyrics and relationships dialogs.
-- [[InlineCells.tsx]] — The table's editable cells (text in place, genre and key pickers, subgenre checklist, rating bars, lyrics), each saving through one patch callback.
+- [[AudioFilesSection.tsx]] — A track's files (issue #65): the primary first and marked, then each variant with format, duration, size and path, offering *Make primary* and *Detach from track*. Shared by the edit dialog and the song page.
+- [[InlineCells.tsx]] — The table's editable cells (text in place, genre and key pickers, subgenre checklist, rating bars, lyrics), each saving through one patch callback, plus the stacked badge a track with audio variants shows (issue #65).
 - [[FolderBrowserDialog.tsx]] — In-app folder browser (browser mode) for choosing the music folder inside the home folder; the desktop app uses the system dialog instead.
 - [[LyricsDialog.tsx]] — Dialog for writing a track's lyrics.
 - [[NowPlaying.tsx]] — Player control component: displays the currently playing track with cover, waveform, play/pause with previous / next through the run, volume, auto-advance at track end, and toggles between dock positions (right panel on wide screens, bottom bar on narrow). On the map route it is always the bottom bar with its dock buttons hidden, derived from the route and not from the saved dock preference (TM-M8).

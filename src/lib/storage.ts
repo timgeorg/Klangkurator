@@ -6,6 +6,33 @@ import { api } from "./api";
 
 // ── Interfaces (unchanged from original) ──────────────────
 
+/**
+ * Another file of the same recording (issue #65). A variant carries no BPM,
+ * rating, note or tag: those belong to the track, once. Its format facts are
+ * stored at attach time so a listing never probes a 36 MB `.wav` per row.
+ */
+export interface AudioVariant {
+  id: string;
+  file_path: string;
+  /** The suffix without the dot, lowercased (`mp3`, `wav`, `flac`). */
+  format: string;
+  duration?: number;
+  /** kbps. */
+  bitrate?: number;
+  sample_rate?: number;
+  bit_depth?: number;
+  size_bytes?: number;
+  added_at: string;
+  /**
+   * A tempo recorded for *this file* by an earlier analysis or its TBPM tag.
+   * Never the track's BPM; it exists so the re-analyze popup can show a
+   * half-tempo disagreement instead of hiding it.
+   */
+  bpm_reading?: number;
+  /** Derived by the backend on every read: the file is not on this machine. */
+  missing?: boolean;
+}
+
 export interface Song {
   id: string;
   title: string;
@@ -35,8 +62,15 @@ export interface Song {
   phase_tags?: string[];
   vibe_tags?: string[];
   transition_notes?: string;
-  root_folder?: string;
+  /** The crate's registry id (issue #11); the name is resolved for display. */
+  crate_id?: string;
+  /** Set when the song's music location was removed; the song is kept, flagged. */
+  missing_since?: string;
   waveform_peaks?: number[];
+  /** Other files of the same recording. `file_path` stays the primary (INV-14). */
+  audio_variants?: AudioVariant[];
+  /** Derived on read: the primary's file is gone, so playback uses a variant. */
+  primary_missing?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +91,11 @@ export interface ReanalyzeResult {
   bpm_fit: boolean;
   /** The fields that were written — a hint that did not fit leaves `bpm` out. */
   applied: Partial<Pick<Song, "bpm" | "musical_key" | "duration">>;
+  /** The track's BPM after the run, and a variant's own reading when it differs. */
+  primary_bpm?: number | null;
+  variant_bpm?: number | null;
+  /** True when the variant reads the primary's tempo doubled or halved. */
+  octave_disagreement?: boolean;
 }
 
 /**
@@ -220,6 +259,12 @@ export interface StorageInterface {
    *  the detector is biased toward it, and when the result does not land
    *  inside, `bpm_fit` is false and the stored BPM is left alone. */
   reanalyzeSong(songId: string, range?: BpmRange): Promise<ReanalyzeResult>;
+  /** Issue #65: attach another file of the same recording to a track. */
+  attachVariant(songId: string, filePath: string): Promise<Song>;
+  /** Issue #65: promote a variant — the paths swap, everything else stays. */
+  makeVariantPrimary(songId: string, variantId: string): Promise<Song>;
+  /** Issue #65: take a variant off a track. The audio file stays on disk. */
+  detachVariant(songId: string, variantId: string): Promise<Song>;
 }
 
 // ── RemoteStorage implementation (backend API) ─────────────
@@ -269,6 +314,15 @@ class RemoteStorageImpl implements StorageInterface {
   async importData(envelope: object, resolutions?: Array<{ song_id: string; field: string; overwrite: boolean }>) { await api.post('/import', { envelope, resolutions }); return true; }
   async reanalyzeSong(songId: string, range?: BpmRange) {
     return api.post<ReanalyzeResult>(`/library/analyze/${songId}`, range ? { bpm_min: range.min, bpm_max: range.max } : {});
+  }
+  async attachVariant(songId: string, filePath: string) {
+    return api.post<Song>(`/songs/${songId}/variants`, { file_path: filePath });
+  }
+  async makeVariantPrimary(songId: string, variantId: string) {
+    return api.post<Song>(`/songs/${songId}/variants/${variantId}/primary`, {});
+  }
+  async detachVariant(songId: string, variantId: string) {
+    return api.delete<Song>(`/songs/${songId}/variants/${variantId}`);
   }
 }
 
