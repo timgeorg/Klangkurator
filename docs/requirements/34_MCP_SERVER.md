@@ -1,7 +1,7 @@
 # MCP Server
 
 Status: Active — built (issue #47, 2026-10-23)
-Last Updated: 2026-10-23
+Last Updated: 2026-11-04 (REQ-34-RT added, issue #81)
 Source: issue #47 (Tim, 2026-10-23: *"Would you need MCP to better interact with
 Klangkurator? What would MCP need for that tool?"*). Plan:
 [`docs/plans/MCP_SERVER_PLAN.md`](../plans/MCP_SERVER_PLAN.md). Contract:
@@ -96,7 +96,8 @@ Rules that belong to the tool layer, not the backend:
   position did nothing useful.
 - **`link_tracks` validates the type** against the eight the app knows
   (`relationship_type` in `src/lib/storage.ts`): remix, same_sample, cover, mashup, edit, bootleg,
-  in_playlist, transition. The API takes any string.
+  in_playlist, transition. The API takes any string. This changes with issue
+  #81: the check moves to the type list of the user (REQ-34-RT).
 - **`create_tag` defaults the colour** to `#A1A2B3` (the palette's
   `FALLBACK_COLOR`, `src/lib/palette.ts:38`). The app's name hash
   (`colorForName`, `:41-45`) is not ported; the user recolours in Settings.
@@ -109,6 +110,30 @@ Rules that belong to the tool layer, not the backend:
   name that is not `.json`, an existing file (it never replaces one), and an
   export folder inside `~/.klangkurator/`. A failed write removes only the file
   it created. (Issue #57: the first version wrote and overwrote any path.)
+
+## Relationship types for agents (REQ-34-RT, issue #81)
+
+Status: Active
+Priority: P1
+Basis: I — follows from REQ-14-RT. Today `link_tracks` checks a fixed list of eight types (`mcp_server/tools.py:33-36`), and that list stops being true. The tables in this file count 24 tools, but the code has 25 since issue #11. So VC6 counts the change, not the total.
+Serves: an agent links tracks with the types that the user sees.
+
+Verification criteria:
+
+- VC1: A new read tool, `list_relationship_types`, returns each type with its
+  id, its name, its both-ways mark and the name of its opposite.
+- VC2: `link_tracks` takes a type by its name or by its id. The match ignores
+  case.
+- VC3: `link_tracks` refuses a name that is not in the list. The error names
+  every type in the list.
+- VC4: Each row that `list_relationships` returns names its type as Settings
+  shows it.
+- VC5: In a library without typed sides and ideas, `get_transitions` returns
+  the same transitions for a track before and after the change.
+- VC6: The change adds exactly one tool, `list_relationship_types`.
+- VC7: The new tool is a read tool.
+- VC8: If a text matches the name of one type and the id of another type,
+  `link_tracks` takes the type with that name.
 
 ## Contract (REQ-34-CT)
 

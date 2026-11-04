@@ -1,7 +1,7 @@
 # Transition Mining
 
 Status: Planned (Post-MVP, core differentiator)
-Last Updated: 2026-10-15
+Last Updated: 2026-11-04
 Source: User refinement 2026-08-09; existing transition relationship concept
 
 ## Principle
@@ -16,9 +16,13 @@ first-class entities with rich metadata and mining capabilities.
 
 ## Transition Entity (Future Evolution)
 
-Currently transitions are stored as `relationship` entities with
-`type: "transition"`. As the mining feature evolves, transitions promote
-to a dedicated entity (see [14_RELATIONSHIPS.md] for the proposed schema).
+Transitions are stored as `relationship` entities with
+`type: "transition"`. The earlier plan promoted them to a dedicated entity
+(see [14_RELATIONSHIPS.md] for that schema).
+
+**Decided 2026-11-04 (Tim, issue #82):** no dedicated entity.
+Transitions stay relationships of the transition type. A later build adds the
+fields below to the relationship. See [19_TRANSITIONS.md](19_TRANSITIONS.md).
 
 Key fields that go beyond the current relationship model:
 
@@ -72,6 +76,12 @@ surfaces suggestions for what could come next:
 Suggestions are ranked and shown as quick-add buttons in the set editor.
 
 ## Transition Library View (PF-43)
+
+**Specced 2026-11-04 as the Transitions page** (issue #82,
+[19_TRANSITIONS.md](19_TRANSITIONS.md)). That spec replaces this list for the
+first build: search, the sources of each row, notes, ideas and tracks that are
+not in the library. Filters by technique, rating and genre pair, and the sort
+by play count, wait for the fields of the transition entity table above.
 
 A dedicated view to browse, search, and manage all known transitions:
 - Filter by technique, rating, source, genre pair

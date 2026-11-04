@@ -1,7 +1,7 @@
 # Data Model: library.json
 
 Status: Active
-Last Updated: 2026-10-31
+Last Updated: 2026-11-04
 Source: Requirements.md sections 2.3, 3, 5, 7
 
 ## Schema
@@ -66,10 +66,11 @@ Source: Requirements.md sections 2.3, 3, 5, 7
   "relationships": [
     {
       "id": "uuid",
-      "from_song_id": "uuid",
-      "to_song_id": "uuid",
-      "type": "transition",
-      "notes": "Mix A's outro into B's intro at 124 BPM"
+      "source_song_id": "uuid",
+      "target_song_id": "uuid",
+      "relationship_type": "transition",
+      "notes": "Mix A's outro into B's intro at 124 BPM",
+      "created_at": "2026-08-08T..."
     }
   ],
   "playlists": [
@@ -137,6 +138,68 @@ Source: Requirements.md sections 2.3, 3, 5, 7
 The genre vocabulary, beside `tags` and for the same reason: it is library
 content, so it travels with the library and joins the export. Written through
 `PUT /api/genres`; a blank name or a duplicate (case-insensitive) is refused.
+
+## `relationship_types` (planned 2026-11-04, issue #81)
+
+```json
+"relationship_types": [
+  { "id": "remix", "name": "is remix of", "color": "#6B5BD6", "both_ways": false, "opposite_id": "original" },
+  { "id": "original", "name": "is original of", "color": "#6B5BD6", "both_ways": false, "opposite_id": "remix" },
+  { "id": "same_sample", "name": "same sample", "color": "#C9A227", "both_ways": true, "opposite_id": null },
+  { "id": "works_as_mashup", "name": "works as mashup", "color": "#E0607E", "both_ways": true, "opposite_id": null },
+  { "id": "transition", "name": "transition", "color": null, "both_ways": false, "opposite_id": null },
+  { "id": "same_vibe", "name": "same vibe", "color": "#4E9A2A", "both_ways": true, "opposite_id": null }
+]
+```
+
+The relationship type vocabulary sits beside `tags` and `genres`, for the same
+reason. It is library content. So it travels with the library and joins the
+export (REQ-14-RT, REQ-14-RP).
+
+- A relationship row stores the `id` of its type in `relationship_type`. A
+  rename changes `name` only, so no relationship row changes.
+- The old built-in ids `remix`, `same_sample` and `transition` keep their ids.
+  So the update rewrites no relationship row (REQ-14-RM). Another old value that
+  rows use keeps that value as its id. A type that the user adds gets a new
+  random id.
+- `transition` is the fixed id of the transition type. The Transitions page,
+  the suggestions in the set editor and the map's Transitions layer find the
+  type by this id. They never use its name (INV-26). The user can rename the
+  type and change its colour. It stays one-way without an opposite.
+- `opposite_id` is mutual, and the two types of a pair carry the same `color`.
+  `both_ways: true` and an `opposite_id` exclude each other.
+- `color: null` draws in the foreground colour, as transitions draw today.
+  `remix` and `same_sample` keep their colours from `src/lib/relationshipStyle.ts`.
+  `works_as_mashup` and `same_vibe` take the old colours of `mashup` and `edit`.
+- An import matches a type by name, ignoring case. A type that both libraries
+  have keeps its local settings. The import remaps the type ids of the imported
+  relationship rows. It takes relationships only into a library that has none.
+
+## Typed sides and ideas on transitions (planned 2026-11-04, issue #82)
+
+```json
+{
+  "id": "uuid",
+  "source_song_id": null,
+  "source_track": { "artist": "Tate McRae", "title": "Housewife" },
+  "target_song_id": "uuid",
+  "relationship_type": "transition",
+  "idea": false,
+  "notes": "Fits really well",
+  "created_at": "2026-11-04T10:00:00Z"
+}
+```
+
+- A side holds a song id or a typed track (`source_track` / `target_track`),
+  never both. A typed track needs a `title`. An empty `artist` is stored as
+  `""`.
+- Only a relationship of the transition type takes a typed side or `idea`
+  (19_TRANSITIONS.md).
+- `idea` is absent or `false` on a transition that is not an idea.
+- A link of a typed side writes the song id in place of the typed track.
+- The track map and the graph of the Relationships dialog skip a relationship
+  with a typed side. They have no node for it.
+- The deletion of a song still deletes its relationships (INV-6).
 
 ## `_config.music_locations` and `_config.crates` (issue #11)
 

@@ -1,7 +1,7 @@
 # Constraints And Invariants
 
 Status: Active
-Last Updated: 2026-10-31
+Last Updated: 2026-11-04
 Source: Requirements.md section 2.4
 
 ## Invariant Table
@@ -33,3 +33,5 @@ Source: Requirements.md section 2.4
 | INV-23 | Removing a music location flags its songs as missing and keeps every row with its data. Re-adding the location re-resolves the songs by path, and the crate ids come back unchanged | `LibraryStore.remove_location` and `add_location`, because `crate_registry.crate_id` derives the id from the path |
 | INV-24 | An absent music location gives a no-op with a warning. A scan of it never disturbs another location and never flags a song | The absent branch of `POST /api/library/scan`, through the same job claim |
 | INV-25 | The migration never re-resolves a flagged-missing song. The crate is gone because the user removed the location, and a rebuild would undo the removal | The `MISSING_KEY` guard in `crate_registry._heal_song` |
+| INV-26 | The transition type always exists, one-way and without an opposite. The user can rename it and change its colour. Nobody can delete it, because the Transitions page, the set editor and the map find transitions by its id (planned, issue #81) | Settings shows no delete action, no both-ways mark and no opposite for it. The type deletion endpoint refuses its id ([[14_RELATIONSHIPS]] REQ-14-RT) |
+| INV-27 | Every relationship names a type that is in the type list. No relationship has an unknown type (planned, issue #81) | The relationship endpoint refuses an unknown type. The deletion of a type deletes or converts its relationships (REQ-14-RT). The update gives each old row a type (REQ-14-RM). The import maps each imported row to a type in the list (REQ-14-RP) |

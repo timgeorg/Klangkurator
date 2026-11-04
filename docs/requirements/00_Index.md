@@ -12,11 +12,12 @@ tags:
 - [[11_SONG_MODEL.md]] — song entity: identity, musical properties, ratings, notes, phase/vibe tags.
 - [[12_TAGS_AND_GENRES.md]] — centralized tags, genre hierarchy, color management.
 - [[13_LIBRARY_VIEW.md]] — table layout, columns, filtering, inline editing.
-- [[14_RELATIONSHIPS.md]] — knowledge graph, relationship types, graph view, transition relationships.
+- [[14_RELATIONSHIPS.md]] — knowledge graph, relationship types the user edits and their direction, graph view, transition relationships.
 - [[15_BLOCKS.md]] — reusable mini-mixes (ordered songs + transition notes).
 - [[16_SET_PLANNING.md]] — phase-based set planning workflow: crate selection, sorting, arc review, export.
 - [[17_SETTINGS.md]] — tags/genres management, backup/export, preferences.
 - [[18_AUDIO_VARIANTS.md]] — one track, several audio files: a primary with attached variants, so an `.mp3` and its `.wav` are one row, one BPM and one set of notes.
+- [[19_TRANSITIONS.md]] — the Transitions page: every transition in one list, sides that are not in the library, and ideas.
 - [[20_DATA_MODEL_OVERVIEW.md]] — entity relationships and storage file layout.
 - [[21_DATA_MODEL_LIBRARY_JSON.md]] — library.json schema (songs, tags, relationships, playlists).
 - [[22_DATA_MODEL_BLOCKS_AND_SETS_JSON.md]] — blocks.json and sets.json schemas.
