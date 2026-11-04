@@ -44,7 +44,7 @@ Source: Requirements.md sections 2.3, 3, 10
 
 ```
 library/
-├── library.json   # songs[], tags[], relationships[], playlists[]
+├── library.json   # songs[], tags[], genres[], relationship_types[], relationships[], playlists[]
 ├── blocks.json    # blocks[]
 └── sets.json      # sets[]
 ```
@@ -59,7 +59,7 @@ fits in memory (~1,000–5,000 songs).
 
 | File | Holds |
 |---|---|
-| `library.json` | songs, tags, **genres**, song_tags, relationships, playlists, playlist_songs, `_config` |
+| `library.json` | songs, tags, **genres**, **relationship_types**, song_tags, relationships, playlists, playlist_songs, `_config` |
 | `blocks.json` | blocks |
 | `sets.json` | sets |
 | `settings.json` | the UI preferences: column layout, map inputs and layers, theme, covers, player dock, volume, crate-tab collapse |

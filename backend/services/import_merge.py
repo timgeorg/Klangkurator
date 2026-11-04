@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from backend.models.relationship import TRANSITION_TYPE_ID, FALLBACK_COLOR, legacy_type
 from backend.models.song import SongBase
 
 logger = logging.getLogger(__name__)
@@ -310,6 +311,11 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     # ── genres (issue #51): merge by name, local colour wins ──
     genres_added = _merge_genres(data.get("genres"), library)
 
+    # ── relationship types (issue #81): merge by name every time ──
+    types_added, type_ids = _merge_relationship_types(
+        data.get("relationship_types"), data.get("song_relationships"), library
+    )
+
     # ── tags + joins (TC-1/TC-2) ───────────────────────────
     name_to_id = {t["name"]: t["id"] for t in library.get_tags()}
     for t in plan["_plan"]["tags_to_create"]:
@@ -334,7 +340,7 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     remap = {k: v for k, v in export_ids.items() if v}
     other = plan["_plan"]["other_to_import"]
     if "song_relationships" in other:
-        rows = [_remap_relationship(r, remap) for r in other["song_relationships"]]
+        rows = [_remap_relationship(r, remap, type_ids) for r in other["song_relationships"]]
         library._data["relationships"] = [r for r in rows if r]
     if "playlists" in other:
         library._data["playlists"] = other["playlists"]
@@ -358,6 +364,7 @@ def apply_import(envelope: dict, resolutions: list[dict], library, blocks, sets)
     summary.update({"overwrites_applied": counts["overwrites"],
                     "tags_created": len(plan["_plan"]["tags_to_create"]),
                     "genres_added": genres_added,
+                    "relationship_types_added": types_added,
                     "joins_added": joins_added,
                     "variants_merged": counts["variants"]})
     return {"valid": True, "summary": summary}
@@ -478,15 +485,28 @@ def _merge_variant_updates(local: dict, imported: dict, updates: dict) -> int:
     return len(merged) - len(before)
 
 
-def _remap_relationship(r: dict, remap: dict) -> dict | None:
+def _remap_relationship(r: dict, remap: dict, type_ids: dict[str, str]) -> dict | None:
+    """One imported relationship with local song ids and a local type id.
+
+    Args:
+        r (dict): The envelope's row.
+        remap (dict): Exported song id → local song id.
+        type_ids (dict): Exported type id → local type id.
+
+    Returns:
+        dict | None: The row, or None when it names a song the library lacks.
+    """
     m = dict(r)
-    ok = True
     for key in ("source_song_id", "target_song_id"):
         if m.get(key) not in remap:
-            ok = False  # referenced song unknown locally — drop, never dangle
-        else:
-            m[key] = remap[m[key]]
-    return m if ok else None
+            return None  # referenced song unknown locally — drop, never dangle
+    for key in ("source_song_id", "target_song_id"):
+        m[key] = remap[m[key]]
+    local_type = type_ids.get(str(m.get("relationship_type")))
+    if local_type is None:
+        return None  # the type was not imported; a row never names an unknown type
+    m["relationship_type"] = local_type
+    return m
 
 
 def _remap_block(block: dict, remap: dict) -> dict:
@@ -561,6 +581,169 @@ def _merge_genres(incoming, library) -> int:
             logger.warning("Genres not merged from the import: %s", exc)
             return 0
     return added
+
+
+def _merge_relationship_types(incoming, rows, library) -> tuple[int, dict[str, str]]:
+    """Add the types the library lacks, and map the imported ids onto local ones.
+
+    The rules copy the genre list (REQ-14-RP): the match is by name, ignoring
+    case (VC5), and a type both libraries have keeps its local name, colour,
+    both-ways mark and opposite (VC6). An export written before this change has
+    no `relationship_types` key, so its rows' values are mapped the way the load
+    maps an old value (REQ-14-RM VC9).
+
+    Args:
+        incoming: The envelope's `relationship_types` list, of any shape.
+        rows: The envelope's `song_relationships`, whose values still name the
+            exporter's type ids.
+        library: The library store.
+
+    Returns:
+        tuple[int, dict[str, str]]: How many types were added, and the exported
+        type id → local type id map.
+    """
+    local = [dict(entry) for entry in library.get_relationship_types()]
+    type_ids: dict[str, str] = {}
+    added = _merge_declared_types(_valid_types(incoming), local, type_ids)
+    # A row whose value has no type entry in the envelope still needs one, so
+    # the row keeps its meaning (REQ-14-RM VC9, VC10).
+    added += _merge_row_type_values(_row_type_values(rows), local, type_ids)
+
+    if not added:
+        return 0, type_ids
+    try:
+        library.set_relationship_types(local)
+    except ValueError as exc:
+        # A list the store refuses must not fail the whole import: the songs are
+        # already in. Say so and keep the local list.
+        logger.warning("Relationship types not merged from the import: %s", exc)
+        return 0, {entry["id"]: entry["id"] for entry in library.get_relationship_types()}
+    return added, type_ids
+
+
+def _merge_declared_types(declared: list[dict], local: list[dict], type_ids: dict[str, str]) -> int:
+    """Add each declared type the library lacks, and map its id.
+
+    Args:
+        declared (list[dict]): The usable types from the envelope.
+        local (list[dict]): The library's list, grown in place.
+        type_ids (dict[str, str]): The exported id → local id map, grown here.
+
+    Returns:
+        int: How many types were added.
+    """
+    added = 0
+    for entry in declared:
+        existing = _find_type(local, entry["name"])
+        if existing is None:
+            existing = _new_type(entry, local)
+            local.append(existing)
+            added += 1
+        if entry.get("id"):
+            type_ids[str(entry["id"])] = existing["id"]
+    return added
+
+
+def _merge_row_type_values(values: list[str], local: list[dict], type_ids: dict[str, str]) -> int:
+    """Give each row value still unmapped a local type, adding one when needed.
+
+    Args:
+        values (list[str]): The distinct `relationship_type` values the envelope's
+            rows carry, in order.
+        local (list[dict]): The library's list, grown in place.
+        type_ids (dict[str, str]): The exported id → local id map, grown here.
+
+    Returns:
+        int: How many types were added.
+    """
+    added = 0
+    for value in values:
+        if value in type_ids:
+            continue
+        existing = _find_type(local, value) or _type_with_id(local, value)
+        if existing is None:
+            candidate = legacy_type(value)
+            existing = _find_type(local, candidate["name"]) or _type_with_id(local, candidate["id"])
+            if existing is None:
+                existing = candidate
+                local.append(existing)
+                added += 1
+        type_ids[value] = existing["id"]
+    return added
+
+
+def _valid_types(incoming) -> list[dict]:
+    """The usable type objects in an envelope, ignoring anything malformed.
+
+    Args:
+        incoming: The envelope's `relationship_types` value, of any shape.
+
+    Returns:
+        list[dict]: Types with a non-blank name.
+    """
+    if not isinstance(incoming, list):
+        return []
+    return [
+        entry for entry in incoming
+        if isinstance(entry, dict)
+        and isinstance(entry.get("name"), str)
+        and entry["name"].strip()
+    ]
+
+
+def _row_type_values(rows) -> list[str]:
+    """The distinct `relationship_type` values an envelope's rows carry, in order."""
+    if not isinstance(rows, list):
+        return []
+    seen: list[str] = []
+    for row in rows:
+        if isinstance(row, dict):
+            value = row.get("relationship_type")
+            if isinstance(value, str) and value and value not in seen:
+                seen.append(value)
+    return seen
+
+
+def _find_type(local: list[dict], name: str) -> dict | None:
+    """The local type with this name, matched case-insensitively."""
+    key = name.strip().casefold()
+    return next(
+        (entry for entry in local if str(entry.get("name", "")).strip().casefold() == key),
+        None,
+    )
+
+
+def _type_with_id(local: list[dict], type_id: str) -> dict | None:
+    """The local type with this id, or None."""
+    return next((entry for entry in local if entry.get("id") == type_id), None)
+
+
+def _new_type(entry: dict, local: list[dict]) -> dict:
+    """A local record for an incoming type the library does not have.
+
+    The envelope is untrusted: a colour that is not a string would otherwise be
+    stored as it is, and the id must not collide with a local one.
+
+    Args:
+        entry (dict): The envelope's type.
+        local (list[dict]): The library's own list, so a taken id is avoided.
+
+    Returns:
+        dict: The type to store.
+    """
+    color = entry.get("color")
+    both_ways = bool(entry.get("both_ways"))
+    opposite_id = entry.get("opposite_id") or None
+    type_id = str(entry.get("id") or entry["name"].strip())
+    if _type_with_id(local, type_id) is not None:
+        type_id = str(uuid.uuid4())
+    return {
+        "id": type_id,
+        "name": entry["name"].strip(),
+        "color": color if isinstance(color, str) and color else None,
+        "both_ways": both_ways,
+        "opposite_id": None if both_ways or type_id == TRANSITION_TYPE_ID else opposite_id,
+    }
 
 
 def _valid_genres(incoming) -> list[dict]:

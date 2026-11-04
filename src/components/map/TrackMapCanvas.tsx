@@ -28,6 +28,7 @@ import ForceGraph2D from "react-force-graph-2d";
 import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-graph-2d";
 import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipStyle } from "@/lib/relationshipStyle";
+import { relationshipTypeColor, TRANSITION_TYPE_ID } from "@/lib/relationshipTypes";
 import { offsetEdges, transitionNotes } from "@/lib/trackMap/layerEdges";
 import {
   labelBox,
@@ -596,12 +597,17 @@ export const TrackMapCanvas = forwardRef<TrackMapCanvasHandle, TrackMapCanvasPro
       const target = displayedRef.current.get(targetId);
       if (!sourceNode || !targetNode || !source || !target) return;
 
-      // Transitions are the foreground and heaviest; a relationship type keeps
-      // its own line language; similarity is thin and neutral, so computed and
-      // authored edges never read alike.
+      // Transitions are the heaviest line and take their colour from the
+      // transition type, which is the foreground until the user recolours it
+      // (REQ-14-RD VC18, VC19). A relationship type keeps its own line
+      // language; similarity is thin and neutral, so computed and authored
+      // edges never read alike.
+      const transitionColour = relationshipTypeColor(TRANSITION_TYPE_ID);
       const style = edge.kind === "relationship" ? relationshipStyle(edge.relationshipType ?? "") : null;
       const colour =
-        edge.kind === "transition" ? palette.fg : style?.color ?? (edge.kind === "nearest" ? palette.border : palette.muted);
+        edge.kind === "transition"
+          ? transitionColour ?? palette.fg
+          : style?.color ?? (edge.kind === "nearest" ? palette.border : palette.muted);
       const width = edge.kind === "transition" ? 2.5 : style?.width ?? 1;
       const dash = edge.kind === "nearest" ? [] : style?.dash ?? [];
 

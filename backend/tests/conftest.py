@@ -24,6 +24,7 @@ def _fresh_library_between_tests():
     """Store data is an in-process singleton; tests that add songs must not
     see each other's rows (issue #10 tests build their own small fixtures)."""
     yield
+    from backend.models.relationship import default_types
     from backend.storage import get_blocks_store, get_library_store, get_sets_store
     for store, keys in (
         # `_config` holds the crate registry and the music locations (issue
@@ -41,3 +42,7 @@ def _fresh_library_between_tests():
     # so it is state like the rows: a test that adds a location must not leave
     # it for the next one. It is a dict, not a list.
     get_library_store()._data["_config"] = {}
+    # The relationship types are defaults again (issue #81), not empty: an empty
+    # list is healed on the next read, and that heal is a write a read-only test
+    # would see as one of its own.
+    get_library_store()._data["relationship_types"] = default_types()

@@ -1,34 +1,186 @@
-"""Song relationships CRUD endpoints."""
+"""Song relationships and the relationship types the user edits (issue #81).
+
+Two resources: a relationship row, which holds the id of a type, and the type
+list itself. A read of either fills in what the other one knows, so a client
+never has to join them by hand.
+"""
+
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.models.relationship import SongRelationship, SongRelationshipCreate
+from backend.models.relationship import (
+    DuplicateRelationship,
+    RelationshipTypeConflict,
+    RelationshipTypeError,
+    RelationshipTypeNotFound,
+    SongRelationship,
+    SongRelationshipCreate,
+    UnknownRelationshipType,
+)
 from backend.storage import get_library_store
 
-router = APIRouter(prefix="/api/relationships", tags=["relationships"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["relationships"])
 
 
-@router.get("", response_model=list[SongRelationship])
+def _with_type_name(store, row: dict) -> dict:
+    """A relationship row with the name of its type, as Settings shows it.
+
+    The name is added on the way out and never stored: the row keeps the id, so
+    a rename rewrites no row (REQ-34-RT VC4).
+
+    Args:
+        store: The library store.
+        row (dict): A stored relationship.
+
+    Returns:
+        dict: The row plus `type_name`, or None when the type is gone.
+    """
+    return {**row, "type_name": store.type_name(row.get("relationship_type", ""))}
+
+
+@router.get("/relationships", response_model=list[SongRelationship])
 def list_relationships(song_id: str | None = Query(None)):
+    """Relationships, optionally only the ones touching a track.
+
+    Args:
+        song_id (str | None): Keep only relationships with this track.
+
+    Returns:
+        list[dict]: The rows, each with `type_name` filled in.
+    """
     store = get_library_store()
-    if song_id:
-        return store.get_relationships_for_song(song_id)
-    return store.get_relationships()
+    rows = store.get_relationships_for_song(song_id) if song_id else store.get_relationships()
+    return [_with_type_name(store, row) for row in rows]
 
 
-@router.post("", response_model=SongRelationship, status_code=201)
+@router.post("/relationships", response_model=SongRelationship, status_code=201)
 def create_relationship(body: SongRelationshipCreate):
+    """Store a relationship.
+
+    Args:
+        body (SongRelationshipCreate): The relationship to store.
+
+    Returns:
+        dict: The stored row, with its type's name.
+
+    Raises:
+        HTTPException: 404 for a song or type the library does not have, 422 for
+            a type id outside the list, 409 for a relationship the library
+            already states.
+    """
     store = get_library_store()
-    # Validate both songs exist
     if store.get_song(body.source_song_id) is None:
         raise HTTPException(404, "Source song not found")
     if store.get_song(body.target_song_id) is None:
         raise HTTPException(404, "Target song not found")
-    return store.add_relationship(body.model_dump())
+    try:
+        row = store.add_relationship(body.model_dump())
+    except UnknownRelationshipType:
+        raise HTTPException(
+            422,
+            f"Unknown relationship type “{body.relationship_type}”. "
+            f"Add it in Settings first.",
+        )
+    except DuplicateRelationship:
+        raise HTTPException(409, "This relationship already exists")
+    logger.info("Relationship created: %s", row["id"])
+    return _with_type_name(store, row)
 
 
-@router.delete("/{rel_id}", status_code=204)
+@router.delete("/relationships/{rel_id}", status_code=204)
 def delete_relationship(rel_id: str):
+    """Delete one relationship."""
     store = get_library_store()
     if not store.delete_relationship(rel_id):
         raise HTTPException(404, "Relationship not found")
+
+
+# ── The type list (REQ-14-RT) ────────────────────────────
+
+
+@router.get("/relationship-types")
+def list_relationship_types():
+    """The type list, in the order Settings shows it, with its use counts.
+
+    Returns:
+        list[dict]: One `{id, name, color, both_ways, opposite_id, uses}` per
+        type. `uses` is how many relationships the type has (REQ-14-RT VC7).
+    """
+    store = get_library_store()
+    counts = store.relationship_type_uses()
+    return [
+        {**entry, "uses": counts.get(entry["id"], 0)}
+        for entry in store.get_relationship_types()
+    ]
+
+
+@router.post("/relationship-types", status_code=201)
+def create_relationship_type(body: dict):
+    """Add a type.
+
+    Args:
+        body (dict): `{name, color, both_ways, opposite_id}`.
+
+    Returns:
+        dict: The stored type.
+
+    Raises:
+        HTTPException: 422 for a blank name or a contradictory mark; 409 for a
+            name another type holds, case ignored.
+    """
+    try:
+        return get_library_store().add_relationship_type(body)
+    except RelationshipTypeConflict as exc:
+        raise HTTPException(409, str(exc))
+    except (RelationshipTypeError, RelationshipTypeNotFound) as exc:
+        raise HTTPException(422, str(exc))
+
+
+@router.patch("/relationship-types/{type_id}")
+def update_relationship_type(type_id: str, body: dict):
+    """Change a type's name, colour, both-ways mark or opposite.
+
+    Args:
+        type_id (str): The type to change.
+        body (dict): The fields to change.
+
+    Returns:
+        dict: The stored type.
+
+    Raises:
+        HTTPException: 404 for an unknown id; 422 for a refused edit; 409 for a
+            duplicate name.
+    """
+    try:
+        return get_library_store().update_relationship_type(type_id, body)
+    except RelationshipTypeNotFound:
+        raise HTTPException(404, "Relationship type not found")
+    except RelationshipTypeConflict as exc:
+        raise HTTPException(409, str(exc))
+    except RelationshipTypeError as exc:
+        raise HTTPException(422, str(exc))
+
+
+@router.delete("/relationship-types/{type_id}")
+def delete_relationship_type(type_id: str):
+    """Delete a type, converting its rows to its opposite or deleting them.
+
+    Args:
+        type_id (str): The type to delete.
+
+    Returns:
+        dict: `{id, converted, deleted}`.
+
+    Raises:
+        HTTPException: 404 for an unknown id; 422 for the transition type, which
+            cannot be deleted (INV-26).
+    """
+    try:
+        return get_library_store().delete_relationship_type(type_id)
+    except RelationshipTypeNotFound:
+        raise HTTPException(404, "Relationship type not found")
+    except RelationshipTypeError as exc:
+        raise HTTPException(422, str(exc))

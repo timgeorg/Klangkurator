@@ -4,6 +4,16 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from backend.models.relationship import (
+    TRANSITION_TYPE_ID,
+    DuplicateRelationship,
+    RelationshipTypeConflict,
+    RelationshipTypeError,
+    RelationshipTypeNotFound,
+    UnknownRelationshipType,
+    default_types,
+    legacy_type,
+)
 from backend.storage import crate_registry
 
 logger = logging.getLogger(__name__)
@@ -55,6 +65,7 @@ class LibraryStore:
                 self._data[key] = []
 
         self._migrate_crates()
+        self._migrate_relationship_types()
 
     def _migrate_crates(self) -> dict:
         """Bring the crate registry and the song rows up to date on read.
@@ -99,6 +110,351 @@ class LibraryStore:
         """
         with self._lock:
             return self._migrate_crates()
+
+    # ── Relationship types (issue #81) ─────────────────────
+
+    def _migrate_relationship_types(self) -> bool:
+        """Seed the type list on first read and keep it true to the rows.
+
+        A library written before this change has no `relationship_types` key. It
+        gets the six defaults, plus one type for each other value one of its
+        relationship rows uses (REQ-14-RM VC5, VC10) — never a type nothing
+        refers to (VC6). The pass is idempotent: once the key is there, nothing
+        changes, so a second read writes nothing (VC8).
+
+        Returns:
+            bool: Whether the file was written.
+        """
+        # An empty list is seeded like an absent one: the transition type cannot
+        # be deleted (INV-26), so a list without it can only be a file that was
+        # hand-edited or a store that was reset. Seeding heals it, as the crate
+        # registry pass does (issue #11).
+        types = self._data.get("relationship_types")
+        if isinstance(types, list) and types:
+            return False
+
+        types = default_types()
+        known = {entry["id"] for entry in types}
+        for row in self._data["relationships"]:
+            value = row.get("relationship_type")
+            if value and value not in known:
+                types.append(legacy_type(value))
+                known.add(value)
+        self._data["relationship_types"] = types
+        self._save_fn()
+        logger.info(
+            "Relationship types seeded: %d types for %d relationships",
+            len(types), len(self._data["relationships"]),
+        )
+        return True
+
+    def _type_by_id(self, type_id: str) -> dict | None:
+        """The stored type with this id, or None.
+
+        Seeds first: every path that resolves a type goes through here, so a
+        list that was hand-edited to empty is healed before it can make a
+        relationship look type-less (INV-26).
+
+        Args:
+            type_id (str): The id a relationship row stores.
+
+        Returns:
+            dict | None: The stored type.
+        """
+        self._type_list()
+        for entry in self._data["relationship_types"]:
+            if entry.get("id") == type_id:
+                return entry
+        return None
+
+    def _require_type(self, type_id: str) -> dict:
+        """The stored type with this id.
+
+        Raises:
+            RelationshipTypeNotFound: No type has the id.
+        """
+        entry = self._type_by_id(type_id)
+        if entry is None:
+            raise RelationshipTypeNotFound(type_id)
+        return entry
+
+    def _type_list(self) -> list[dict]:
+        """The type list, seeded first and read under the save lock.
+
+        Seeding happens here, not only in the constructor, so a list that was
+        reset or hand-edited to empty is healed rather than left without a
+        transition type (INV-26).
+
+        Returns:
+            list[dict]: The live list.
+        """
+        with self._lock:
+            self._migrate_relationship_types()
+        return self._data["relationship_types"]
+
+    def get_relationship_types(self) -> list[dict]:
+        """The type list, in the order Settings shows it.
+
+        Returns:
+            list[dict]: One `{id, name, color, both_ways, opposite_id}` per type.
+        """
+        return self._type_list()
+
+    def get_relationship_type(self, type_id: str) -> dict | None:
+        """One type by id, or None."""
+        return self._type_by_id(type_id)
+
+    def type_name(self, type_id: str) -> str | None:
+        """The name Settings shows for a type id, or None for an unknown id.
+
+        Args:
+            type_id (str): The id a relationship row stores.
+
+        Returns:
+            str | None: The type's name.
+        """
+        entry = self._type_by_id(type_id)
+        return entry["name"] if entry else None
+
+    def relationship_type_uses(self) -> dict[str, int]:
+        """How many relationships use each type id (REQ-14-RT VC7).
+
+        Returns:
+            dict[str, int]: Use counts by type id; a type with no row is absent.
+        """
+        counts: dict[str, int] = {}
+        for row in self._data["relationships"]:
+            value = row.get("relationship_type")
+            counts[value] = counts.get(value, 0) + 1
+        return counts
+
+    def add_relationship_type(self, data: dict) -> dict:
+        """Add a type to the end of the list.
+
+        Args:
+            data (dict): `{name, color, both_ways, opposite_id}`; `id` is made
+                here when it is absent.
+
+        Returns:
+            dict: The stored type.
+
+        Raises:
+            RelationshipTypeError: The name is blank or a mark contradicts the
+                pair.
+            RelationshipTypeConflict: Another type holds the name, case ignored.
+        """
+        self._type_list()
+        name = _clean_type_name(data.get("name"))
+        _refuse_duplicate_name(self._data["relationship_types"], name, None)
+        both_ways = bool(data.get("both_ways"))
+        opposite_id = data.get("opposite_id") or None
+        if both_ways and opposite_id:
+            raise RelationshipTypeError("A type that reads both ways has no opposite")
+
+        opposite = self._require_type(opposite_id) if opposite_id else None
+        if opposite is not None and (opposite.get("both_ways") or opposite.get("id") == TRANSITION_TYPE_ID):
+            raise RelationshipTypeError(
+                f"“{opposite['name']}” reads both ways and cannot take an opposite"
+            )
+
+        color = data.get("color")
+        entry = {
+            "id": str(data.get("id") or _new_id()),
+            "name": name,
+            "color": color if isinstance(color, str) else None,
+            "both_ways": both_ways,
+            "opposite_id": opposite_id,
+        }
+        self._data["relationship_types"].append(entry)
+        if opposite is not None:
+            self._link_pair(entry, opposite, color)
+        self._save_fn()
+        logger.info("Relationship type added: %s (%s)", entry["name"], entry["id"])
+        return entry
+
+    def update_relationship_type(self, type_id: str, updates: dict) -> dict:
+        """Change the fields named, keeping a pair mutual and one colour.
+
+        A rename keeps every row's id, so each relationship of the type shows
+        the new name at once (REQ-14-RT VC4). Naming a new opposite also names
+        this type as the other one's opposite and clears any opposite that one
+        had before (REQ-14-RD VC2, VC14). Marking a paired type both-ways clears
+        the pair of both types (VC13).
+
+        Args:
+            type_id (str): The type to change.
+            updates (dict): Any of `name`, `color`, `both_ways`, `opposite_id`.
+
+        Returns:
+            dict: The stored type.
+
+        Raises:
+            RelationshipTypeNotFound: No type has the id.
+            RelationshipTypeError: The transition type would lose its shape, or
+                a mark contradicts the pair (INV-26).
+            RelationshipTypeConflict: Another type holds the name.
+        """
+        self._type_list()
+        entry = self._require_type(type_id)
+        name = _clean_type_name(updates.get("name", entry["name"]))
+        _refuse_duplicate_name(self._data["relationship_types"], name, entry["id"])
+
+        if entry["id"] == TRANSITION_TYPE_ID:
+            _refuse_transition_resize(updates, entry)
+            _apply_type_fields(entry, name, updates)
+            self._save_fn()
+            logger.info("Transition type updated: %s", entry["name"])
+            return entry
+
+        self._apply_pair_edit(entry, name, updates)
+        self._save_fn()
+        logger.info("Relationship type updated: %s (%s)", entry["name"], entry["id"])
+        return entry
+
+    def _apply_pair_edit(self, entry: dict, name: str, updates: dict) -> None:
+        """Write a non-transition type's fields, then settle its pair.
+
+        Args:
+            entry (dict): The stored type.
+            name (str): The name it takes.
+            updates (dict): The fields the caller sent.
+
+        Raises:
+            RelationshipTypeError: A mark contradicts the pair, or the named
+                opposite cannot take one.
+        """
+        both_ways = bool(updates.get("both_ways", entry["both_ways"]))
+        opposite_id = updates.get("opposite_id", entry["opposite_id"]) or None
+        if both_ways and opposite_id:
+            if "opposite_id" in updates:
+                raise RelationshipTypeError("A type that reads both ways has no opposite")
+            # The mark wins, so the pair goes, on both sides (REQ-14-RD VC13).
+            self._clear_pair(entry)
+            opposite_id = None
+
+        _apply_type_fields(entry, name, updates)
+        entry["both_ways"] = both_ways
+        entry["opposite_id"] = opposite_id if opposite_id != entry["id"] else None
+        if entry["opposite_id"] is None:
+            return
+        opposite = self._require_type(entry["opposite_id"])
+        if opposite.get("both_ways") or opposite["id"] == TRANSITION_TYPE_ID:
+            raise RelationshipTypeError(
+                f"“{opposite['name']}” reads both ways and cannot take an opposite"
+            )
+        self._link_pair(entry, opposite, entry.get("color"))
+
+    def set_relationship_types(self, types: list[dict]) -> list[dict]:
+        """Replace the type list, refusing a list that would break the app.
+
+        The seam an import uses. A type the list lacks is not deleted from the
+        rows: the caller converts or drops them first, so no relationship is
+        left naming an unknown type (INV-27).
+
+        Args:
+            types (list[dict]): The new list.
+
+        Returns:
+            list[dict]: The stored list.
+
+        Raises:
+            ValueError: A type is malformed, an id repeats, a name repeats, an
+                opposite names no type, or the transition type would lose its
+                shape (INV-26).
+        """
+        _validate_relationship_types(types)
+        self._data["relationship_types"] = types
+        self._save_fn()
+        logger.info("Relationship types written: %d", len(types))
+        return self._data["relationship_types"]
+
+    def _clear_pair(self, entry: dict) -> None:
+        """Take the opposite link off a type and off the type that named it.
+
+        Args:
+            entry (dict): The type whose link goes.
+        """
+        former = self._type_by_id(entry.get("opposite_id")) if entry.get("opposite_id") else None
+        if former is not None and former.get("opposite_id") == entry["id"]:
+            former["opposite_id"] = None
+        entry["opposite_id"] = None
+
+    def _link_pair(self, entry: dict, opposite: dict, color: str | None) -> None:
+        """Make two types each other's opposite, one colour, one former partner off.
+
+        Args:
+            entry (dict): The type the user just named.
+            opposite (dict): Its new opposite.
+            color (str | None): The colour the pair takes (REQ-14-RD VC15).
+        """
+        previous = opposite.get("opposite_id")
+        if previous and previous != entry["id"]:
+            stale = self._type_by_id(previous)
+            if stale is not None and stale.get("opposite_id") == opposite["id"]:
+                stale["opposite_id"] = None
+        opposite["opposite_id"] = entry["id"]
+        opposite["both_ways"] = False
+        entry["both_ways"] = False
+        pair_color = color if color is not None else entry.get("color")
+        entry["color"] = pair_color
+        opposite["color"] = pair_color
+
+    def delete_relationship_type(self, type_id: str) -> dict:
+        """Delete a type, keeping or converting its relationships.
+
+        A type with an opposite hands its rows to that opposite with source and
+        target swapped, so the fact still reads true (REQ-14-RT VC13). A type
+        without one takes its rows with it (VC9). The transition type is refused
+        whichever client asks (VC11, INV-26).
+
+        Args:
+            type_id (str): The type to delete.
+
+        Returns:
+            dict: `{id, converted, deleted}` — how many rows changed type and how
+            many were removed.
+
+        Raises:
+            RelationshipTypeNotFound: No type has the id.
+            RelationshipTypeError: The type is the transition type.
+        """
+        self._type_list()
+        entry = self._require_type(type_id)
+        if entry["id"] == TRANSITION_TYPE_ID:
+            raise RelationshipTypeError(
+                "The transition type cannot be deleted: the Transitions page, the "
+                "set editor and the map find transitions by its id"
+            )
+        opposite = self._type_by_id(entry.get("opposite_id")) if entry.get("opposite_id") else None
+
+        converted = deleted = 0
+        kept: list[dict] = []
+        for row in self._data["relationships"]:
+            if row.get("relationship_type") != entry["id"]:
+                kept.append(row)
+                continue
+            if opposite is None:
+                deleted += 1
+                continue
+            converted += 1
+            kept.append({
+                **row,
+                "source_song_id": row["target_song_id"],
+                "target_song_id": row["source_song_id"],
+                "relationship_type": opposite["id"],
+            })
+        self._data["relationships"] = kept
+        self._data["relationship_types"] = [
+            other for other in self._data["relationship_types"] if other["id"] != entry["id"]
+        ]
+        if opposite is not None and opposite.get("opposite_id") == entry["id"]:
+            opposite["opposite_id"] = None
+        self._save_fn()
+        logger.info(
+            "Relationship type deleted: %s (%d converted, %d deleted)",
+            entry["name"], converted, deleted,
+        )
+        return {"id": entry["id"], "converted": converted, "deleted": deleted}
 
     # ── Songs ──────────────────────────────────────────────
 
@@ -360,6 +716,33 @@ class LibraryStore:
         return self._data["relationships"]
 
     def add_relationship(self, rel_data: dict) -> dict:
+        """Store one relationship, refusing an unknown type or a restatement.
+
+        The refusal of a restatement is what keeps one fact from showing twice
+        in opposite clothes: the same pair and type the same way round, the
+        opposite type the other way round, or a both-ways type either way round
+        (REQ-14-RD VC8, VC9). A type and its opposite also merge their two rows
+        into the one the user stated, because the reading is symmetric.
+
+        Args:
+            rel_data (dict): `{source_song_id, target_song_id,
+                relationship_type, notes}`; `relationship_type` is a type id.
+
+        Returns:
+            dict: The stored row.
+
+        Raises:
+            UnknownRelationshipType: No type in the list has the id (INV-27).
+            DuplicateRelationship: The library states this relationship already.
+        """
+        rel_type = rel_data.get("relationship_type")
+        entry = self._type_by_id(rel_type) if rel_type else None
+        if entry is None:
+            raise UnknownRelationshipType(str(rel_type))
+        existing = self._find_restatement(rel_data, entry)
+        if existing is not None:
+            raise DuplicateRelationship(existing["id"])
+
         rel = {
             **rel_data,
             "id": _new_id(),
@@ -367,7 +750,40 @@ class LibraryStore:
         }
         self._data["relationships"].append(rel)
         self._save_fn()
+        logger.info(
+            "Relationship added: %s → %s (%s)",
+            rel["source_song_id"], rel["target_song_id"], entry["name"],
+        )
         return rel
+
+    def _find_restatement(self, rel_data: dict, entry: dict) -> dict | None:
+        """The stored row that already states this relationship, if any.
+
+        Args:
+            rel_data (dict): The relationship about to be stored.
+            entry (dict): Its type.
+
+        Returns:
+            dict | None: The row that states the same fact.
+        """
+        source = rel_data["source_song_id"]
+        target = rel_data["target_song_id"]
+        type_id = entry["id"]
+        opposite_id = entry.get("opposite_id")
+        for row in self._data["relationships"]:
+            same_way = row["source_song_id"] == source and row["target_song_id"] == target
+            reverse_way = row["source_song_id"] == target and row["target_song_id"] == source
+            if not (same_way or reverse_way):
+                continue
+            stored_type = row.get("relationship_type")
+            # The same type the same way round, or in either direction when it
+            # reads both ways (VC8, VC9).
+            if stored_type == type_id and (same_way or entry.get("both_ways")):
+                return row
+            # The opposite type the other way round states the same fact (VC9).
+            if opposite_id and stored_type == opposite_id and reverse_way:
+                return row
+        return None
 
     def delete_relationship(self, rel_id: str) -> bool:
         before = len(self._data["relationships"])
@@ -661,6 +1077,177 @@ class LibraryStore:
             for key in sorted(crates, key=lambda k: (crates[k]["name"].casefold(), crates[k]["location_path"]))
         ]
         self._save_fn()
+
+
+def _validate_relationship_types(types) -> None:
+    """Refuse a type list that would break the picker, the legends or the map.
+
+    Args:
+        types: The proposed list.
+
+    Raises:
+        ValueError: It is not a list of `{id, name, color, both_ways,
+            opposite_id}`, an id or a name repeats, an opposite names no type
+            or itself, a both-ways type carries an opposite, a pair is not
+            mutual, or the transition type is not the one-way type INV-26
+            requires.
+    """
+    if not isinstance(types, list):
+        raise ValueError("Relationship types must be a list")
+    _validate_type_entries(types)
+    by_id = {entry["id"]: entry for entry in types}
+    for entry in types:
+        _validate_type_pair(entry, by_id)
+    _validate_transition_type(by_id.get(TRANSITION_TYPE_ID))
+
+
+def _validate_type_entries(types: list) -> None:
+    """Each entry is well formed, and no id or name repeats.
+
+    Args:
+        types (list): The proposed list.
+
+    Raises:
+        ValueError: An entry is malformed, or an id or a name repeats.
+    """
+    ids: set[str] = set()
+    names: set[str] = set()
+    for entry in types:
+        if not isinstance(entry, dict):
+            raise ValueError("Each relationship type must be an object")
+        type_id = entry.get("id")
+        name = entry.get("name")
+        if not isinstance(type_id, str) or not type_id.strip():
+            raise ValueError("A relationship type needs an id")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Relationship type “{type_id}” needs a non-empty name")
+        color = entry.get("color")
+        if color is not None and not isinstance(color, str):
+            raise ValueError(f"Relationship type “{name}” needs a colour or null")
+        if type_id in ids:
+            raise ValueError(f"Duplicate relationship type id: {type_id}")
+        if name.strip().casefold() in names:
+            raise ValueError(f"Duplicate relationship type name: {name}")
+        ids.add(type_id)
+        names.add(name.strip().casefold())
+
+
+def _validate_type_pair(entry: dict, by_id: dict) -> None:
+    """One entry's opposite link holds, on both sides.
+
+    Args:
+        entry (dict): The type to check.
+        by_id (dict): The list's types by id.
+
+    Raises:
+        ValueError: A both-ways type carries an opposite, the opposite is
+            absent, itself, both-ways, not mutual, or a different colour.
+    """
+    both_ways = bool(entry.get("both_ways"))
+    opposite_id = entry.get("opposite_id")
+    if both_ways and opposite_id:
+        raise ValueError(f"“{entry['name']}” reads both ways and cannot have an opposite")
+    if opposite_id is None:
+        return
+    opposite = by_id.get(opposite_id)
+    if opposite is None:
+        raise ValueError(f"“{entry['name']}” names an opposite that is not in the list")
+    if opposite_id == entry["id"]:
+        raise ValueError(f"“{entry['name']}” cannot be its own opposite")
+    if opposite.get("both_ways"):
+        raise ValueError(f"“{opposite['name']}” reads both ways and cannot be an opposite")
+    if opposite.get("opposite_id") != entry["id"]:
+        raise ValueError(f"“{entry['name']}” and “{opposite['name']}” are not mutual opposites")
+    if opposite.get("color") != entry.get("color"):
+        raise ValueError(f"“{entry['name']}” and “{opposite['name']}” must share one colour")
+
+
+def _validate_transition_type(transition: dict | None) -> None:
+    """The transition type is in the list, one-way and without an opposite.
+
+    Args:
+        transition (dict | None): The entry with the fixed transition id.
+
+    Raises:
+        ValueError: It is absent, or it is not the one-way type INV-26 requires.
+    """
+    if transition is None:
+        raise ValueError("The transition type must be in the list (INV-26)")
+    if transition.get("both_ways") or transition.get("opposite_id"):
+        raise ValueError("The transition type always reads one way and has no opposite")
+
+
+def _apply_type_fields(entry: dict, name: str, updates: dict) -> None:
+    """Write the name and, when sent, the colour a type takes.
+
+    Args:
+        entry (dict): The stored type.
+        name (str): The name it takes.
+        updates (dict): The fields the caller sent; `color` is optional.
+    """
+    entry["name"] = name
+    if "color" in updates:
+        entry["color"] = updates["color"] if isinstance(updates["color"], str) else None
+
+
+def _clean_type_name(name) -> str:
+    """A relationship type's name, trimmed.
+
+    Args:
+        name: The proposed name.
+
+    Returns:
+        str: The name without surrounding space.
+
+    Raises:
+        RelationshipTypeError: The name is blank or not text.
+    """
+    if not isinstance(name, str) or not name.strip():
+        raise RelationshipTypeError("A relationship type needs a non-empty name")
+    return name.strip()
+
+
+def _refuse_duplicate_name(types: list[dict], name: str, own_id: str | None) -> None:
+    """Refuse a name another type already holds, ignoring case (REQ-14-RT VC3).
+
+    Args:
+        types (list[dict]): The type list.
+        name (str): The proposed name.
+        own_id (str | None): The type being renamed, so its own name passes.
+
+    Raises:
+        RelationshipTypeConflict: Another type holds the name.
+    """
+    key = name.casefold()
+    for entry in types:
+        if entry.get("id") != own_id and str(entry.get("name", "")).strip().casefold() == key:
+            raise RelationshipTypeConflict(
+                f"A relationship type named “{entry['name']}” already exists"
+            )
+
+
+def _refuse_transition_resize(updates: dict, entry: dict) -> None:
+    """Refuse any edit to the transition type beyond its name and colour.
+
+    The Transitions page, the set editor and the map find transitions by this
+    id, so it must stay one-way and without an opposite (INV-26).
+
+    Args:
+        updates (dict): The fields the caller sent.
+        entry (dict): The stored transition type.
+
+    Raises:
+        RelationshipTypeError: A mark or an opposite was sent, or a value would
+            change one.
+    """
+    if "both_ways" in updates and bool(updates["both_ways"]) != bool(entry["both_ways"]):
+        raise RelationshipTypeError(
+            "The transition type always reads one way; only its name and colour change"
+        )
+    if "opposite_id" in updates and (updates["opposite_id"] or None) != entry.get("opposite_id"):
+        raise RelationshipTypeError(
+            "The transition type has no opposite; only its name and colour change"
+        )
 
 
 def _validate_genres(genres) -> None:

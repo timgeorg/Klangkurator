@@ -14,7 +14,7 @@ import { useMemo } from "react";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { TrackDetails, type PartnerRow } from "@/components/map/TrackDetails";
 import { TrackMapCanvas } from "@/components/map/TrackMapCanvas";
-import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, RelationshipType } from "@/lib/relationshipStyle";
+import { relationshipLegend, type RelationshipLegendEntry } from "@/lib/relationshipTypes";
 import type { Song } from "@/lib/storage";
 import { trackGenre } from "@/lib/trackFormat";
 import { solveLayout, GOLDEN_ANGLE } from "@/lib/trackMap/layout";
@@ -41,8 +41,8 @@ interface DialogGraph {
   links: MapLink[];
   edges: MapEdge[];
   positions: Positions;
-  /** The relationship types on screen, in the order the legends list them. */
-  legend: string[];
+  /** The types on screen, one entry per type and one per opposite pair. */
+  legend: RelationshipLegendEntry[];
 }
 
 /**
@@ -86,10 +86,7 @@ function buildDialogGraph(song: Song, partners: readonly DialogPartner[]): Dialo
     seeds.set(other.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
   });
 
-  const legend: string[] = [];
-  for (const type of RELATIONSHIP_TYPES) {
-    if (partners.some((partner) => partner.type === type)) legend.push(type);
-  }
+  const legend = relationshipLegend(partners.map((partner) => partner.type));
 
   return { nodes, links, edges, positions: solveLayout(nodes, links, seeds), legend };
 }
@@ -154,10 +151,10 @@ export default function RelationshipGraphTab({
         />
       </div>
       <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-label="Relationship line styles">
-        {graph.legend.map((type) => (
-          <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <RelationLine type={type} />
-            {RELATIONSHIP_STYLES[type as RelationshipType]?.label ?? type}
+        {graph.legend.map((entry) => (
+          <li key={entry.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <RelationLine type={entry.id} />
+            {entry.label}
           </li>
         ))}
       </ul>

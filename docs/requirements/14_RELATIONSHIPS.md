@@ -1,27 +1,20 @@
 # Relationships (Knowledge Graph)
 
-Status: Active
+Status: Done
 Last Updated: 2026-11-04
 Source: Requirements.md section 7, and Tim, 2026-11-03 and 2026-11-04
 (relationship types the user edits, issue #81)
 
 ## Relationship Types
 
-| Type | Description |
-|---|---|
-| `remix` | Track A is a remix of track B |
-| `same_sample` | Both tracks sample the same source |
-| `cover` | Track A covers track B |
-| `mashup` | Track A is a mashup containing track B |
-| `edit` | Track A is an edit of track B |
-| `bootleg` | Track A is an unofficial remix of track B |
-| `in_playlist` | Track appears in a playlist (auto-managed) |
-| `transition` | Track A transitions well into track B (DJ-defined) |
+A relationship type is an entry the user owns: `{id, name, color, both_ways,
+opposite_id}`. The list lives in `library.json` beside the tags and the genres
+(`21_DATA_MODEL_LIBRARY_JSON.md` › `relationship_types`), and a relationship row
+stores the type's **id**, so a rename touches no row.
 
-This fixed table is what the app has today. It changes with issue #81:
-the types become a list that the user edits (REQ-14-RT below). No code writes
-`in_playlist` by itself (checked 2026-11-04). Only a user or an agent can pick
-it, so "auto-managed" was never true.
+The app once had a fixed table of eight types. It is gone, with the code that
+held it. The six defaults replace it (REQ-14-RT), and a library whose rows used
+one of the other old values gains a type of its own for it (REQ-14-RM VC5).
 
 ## Relationship types the user edits
 
@@ -57,9 +50,9 @@ of 2026-11-04 in 19_TRANSITIONS.md uses this reading.
 | same vibe | yes | — |
 
 The six names and the opposite pair are Tim's. The middle column comes from
-the meaning of each name (Basis I). The user can change all of it, except the transition type. That type stays
-one-way without an opposite, and it cannot be deleted. The user can rename it
-and change its colour (INV-26).
+the meaning of each name (Basis I). The user can change all of it, except the
+transition type. That type stays one-way without an opposite, and it cannot be
+deleted. The user can rename it and change its colour (INV-26).
 
 "On a track" below means its song page and the list view of its Relationships
 dialog.
@@ -74,7 +67,7 @@ dialog.
 
 ### Relationship types are a list the user edits (REQ-14-RT, issue #81)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim's quotes above, and Tags Management in 17_SETTINGS.md for the rules. The middle column of the default table is I. VC13 and VC14 are I. VC13 keeps the facts that the opposite type can still state. VC14 keeps transitions one-way for the Transitions page.
 Serves: the user names the connections between tracks in their own words.
@@ -110,7 +103,7 @@ Verification criteria:
 
 ### A relationship reads in its direction (REQ-14-RD, issue #81)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim: "is remix of" is the opposite "is original of". VC8 and VC9 are I, inferred from the opposite pair: without them, one fact can show twice. VC14 to VC19 are I. They give any type a line, as the old fixed styles did for eight types.
 Serves: the user can tell a remix from its original on both tracks.
@@ -156,7 +149,7 @@ Verification criteria:
 
 ### The app saves the type list in the library file and in the backup (REQ-14-RP, issue #81)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim: "they also go into file persistance". The rules copy the genre list (21_DATA_MODEL_LIBRARY_JSON.md, issue #51).
 Serves: the types of the user survive a restart, cleared browser data and a move to another machine.
@@ -183,7 +176,7 @@ Verification criteria:
 
 ### Existing relationships keep their meaning (REQ-14-RM, issue #81)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — the read-only count above (2 relationships, both `remix`). VC5, VC10 and VC11 are I, taken from the old labels and line colours.
 Serves: the update loses no relationship and changes the meaning of none.
@@ -231,7 +224,7 @@ from the Edit track dialog.
   is a small instance of the track map's canvas: the same renderer
   (`src/components/map/TrackMapCanvas.tsx`) and the same headless layout
   (`src/lib/trackMap/layout.ts`), still only the song and its relationship
-  partners (all eight types). The dialog opens with its song selected; the
+  partners (every type in the list). The dialog opens with its song selected; the
   song sits at the origin with its partners around it, one line style per
   relationship type. Clicking a track, or choosing an entry in the details'
   partner list, selects it and shows its details beside the canvas; re-centring
@@ -250,13 +243,11 @@ from the Edit track dialog.
   the selected track the focus ring. Hovering a track highlights it and its
   edges and dims the rest
 - Each relationship type has its own line, so the graph also reads in
-  grayscale: `transition` solid and heavier in the foreground colour; `remix`,
-  `edit`, `cover` solid in violet, green, cobalt; `mashup`, `bootleg` dashed
-  in rose, clay; `same_sample`, `in_playlist` dotted in ochre, slate
-  (source of truth: `src/lib/relationshipStyle.ts`)
-- This changes with issue #81: a type draws in its own colour. Its line
-  is solid if the type is one-way and dotted if it reads the same both ways
-  (REQ-14-RD)
+  grayscale: a one-way type solid in its own colour, a both-ways type dotted,
+  and `transition` the heaviest (source of truth: `src/lib/relationshipStyle.ts`,
+  which derives the line from the type)
+- A type draws in its own colour. Its line is solid if the type is one-way and
+  dotted if it reads the same both ways (REQ-14-RD)
 - Song titles show at close zoom, and always on the hovered and selected
   tracks; a line leaves a gap at a node's edge, so the two never overlap
 - Clicking empty canvas clears the selection

@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 
 import { api, describeApiError } from "@/lib/api";
 import { refreshCrates } from "@/lib/crates";
+import { refreshRelationshipTypesQuietly } from "@/lib/relationshipTypes";
 import { toast } from "@/hooks/use-toast";
 import type { GenreConfig } from "@/lib/genreData";
 
@@ -199,6 +200,10 @@ export async function loadSettings(): Promise<void> {
     // The crate registry is read here too: the library table, the crate tabs
     // and the Crate column all need it before the first row renders (#11).
     refreshCrates(),
+    // Every relationship reading and every legend resolves through the type
+    // list, so it is here for the same reason (#81). A failed read is not fatal,
+    // as a failed genre read is not: the views fall back to the row's id.
+    refreshRelationshipTypesQuietly(),
   ]);
   settings = settingsDoc ?? {};
   genres = genreList ?? [];

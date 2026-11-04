@@ -14,7 +14,7 @@ import { RelationLine } from "@/components/detail/RelationLine";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/color-chip";
 import { getMainGenreColor } from "@/lib/genreData";
-import { relationshipPhrase } from "@/lib/relationshipStyle";
+import { relationshipPartnerArrow, relationshipPhrase } from "@/lib/relationshipTypes";
 import type { Song, Tag } from "@/lib/storage";
 import { formatBpm, keyName, trackGenre } from "@/lib/trackFormat";
 import type { TransitionEdge } from "@/lib/trackMap/transitions";
@@ -227,6 +227,7 @@ export function TrackDetails({
                     <span className="flex items-center gap-2 text-xs text-muted-foreground">
                       <RelationLine type={partner.type} />
                       {relationshipPhrase(partner.type, partner.direction)}
+                      {relationshipPartnerArrow(partner.type, partner.direction)}
                     </span>
                     <span className="block truncate text-[13px] font-medium">{partner.song.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">

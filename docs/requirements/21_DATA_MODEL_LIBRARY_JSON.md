@@ -139,7 +139,7 @@ The genre vocabulary, beside `tags` and for the same reason: it is library
 content, so it travels with the library and joins the export. Written through
 `PUT /api/genres`; a blank name or a duplicate (case-insensitive) is refused.
 
-## `relationship_types` (planned 2026-11-04, issue #81)
+## `relationship_types` (built 2026-11-04, issue #81)
 
 ```json
 "relationship_types": [

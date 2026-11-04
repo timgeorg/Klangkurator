@@ -28,7 +28,7 @@ import { getMainGenreColor } from "@/lib/genreData";
 import { MAP_PATH } from "@/lib/mapRoute";
 import { crateName } from "@/lib/crates";
 import { usePlayer } from "@/lib/PlayerContext";
-import { relationshipPhrase } from "@/lib/relationshipStyle";
+import { relationshipPartnerArrow, relationshipPhrase } from "@/lib/relationshipTypes";
 import { storage, Song, SongRelationship, Tag } from "@/lib/storage";
 import {
   crateOf,
@@ -405,6 +405,7 @@ export default function SongDetailPage() {
                   <span className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-1">
                     <RelationLine type={rel.relationship_type} />
                     {relationshipPhrase(rel.relationship_type, direction)}
+                    {relationshipPartnerArrow(rel.relationship_type, direction)}
                   </span>
                   <CoverArt
                     src={otherSong.artwork_url}

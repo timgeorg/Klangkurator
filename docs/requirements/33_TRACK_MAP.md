@@ -124,7 +124,7 @@ Not in the MVP:
     never compared
   - **Relationships**: two tracks that are connected count as alike, two
     tracks that share connections count as partly alike.
-    Connected means a relationship of any of the eight types, or a
+    Connected means a relationship of any type in the list, or a
     transition from a set or a block, in either direction
 - A value one of the two tracks lacks is **skipped** for that pair: the
   composite is the weighted mean over the inputs both tracks have
@@ -242,13 +242,13 @@ Not in the MVP:
 - The selected track's transitions list shows every transition in and out,
   with sources and notes; when a track is selected, the notes of
   its transitions also show as edge labels
-- The dialog has no layers: it draws all eight relationship
-  types
-- This changes with issue #81. The relationship types become a list that
-  the user edits (REQ-14-RT). "The eight types" then reads "every type", and
-  "the seven non-transition types" reads "every type except transition". Each
-  relationship draws in the colour of its type. A one-way type draws solid, and
-  a both-ways type draws dotted (REQ-14-RD). A transition with a typed side
+- The dialog has no layers: it draws every relationship type
+- The relationship types are the list the user edits (REQ-14-RT), so "every
+  type" is that list and "the non-transition types" is every type except
+  `transition`. Each relationship draws in the colour of its type. A one-way
+  type draws solid, and a both-ways type draws dotted (REQ-14-RD). The legend
+  names a pair once, with both names (REQ-14-RD VC12). The Transitions layer
+  draws in the transition type's colour (VC19). A transition with a typed side
   draws no edge (REQ-19-TM)
 
 ## Interaction (REQ-33-IN)

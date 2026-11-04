@@ -1,4 +1,4 @@
-"""The curated tool surface (REQ-34-TS): 24 tools, no deletion.
+"""The curated tool surface (REQ-34-TS): 26 tools, no deletion.
 
 A generated server would hand a model all 40 API paths, including
 `DELETE /api/songs/{id}`. This one exposes what an agent needs to read and
@@ -30,10 +30,6 @@ IDEMPOTENT = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, open_world_hint=False, idempotent_hint=True
 )
 
-#: The relationship types the app knows (`relationship_type` in src/lib/storage.ts).
-RELATIONSHIP_TYPES = (
-    "remix", "same_sample", "cover", "mashup", "edit", "bootleg", "in_playlist", "transition",
-)
 
 #: The palette's fallback (src/lib/palette.ts:38), used when a tag has no colour.
 FALLBACK_COLOR = "#A1A2B3"
@@ -686,14 +682,39 @@ def playlist_remove(playlist_id: str, song_id: str) -> dict:
 
 
 @server.tool(annotations=READ)
+def list_relationship_types() -> list[dict]:
+    """The relationship types the user keeps, in the order Settings shows them.
+
+    A relationship row names a type by its id, so this is how an agent learns
+    which ids exist and what the user calls each one (REQ-34-RT VC1).
+
+    Returns:
+        list[dict]: One `{id, name, both_ways, opposite_id, color, uses}` per
+        type.
+    """
+    return [
+        {
+            "id": row.get("id"),
+            "name": row.get("name"),
+            "both_ways": bool(row.get("both_ways")),
+            "opposite_id": row.get("opposite_id"),
+        }
+        for row in call("GET", "/api/relationship-types") or []
+    ]
+
+
+@server.tool(annotations=READ)
 def list_relationships(song_id: str | None = None) -> list[dict]:
     """Relationships between tracks, optionally only the ones touching a track.
+
+    Each row names its type as Settings shows it (`type_name`), because the row
+    itself stores only the type's id (REQ-34-RT VC4).
 
     Args:
         song_id (str | None): Keep only relationships with this track.
 
     Returns:
-        list[dict]: The relationship rows.
+        list[dict]: The relationship rows, each with `type_name`.
     """
     if song_id is not None:
         _require_id(song_id, "track")
@@ -704,6 +725,37 @@ def list_relationships(song_id: str | None = None) -> list[dict]:
         row for row in rows
         if song_id in (row.get("source_song_id"), row.get("target_song_id"))
     ]
+
+
+def _resolve_relationship_type(text: str) -> str:
+    """The id of the type an agent named, by name or by id.
+
+    A name match wins over an id match, so a type the user named after another
+    type's id is still reachable (REQ-34-RT VC8). The match ignores case (VC2).
+
+    Args:
+        text (str): The type name or id the caller sent.
+
+    Returns:
+        str: The type's id.
+
+    Raises:
+        ToolError: No type has that name or id; the message names every type
+            (VC3).
+    """
+    wanted = text.strip()
+    key = wanted.casefold()
+    types = call("GET", "/api/relationship-types") or []
+    for row in types:
+        if str(row.get("name", "")).strip().casefold() == key:
+            return row["id"]
+    for row in types:
+        if str(row.get("id", "")).casefold() == key:
+            return row["id"]
+    known = ", ".join(f"{row.get('name')} ({row.get('id')})" for row in types)
+    raise ToolError(
+        f"Unknown relationship type “{text}”. Use one of: {known}"
+    )
 
 
 @server.tool(annotations=WRITE)
@@ -718,28 +770,24 @@ def link_tracks(
     Args:
         source_song_id (str): The track the relationship starts from.
         target_song_id (str): The other track.
-        relationship_type (str): One of remix, same_sample, cover, mashup,
-            edit, bootleg, in_playlist, transition.
+        relationship_type (str): A type's name or its id, e.g. "is remix of"
+            or "remix". The match ignores case, and a name match wins.
         notes (str | None): Why they are related.
 
     Returns:
         dict: The relationship.
 
     Raises:
-        ToolError: The type is not one the app knows.
+        ToolError: The type is not in the user's list; the message names every
+            type. The API also refuses a relationship it already holds.
     """
     _require_write()
     _require_id(source_song_id, "track")
     _require_id(target_song_id, "track")
-    if relationship_type not in RELATIONSHIP_TYPES:
-        raise ToolError(
-            f"Unknown relationship type “{relationship_type}”. "
-            f"Use one of: {', '.join(RELATIONSHIP_TYPES)}"
-        )
     return call("POST", "/api/relationships", json={
         "source_song_id": source_song_id,
         "target_song_id": target_song_id,
-        "relationship_type": relationship_type,
+        "relationship_type": _resolve_relationship_type(relationship_type),
         "notes": notes,
     })
 
