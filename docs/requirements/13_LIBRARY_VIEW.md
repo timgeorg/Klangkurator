@@ -101,6 +101,26 @@ unchanged ("A, B" for two crates, "N selected" beyond).
 
 ### Lazy rows (REQ-13-LR, built 2026-10-30, issue #63)
 
+Status: Active
+Priority: P1
+Basis: V — Tim, 2026-10-30 (quoted in issue #63): he waited seconds for the library.
+The page size of 50 and the reset key are I.
+Serves: the crates and the first screen of tracks appear at once.
+
+Verification criteria:
+
+- VC1: A cold load shows the first row in under 1 s on a 1,907-track library.
+- VC2: After the first build the table holds exactly `min(50, matching)` rows.
+- VC3: Scrolling to the last rendered row adds the next up-to-50 rows.
+- VC4: Scrolling to the end renders every matching track.
+- VC5: A new crate shows the first 50 rows of that crate.
+- VC6: A new search, filter or sort shows the first 50 rows of the new list.
+- VC7: A new list starts with the table at the top.
+- VC8: An inline edit keeps the rows and the scroll position.
+- VC9: The header count reports every matching track, not the rendered ones.
+- VC10: The player steps through every track of the run, rendered or not.
+- VC11: A screen reader hears each rendered row's absolute position.
+
 - The table renders the **first 50 rows** of the matching list. It adds the
   next 50 when the user scrolls to the last rendered row. This repeats until
   every matching row renders. A list of 50 rows or fewer renders in full. It
@@ -118,6 +138,22 @@ unchanged ("A, B" for two crates, "N selected" beyond).
   covers every track.
 
 ### Instant typing (REQ-13-ST, built 2026-10-30, issue #68)
+
+Status: Active
+Priority: P1
+Basis: V — Tim, 2026-10-30 (quoted in issue #68): typing lagged with all tracks
+selected. The deferred copy and the no-fixed-delay rule are I.
+Serves: the field never waits for the table.
+
+Verification criteria:
+
+- VC1: With all tracks selected, each character shows in under 50 ms.
+- VC2: The table shows the matches within 300 ms of the last key.
+- VC3: Fast typing keeps every character, in order.
+- VC4: The search matches the same tracks as before.
+- VC5: The header count agrees with the rows on screen.
+- VC6: Clearing the search shows the first rows of the full list, at the top.
+- VC7: The map shows the same matches as the table at rest.
 
 - The search field is bound to the **live** query. It shows each character at
   once, and the table follows a deferred copy at low priority. There is no fixed

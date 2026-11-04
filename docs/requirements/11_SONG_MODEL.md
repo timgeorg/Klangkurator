@@ -29,6 +29,20 @@ Each song stores:
 
 #### The metrical level (REQ-11-ML, built 2026-10-31, issue #66)
 
+Status: Active
+Priority: P1
+Basis: V — issue #66 measured five tracks in Tim's library at half or two thirds of
+their real tempo. The rule is I.
+Serves: a DJ reads the tempo the track is played at, not its sub-multiple.
+
+Verification criteria:
+
+- VC1: The five tracks in #66 return a tempo within 2 BPM of 129.2 with no hint.
+- VC2: A genuinely slow track keeps its value. The 60.1 BPM intro stays at 60.1.
+- VC3: An already-correct reading of 136.0 or 99.4 does not move.
+- VC4: The library-wide job never rewrites a BPM a human set (INV-13).
+- VC5: A correction outside 60–220 BPM is discarded.
+
 `librosa.beat.beat_track` reads one half, two thirds or two fifths of the real
 tempo on part of this library. A sub-multiple is a genuine autocorrelation
 harmonic, so "which grid fits the onsets better" cannot settle it. One asymmetry

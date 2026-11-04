@@ -1,7 +1,7 @@
 # Settings
 
 Status: Active
-Last Updated: 2026-10-29
+Last Updated: 2026-11-04
 Source: Requirements.md section 11
 
 ## Tags Management
@@ -20,6 +20,14 @@ Source: Requirements.md section 11
   they are edited (the dialogs say so). Duplicate names are refused
 - Edit and delete are always visible, never only on hover
 - **No "Reset to Defaults" button** — user changes are permanent
+
+## Relationship Types Management
+
+Planned with issue #81. The rules are in 14_RELATIONSHIPS.md
+(REQ-14-RT). The section works like Tags Management: add, rename, colour, the
+both-ways mark, the opposite, and delete. The delete confirmation states how
+many relationships use the type. For the transition type, the section offers
+only the name and the colour (INV-26). The list joins the export (REQ-14-RP).
 
 ## Root Folder
 

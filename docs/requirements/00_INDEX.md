@@ -1,7 +1,7 @@
 # Klangkurator Requirements Index
 
 Status: Active
-Last Updated: 2026-10-15 (33_TRACK_MAP added; v2 — Rekordbox integration, transition mining, AI roadmap)
+Last Updated: 2026-11-04 (19_TRANSITIONS added)
 
 ## Purpose
 
@@ -37,11 +37,12 @@ reduce drift and improve navigability. It supersedes the monolithic
 - [11_SONG_MODEL.md](11_SONG_MODEL.md) — song entity: identity, musical properties, ratings, notes, tags
 - [12_TAGS_AND_GENRES.md](12_TAGS_AND_GENRES.md) — centralized tags, genre hierarchy, color management
 - [13_LIBRARY_VIEW.md](13_LIBRARY_VIEW.md) — table layout, columns, filtering, inline editing
-- [14_RELATIONSHIPS.md](14_RELATIONSHIPS.md) — knowledge graph, relationship types, graph view
+- [14_RELATIONSHIPS.md](14_RELATIONSHIPS.md) — knowledge graph, relationship types (a list the user edits, read in their direction), graph view
 - [15_BLOCKS.md](15_BLOCKS.md) — reusable mini-mixes (ordered songs + transition notes)
 - [16_SET_PLANNING.md](16_SET_PLANNING.md) — set planning workflow: crate selection, sorting, phase-based set building
 - [17_SETTINGS.md](17_SETTINGS.md) — tags/genres management, backup/export, preferences
 - [18_AUDIO_VARIANTS.md](18_AUDIO_VARIANTS.md) — one track, several audio files: a primary with attached variants
+- [19_TRANSITIONS.md](19_TRANSITIONS.md) — the Transitions page: every transition in one list, sides that are not in the library, ideas
 
 ## Data Contract
 

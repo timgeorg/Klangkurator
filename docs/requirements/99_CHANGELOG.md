@@ -1,7 +1,61 @@
 # Requirements Changelog
 
 Status: Active
-Last Updated: 2026-10-31
+Last Updated: 2026-11-04
+
+## 2026-11-04
+
+### Relationship types become a list the user edits (PF-91, issue #81)
+
+Tim: *"I want transitions to be like tags and genres to be editable. And the
+ones I want to have at the moment is "is remix of", "is original of", "same
+sample", "works as mashup", "transition"."* A later message added "same vibe".
+
+- **New:** REQ-14-RT (the list and its rules) and REQ-14-RD (a relationship
+  reads in its direction). REQ-14-RP keeps the list in `library.json` and in
+  the export. REQ-14-RM keeps the meaning of old rows. REQ-34-RT gives agents
+  the same list.
+- **New invariants:** INV-26 (the transition type always exists) and INV-27 (no
+  relationship has an unknown type).
+- **The fixed table in 14_RELATIONSHIPS.md stays true until the build.** Notes
+  there, in 33_TRACK_MAP.md and in 34_MCP_SERVER.md point at the new
+  requirements.
+- **21_DATA_MODEL_LIBRARY_JSON.md now matches the code.** It showed
+  `from_song_id`, `to_song_id` and `type`. The code uses `source_song_id`,
+  `target_song_id` and `relationship_type` (`backend/models/relationship.py`).
+- **No code writes `in_playlist` by itself.** The old table called it
+  "auto-managed". A search on 2026-11-04 found only the type picker and the
+  MCP tool, where a user or an agent picks it.
+- **The MCP counts in 34_MCP_SERVER.md are stale since #11.** The file counts
+  24 tools. The code has 25, and 10 of them are read tools. REQ-34-RT counts
+  the change, not the total.
+
+### The Transitions page (PF-43, issue #82)
+
+Tim: *"I need a view where I can view and store and add transitions and
+transition ideas"*. On 2026-11-04 he chose one store: a transition is a
+relationship of the transition type.
+
+- **New domain file:** 19_TRANSITIONS.md. It holds REQ-19-TL (one list of every
+  transition) and REQ-19-TA (add, edit and delete). It also holds REQ-19-TM (a
+  side that is not in the library) and REQ-19-TI (ideas).
+- **Rejected: a separate transition entity.** 14_RELATIONSHIPS.md and
+  31_TRANSITION_MINING.md planned one. Tim's decision keeps one store. Mix
+  points, technique and rating stay future work, as fields of the relationship.
+- **The page uses the definition of the map.** Consecutive tracks in blocks and
+  sets are transitions, as in REQ-33-LY.
+
+### Crate and genre in the running order (PF-92, issue #83)
+
+Tim: *"I want to see in the edit set or set view where a track is from (crate)
+\+ genre."*
+
+- **New:** REQ-16-CG. Each track row of the set editor shows the crate and the
+  genre, as the library shows them. The set card and the block rows stay as
+  they are.
+- **Only 8 of 1,907 tracks had a main genre** on 2026-11-04 (a read-only count).
+  The Genre cell falls back to the genre from the tags of the file, so the row
+  follows the cell.
 
 ## 2026-10-31
 

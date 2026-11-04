@@ -111,7 +111,8 @@ Two deviations from the text below, both deliberate and both recorded here:
 - **`bpm_reading` on the variant.** The rule "a variant carries no BPM" holds
   for the track's BPM: nothing reads a variant's value as the track's tempo and
   nothing writes it. The key exists only so the popup can show the second number
-  the acceptance clause asks for. Without it AC-13 has nothing to show.
+  the acceptance clause asks for. Without it clause 13 of issue #65 has nothing
+  to show.
 - **The duration offer also requires a title match.** The clause reads "a
   duration match within ±2 s". A duration alone is not identity: it claimed two
   unrelated 3:24 tracks and two 0.2 s test tones as one recording while this was

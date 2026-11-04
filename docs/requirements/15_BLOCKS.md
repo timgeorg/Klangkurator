@@ -1,7 +1,7 @@
 # Blocks
 
 Status: Active
-Last Updated: 2026-10-14
+Last Updated: 2026-11-04
 Source: Requirements.md section 10.1
 
 ## Concept
@@ -11,6 +11,10 @@ mini-mix). Think of it as a pre-built segment that you can drop into any set.
 
 Example: "Melodic Techno Opener" block = 5 tracks that always work together
 as an opening sequence.
+
+Each pair of consecutive tracks in a block is a transition. Tim's hierarchy is
+transition → block → set (2026-11-03), and the Transitions page lists these
+pairs ([19_TRANSITIONS.md](19_TRANSITIONS.md), issue #82).
 
 ## Block Entity
 

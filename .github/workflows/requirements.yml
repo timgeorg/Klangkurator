@@ -1,0 +1,103 @@
+# Copy to .github/workflows/requirements.yml in the target repo, together with
+# a vendored copy of the gate at `scripts/check_requirements.py` and its config
+# at `docs/requirements/.requirements-gate.json`.
+#
+# Vendor it rather than fetching at run time: the script has no third-party
+# dependencies (one file, stdlib only), and a CI job must not depend on a
+# machine-local path or on a private repo checkout. Same rule and same reason as
+# code-standards-gate/ci-gate.yml.
+#
+# Two jobs, because they answer different questions:
+#   contract   — is the folder well formed? Runs on every PR, whole folder.
+#   same-change — did a requirement edit carry its changelog entry? Needs the
+#                 diff, so it only makes sense on a pull request.
+#
+# The `paths` filter is deliberately narrow: a PR that touches neither the
+# requirements folder nor this workflow has nothing to verify here.
+
+name: Requirements
+
+on:
+  pull_request:
+    paths:
+      - 'docs/requirements/**'
+      - 'scripts/check_requirements.py'
+      - '.github/workflows/requirements.yml'
+  push:
+    branches: [main, int]
+    paths:
+      - 'docs/requirements/**'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Folder contract and fields
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check the requirements folder
+        # Errors fail the job; warnings are printed and do not. Do NOT pass
+        # --strict here: the folder carries 35 accepted warnings (technology
+        # names that are real API names, and the one section still missing its
+        # fields), so --strict would fail every PR from the first commit. The
+        # baseline in .requirements-gate.json is what makes existing debt
+        # visible without blocking, while any growth beyond it still fails.
+        run: |
+          python scripts/check_requirements.py --root .
+
+      - name: Summarise in the run page
+        if: always()
+        run: |
+          python scripts/check_requirements.py --root . --json > requirements-gate.json || true
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          data = json.loads(pathlib.Path("requirements-gate.json").read_text() or "{}")
+          stats = data.get("stats", {})
+          print("## Requirements gate\n")
+          print(f"- requirements: **{stats.get('requirements', 0)}** in **{stats.get('files', 0)}** files")
+          print(f"- errors: **{data.get('errors', 0)}**, warnings: **{data.get('warnings', 0)}**")
+          if stats.get("suppressed"):
+              print(f"- accepted debt suppressed by baseline: **{stats['suppressed']}**")
+          findings = data.get("findings", [])
+          if findings:
+              print("\n| code | severity | file:line | message |")
+              print("|---|---|---|---|")
+              for f in findings[:40]:
+                  print(f"| {f['code']} | {f['severity']} | `{f['path']}:{f['line']}` | {f['message']} |")
+              if len(findings) > 40:
+                  print(f"\n_({len(findings) - 40} more in the job log.)_")
+          PY
+
+  same-change:
+    name: Requirement change carries its changelog entry
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The rule compares the PR against its base, so the full history of
+          # both sides is needed for the three-dot range to resolve.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+
+      - name: Check the same-change rule
+        # Not --strict: a changelog entry that names no ID is a warning, because
+        # a genuinely mechanical edit ("typo in a requirement title") should not
+        # need a narrative. The hard rule is that the changelog was touched.
+        run: |
+          python scripts/check_requirements.py --root . \
+            --base "origin/${{ github.base_ref }}" \
+            --same-change
