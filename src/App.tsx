@@ -30,6 +30,11 @@ const TrackMap = lazy(() => import("./pages/TrackMap"));
 // player state and no filters, and nothing else in the app opens it (issue #9).
 const LibraryGaps = lazy(() => import("./pages/LibraryGaps"));
 
+// The Transitions page is its own route and its own chunk (issue #82): the
+// dialog's add form and the track picker it needs then leave the library's
+// first paint alone.
+const Transitions = lazy(() => import("./pages/Transitions"));
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -61,6 +66,14 @@ function App() {
                       <Route path="/load-files" element={<LoadFiles />} />
                       <Route path="/song/:id" element={<SongDetailPage />} />
                       <Route path="/sets" element={<Sets />} />
+                      <Route
+                        path="/transitions"
+                        element={
+                          <Suspense fallback={<MapRouteFallback />}>
+                            <Transitions />
+                          </Suspense>
+                        }
+                      />
                       <Route
                         path="/map"
                         element={

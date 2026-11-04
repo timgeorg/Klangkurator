@@ -29,6 +29,8 @@ interface TrackPickerProps {
   /** The trigger button. */
   children: React.ReactNode;
   align?: "start" | "center" | "end";
+  /** Search text the picker opens with, so a link starts from the typed title (REQ-19-TM VC5). */
+  initialQuery?: string;
 }
 
 /**
@@ -46,6 +48,7 @@ export function TrackPicker({
   placeholder,
   children,
   align = "end",
+  initialQuery = "",
 }: TrackPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -64,7 +67,7 @@ export function TrackPicker({
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
-    if (!next) setQuery("");
+    setQuery(next ? initialQuery : "");
   };
 
   const after = () => {

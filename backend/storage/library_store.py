@@ -5,14 +5,19 @@ import uuid
 from datetime import datetime, timezone
 
 from backend.models.relationship import (
+    SIDES,
     TRANSITION_TYPE_ID,
     DuplicateRelationship,
+    RelationshipShapeError,
     RelationshipTypeConflict,
     RelationshipTypeError,
     RelationshipTypeNotFound,
     UnknownRelationshipType,
     default_types,
     legacy_type,
+    side_key,
+    validate_sides,
+    validate_typed_rules,
 )
 from backend.storage import crate_registry
 
@@ -39,11 +44,67 @@ def _clean_variants(variants) -> list[dict]:
     return [{k: v for k, v in dict(v).items() if k != "missing"} for v in variants]
 
 
+def _states_the_same(row: dict, entry: dict, source: str, target: str) -> bool:
+    """Whether a stored row states the fact an incoming row states.
+
+    The same type the same way round is a restatement. So is a both-ways type in
+    either direction, and the opposite type the other way round (REQ-14-RD VC8,
+    VC9). The two sides are already reduced to keys, so a typed side matches on
+    its artist and title, case ignored (REQ-19-TM VC14).
+
+    Args:
+        row (dict): A stored relationship.
+        entry (dict): The type of the incoming one.
+        source (str): The incoming row's source key.
+        target (str): The incoming row's target key.
+
+    Returns:
+        bool: True when the two rows state one fact.
+    """
+    row_source = side_key(row, "source")
+    row_target = side_key(row, "target")
+    same_way = row_source == source and row_target == target
+    reverse_way = row_source == target and row_target == source
+    if not (same_way or reverse_way):
+        return False
+    stored_type = row.get("relationship_type")
+    if stored_type == entry["id"] and (same_way or entry.get("both_ways")):
+        return True
+    return bool(entry.get("opposite_id")) and stored_type == entry["opposite_id"] and reverse_way
+
+
 def _with_clean_variants(row: dict) -> dict:
     """A song row or update with its variant list stripped of derived keys."""
     if "audio_variants" not in row:
         return row
     return {**row, "audio_variants": _clean_variants(row["audio_variants"])}
+
+
+def _other(side: str) -> str:
+    """The end opposite `side`: "source" ↔ "target"."""
+    return "target" if side == "source" else "source"
+
+
+def _with_idea(row: dict, idea: bool | None, entry: dict | None) -> dict:
+    """The row with its idea mark set, refusing the mark on another type.
+
+    Args:
+        row (dict): The relationship row.
+        idea (bool | None): The mark the caller sent.
+        entry (dict | None): The row's type.
+
+    Returns:
+        dict: The row, `idea` present only when true.
+
+    Raises:
+        RelationshipShapeError: A type that is not a transition takes no idea.
+    """
+    if idea and (entry is None or entry["id"] != TRANSITION_TYPE_ID):
+        raise RelationshipShapeError("Only a transition can be an idea")
+    marked = {key: value for key, value in row.items() if key != "idea"}
+    if idea:
+        marked["idea"] = True
+    return marked
 
 
 class LibraryStore:
@@ -501,7 +562,7 @@ class LibraryStore:
         self._data["song_tags"] = [st for st in self._data["song_tags"] if st["song_id"] != song_id]
         self._data["relationships"] = [
             r for r in self._data["relationships"]
-            if r["source_song_id"] != song_id and r["target_song_id"] != song_id
+            if r.get("source_song_id") != song_id and r.get("target_song_id") != song_id
         ]
         self._data["playlist_songs"] = [ps for ps in self._data["playlist_songs"] if ps["song_id"] != song_id]
         self._save_fn()
@@ -724,9 +785,15 @@ class LibraryStore:
         (REQ-14-RD VC8, VC9). A type and its opposite also merge their two rows
         into the one the user stated, because the reading is symmetric.
 
+        A side is a song id or a typed track, never both (REQ-19-TM VC1), and
+        only a transition takes a typed side or `idea` (VC1, TI VC5). The
+        duplicate rule covers typed sides too: two typed sides are the same
+        track when their artists and titles match, case ignored (VC14).
+
         Args:
-            rel_data (dict): `{source_song_id, target_song_id,
-                relationship_type, notes}`; `relationship_type` is a type id.
+            rel_data (dict): `{source_song_id, target_song_id, source_track,
+                target_track, relationship_type, notes, idea}`;
+                `relationship_type` is a type id.
 
         Returns:
             dict: The stored row.
@@ -734,17 +801,22 @@ class LibraryStore:
         Raises:
             UnknownRelationshipType: No type in the list has the id (INV-27).
             DuplicateRelationship: The library states this relationship already.
+            RelationshipShapeError: A side has both forms or neither, a typed
+                side has no title, one song sits on both ends, or a type that is
+                not a transition carries a typed side or an idea.
         """
         rel_type = rel_data.get("relationship_type")
         entry = self._type_by_id(rel_type) if rel_type else None
         if entry is None:
             raise UnknownRelationshipType(str(rel_type))
-        existing = self._find_restatement(rel_data, entry)
+        clean = validate_sides(rel_data)
+        validate_typed_rules(clean)
+        existing = self._find_restatement(clean, entry)
         if existing is not None:
             raise DuplicateRelationship(existing["id"])
 
         rel = {
-            **rel_data,
+            **clean,
             "id": _new_id(),
             "created_at": _now(),
         }
@@ -752,36 +824,110 @@ class LibraryStore:
         self._save_fn()
         logger.info(
             "Relationship added: %s → %s (%s)",
-            rel["source_song_id"], rel["target_song_id"], entry["name"],
+            side_key(rel, "source"), side_key(rel, "target"), entry["name"],
         )
         return rel
 
-    def _find_restatement(self, rel_data: dict, entry: dict) -> dict | None:
+    def update_relationship(self, rel_id: str, changes: dict) -> dict | None:
+        """Change a stored relationship's notes, idea mark or a side's link.
+
+        A link replaces the typed track of `link_side` with a song id (REQ-19-TM
+        VC6) and is refused when it would make the row a self-pair (VC15) or a
+        restatement (VC16). Nothing else about a row changes here: its type and
+        its two sides keep their place, so the fact reads the same way round.
+
+        Args:
+            rel_id (str): The relationship to change.
+            changes (dict): Any of `notes`, `idea`, and `link_side` with
+                `song_id`.
+
+        Returns:
+            dict | None: The stored row, or None for an unknown id.
+
+        Raises:
+            RelationshipShapeError: The link would make a self-pair or a
+                restatement, the link has no song, or the id names a song the
+                library does not have.
+        """
+        row = self._row(rel_id)
+        if row is None:
+            return None
+        entry = self._type_by_id(row.get("relationship_type"))
+        candidate = dict(row)
+        if "notes" in changes:
+            candidate["notes"] = changes["notes"]
+        if "idea" in changes:
+            candidate = _with_idea(candidate, changes["idea"], entry)
+        if changes.get("link_side"):
+            candidate = self._linked(candidate, changes)
+        validate_typed_rules(candidate)
+        restatement = self._find_restatement(candidate, entry, skip_id=rel_id)
+        if restatement is not None:
+            raise DuplicateRelationship(restatement["id"])
+        row.update({key: candidate[key] for key in candidate if row.get(key) != candidate.get(key)})
+        for key in ("source_track", "target_track", "idea"):
+            if key not in candidate:
+                row.pop(key, None)
+        self._save_fn()
+        logger.info("Relationship updated: %s", rel_id)
+        return row
+
+    def _linked(self, row: dict, changes: dict) -> dict:
+        """The row with one typed side replaced by a library song's id.
+
+        Args:
+            row (dict): The row as it stands.
+            changes (dict): `{link_side, song_id}`.
+
+        Returns:
+            dict: The linked row, its typed track gone.
+
+        Raises:
+            RelationshipShapeError: No song, an unknown end, a song the library
+                lacks, that end is not typed, or the link makes a self-pair.
+        """
+        side = changes["link_side"]
+        if side not in SIDES:
+            raise RelationshipShapeError(f"Unknown side “{side}”")
+        song_id = changes.get("song_id")
+        if not song_id:
+            raise RelationshipShapeError("A link needs a song")
+        if self.get_song(song_id) is None:
+            raise RelationshipShapeError("The song to link is not in the library")
+        if not row.get(f"{side}_track"):
+            raise RelationshipShapeError("That side is already a library track")
+        if row.get(f"{_other(side)}_song_id") == song_id:
+            raise RelationshipShapeError("A transition from a track to itself is not a transition")
+        linked = {**row, f"{side}_song_id": song_id}
+        linked.pop(f"{side}_track", None)
+        return linked
+
+    def _row(self, rel_id: str) -> dict | None:
+        """The stored relationship with this id, or None."""
+        return next((row for row in self._data["relationships"] if row["id"] == rel_id), None)
+
+    def _find_restatement(self, rel_data: dict, entry: dict | None, skip_id: str | None = None) -> dict | None:
         """The stored row that already states this relationship, if any.
+
+        Two sides name the same track when both are the same song id, or when
+        both are typed sides whose artists and titles match, case ignored
+        (REQ-19-TM VC14). A library song never matches a typed side: the app
+        links no typed side by itself (VC13).
 
         Args:
             rel_data (dict): The relationship about to be stored.
-            entry (dict): Its type.
+            entry (dict | None): Its type.
+            skip_id (str | None): A row to leave out, the one being updated.
 
         Returns:
             dict | None: The row that states the same fact.
         """
-        source = rel_data["source_song_id"]
-        target = rel_data["target_song_id"]
-        type_id = entry["id"]
-        opposite_id = entry.get("opposite_id")
+        if entry is None:
+            return None
+        source = side_key(rel_data, "source")
+        target = side_key(rel_data, "target")
         for row in self._data["relationships"]:
-            same_way = row["source_song_id"] == source and row["target_song_id"] == target
-            reverse_way = row["source_song_id"] == target and row["target_song_id"] == source
-            if not (same_way or reverse_way):
-                continue
-            stored_type = row.get("relationship_type")
-            # The same type the same way round, or in either direction when it
-            # reads both ways (VC8, VC9).
-            if stored_type == type_id and (same_way or entry.get("both_ways")):
-                return row
-            # The opposite type the other way round states the same fact (VC9).
-            if opposite_id and stored_type == opposite_id and reverse_way:
+            if row["id"] != skip_id and _states_the_same(row, entry, source, target):
                 return row
         return None
 
@@ -794,9 +940,20 @@ class LibraryStore:
         return True
 
     def get_relationships_for_song(self, song_id: str) -> list[dict]:
+        """Every relationship with this track on either end.
+
+        A typed side names no track, so a transition that joins this track to a
+        typed side comes back here too (REQ-19-TM VC7).
+
+        Args:
+            song_id (str): The track to find.
+
+        Returns:
+            list[dict]: The rows with this id on either end.
+        """
         return [
             r for r in self._data["relationships"]
-            if r["source_song_id"] == song_id or r["target_song_id"] == song_id
+            if r.get("source_song_id") == song_id or r.get("target_song_id") == song_id
         ]
 
     # ── Playlists ──────────────────────────────────────────
@@ -879,25 +1036,53 @@ class LibraryStore:
         return [s for s in self._data["songs"] if s["id"] in song_ids]
 
     def get_related_songs(self, song_id: str) -> list[dict]:
+        """This track's relationships with a library partner, either direction.
+
+        A transition whose other side is typed has no partner track, so it is
+        skipped here and read by the pages that can show text (REQ-19-TM VC7).
+
+        Args:
+            song_id (str): The track to find.
+
+        Returns:
+            list[dict]: `{song, relationship, direction}` per library partner.
+        """
         results = []
         for r in self._data["relationships"]:
-            if r["source_song_id"] == song_id:
-                target = self.get_song(r["target_song_id"])
+            if r.get("source_song_id") == song_id:
+                target = self.get_song(r.get("target_song_id") or "")
                 if target:
                     results.append({"song": target, "relationship": r, "direction": "source"})
-            elif r["target_song_id"] == song_id:
-                source = self.get_song(r["source_song_id"])
+            elif r.get("target_song_id") == song_id:
+                source = self.get_song(r.get("source_song_id") or "")
                 if source:
                     results.append({"song": source, "relationship": r, "direction": "target"})
         return results
 
     def get_transition_suggestions(self, song_id: str) -> list[dict]:
+        """The saved transitions that leave this track for a library track.
+
+        A typed target has no track to add, so it is no suggestion
+        (REQ-19-TM VC9). An idea comes back with its mark, so the set editor can
+        show it as untried (REQ-19-TI VC6).
+
+        Args:
+            song_id (str): The track whose transitions to read.
+
+        Returns:
+            list[dict]: `{song, notes, idea}` per suggestion.
+        """
         suggestions = []
         for r in self._data["relationships"]:
-            if r["source_song_id"] == song_id and r["relationship_type"] == "transition":
-                target = self.get_song(r["target_song_id"])
-                if target:
-                    suggestions.append({"song": target, "notes": r.get("notes")})
+            if r.get("source_song_id") != song_id or r.get("relationship_type") != "transition":
+                continue
+            target = self.get_song(r.get("target_song_id") or "")
+            if target:
+                suggestions.append({
+                    "song": target,
+                    "notes": r.get("notes"),
+                    "idea": bool(r.get("idea")),
+                })
         return suggestions
 
     def get_playlists_for_song(self, song_id: str) -> list[dict]:

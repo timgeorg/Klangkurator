@@ -32,14 +32,17 @@ const KIND_ORDER: Record<TransitionSource["kind"], number> = { relationship: 0, 
 /**
  * Every transition the library holds, deduplicated per direction.
  *
- * Facts: each `transition` relationship (its `notes`), each pair of
+ * Facts: each `transition` relationship whose two sides are library tracks (its
+ * `notes`), each pair of
  * consecutive tracks in a block by `position` (the earlier entry's
  * `transition_notes`), and each pair of consecutive tracks in a set's flat
  * `items` by `position`, blocks expanded in place (inside a block the note is
  * the block entry's; at an item boundary the earlier `SetItem`'s). A missing
  * song, a missing block or a missing song inside a block ends one run and
  * starts the next, so its neighbours never pair up. A pair whose `from`
- * equals its `to` is skipped.
+ * equals its `to` is skipped. A transition with a typed side has no second
+ * track, so it makes no edge here (REQ-19-TM VC8); the Transitions page lists
+ * it from the relationship row.
  *
  * The result is sorted by `source` then `target`, so the same library always
  * gives the same edges.
@@ -55,6 +58,9 @@ export function buildTransitions(inputs: TransitionInputs): TransitionEdge[] {
 
   for (const relationship of inputs.relationships ?? []) {
     if (relationship.relationship_type !== "transition") continue;
+    // A typed side has no track, so the map draws no line for it (REQ-19-TM
+    // VC8). The Transitions page lists it from the row itself.
+    if (!relationship.source_song_id || !relationship.target_song_id) continue;
     addFact(edges, relationship.source_song_id, relationship.target_song_id, {
       kind: "relationship",
       id: relationship.id,

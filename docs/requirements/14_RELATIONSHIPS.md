@@ -126,7 +126,9 @@ Verification criteria:
   shows as if the user added "is remix of B" on track A.
 - VC8: The app refuses a relationship with the same two tracks, the same type
   and the same direction as an existing one. A notice says that the
-  relationship exists.
+  relationship exists. A typed side of a transition counts as its track. Two
+  typed sides are the same track when their artists and titles match, case
+  ignored (REQ-19-TM VC14).
 - VC9: The app also refuses a relationship that states an existing one from the
   other side. That is the opposite type in the other direction, or a both-ways
   type in either direction.
@@ -267,6 +269,12 @@ mining feature.
   transition before and it worked — this is hard-won knowledge
 - A transition that the user marks as an idea is not tried yet (REQ-19-TI,
   issue #82)
+- Either side of a transition can be a track the library does not have yet: a
+  typed `{artist, title}` in place of the song id. Only a transition takes one,
+  and the Transitions page links it to a track once the user owns it
+  (REQ-19-TM, issue #82)
+- The duplicate rule below covers a typed side too: two typed sides are the same
+  track when their artists and titles match, case ignored
 - Transition relationships can have notes: "mix A's outro into B's intro at
   128 BPM, bring in B's percussion under A's last breakdown"
 

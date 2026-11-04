@@ -11,11 +11,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.models.relationship import (
     DuplicateRelationship,
+    RelationshipShapeError,
     RelationshipTypeConflict,
     RelationshipTypeError,
     RelationshipTypeNotFound,
     SongRelationship,
     SongRelationshipCreate,
+    SongRelationshipUpdate,
     UnknownRelationshipType,
 )
 from backend.storage import get_library_store
@@ -49,7 +51,9 @@ def list_relationships(song_id: str | None = Query(None)):
         song_id (str | None): Keep only relationships with this track.
 
     Returns:
-        list[dict]: The rows, each with `type_name` filled in.
+        list[dict]: The rows, each with `type_name` filled in. A typed side comes
+        back as `source_track` / `target_track` with no id beside it
+        (REQ-19-TM VC10).
     """
     store = get_library_store()
     rows = store.get_relationships_for_song(song_id) if song_id else store.get_relationships()
@@ -61,32 +65,67 @@ def create_relationship(body: SongRelationshipCreate):
     """Store a relationship.
 
     Args:
-        body (SongRelationshipCreate): The relationship to store.
+        body (SongRelationshipCreate): The relationship to store. A side is a
+            song id or a typed track, never both (REQ-19-TM VC1).
 
     Returns:
         dict: The stored row, with its type's name.
 
     Raises:
-        HTTPException: 404 for a song or type the library does not have, 422 for
-            a type id outside the list, 409 for a relationship the library
-            already states.
+        HTTPException: 404 for a song the library does not have, 422 for a type
+            id outside the list or a row the model refuses, 409 for a
+            relationship the library already states.
     """
     store = get_library_store()
-    if store.get_song(body.source_song_id) is None:
-        raise HTTPException(404, "Source song not found")
-    if store.get_song(body.target_song_id) is None:
-        raise HTTPException(404, "Target song not found")
+    for field in ("source", "target"):
+        song_id = getattr(body, f"{field}_song_id")
+        if song_id and store.get_song(song_id) is None:
+            raise HTTPException(404, f"{field.capitalize()} song not found")
     try:
-        row = store.add_relationship(body.model_dump())
+        row = store.add_relationship(body.model_dump(exclude_none=True))
     except UnknownRelationshipType:
         raise HTTPException(
             422,
             f"Unknown relationship type “{body.relationship_type}”. "
             f"Add it in Settings first.",
         )
+    except RelationshipShapeError as exc:
+        raise HTTPException(422, str(exc))
     except DuplicateRelationship:
         raise HTTPException(409, "This relationship already exists")
     logger.info("Relationship created: %s", row["id"])
+    return _with_type_name(store, row)
+
+
+@router.patch("/relationships/{rel_id}", response_model=SongRelationship)
+def update_relationship(rel_id: str, body: SongRelationshipUpdate):
+    """Change a relationship's notes, its idea mark, or link a typed side.
+
+    A link writes the song id in place of the typed track of `link_side`; it
+    never creates a typed side and never links one by itself (REQ-19-TM VC13).
+
+    Args:
+        rel_id (str): The relationship to change.
+        body (SongRelationshipUpdate): The fields to change.
+
+    Returns:
+        dict: The stored row, with its type's name.
+
+    Raises:
+        HTTPException: 404 for an unknown relationship, 422 for a refused link
+            or idea, 409 for a link that would state an existing relationship.
+    """
+    store = get_library_store()
+    changes = body.model_dump(exclude_unset=True)
+    try:
+        row = store.update_relationship(rel_id, changes)
+    except RelationshipShapeError as exc:
+        raise HTTPException(422, str(exc))
+    except DuplicateRelationship:
+        raise HTTPException(409, "This relationship already exists")
+    if row is None:
+        raise HTTPException(404, "Relationship not found")
+    logger.info("Relationship updated: %s", rel_id)
     return _with_type_name(store, row)
 
 

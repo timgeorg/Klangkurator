@@ -5,7 +5,7 @@ import { Check, ChevronLeft, ChevronsUpDown, List, Network, Plus, Trash2 } from 
 import { CoverArt } from "@/components/brand";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { EmptyState } from "@/components/layout/EmptyState";
-import type { PartnerRow } from "@/components/map/TrackDetails";
+import { TypedSideText, type PartnerRow } from "@/components/map/TrackDetails";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/color-chip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -26,6 +26,7 @@ import {
   subscribeRelationshipTypes,
 } from "@/lib/relationshipTypes";
 import { relationshipStyle } from "@/lib/relationshipStyle";
+import { otherEnd } from "@/lib/transitionRows";
 import { Song, SongPlaylistMembership, SongRelationship, storage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -47,19 +48,27 @@ interface SongRelationshipsDialogProps {
 /** The dialog's own name for a relationship seen from its song. */
 type ExistingRelationship = DialogPartner;
 
-/** The relationships seen from one song, built from the fetched rows. */
+/** The relationships seen from one song, built from the fetched rows.
+ *
+ * A transition whose other side is typed joins the list with that text and no
+ * partner track (REQ-19-TM VC7).
+ */
 function relationshipsFor(song: Song, rels: SongRelationship[], byId: Map<string, Song>): ExistingRelationship[] {
   const existing: ExistingRelationship[] = [];
   for (const rel of rels) {
-    if (rel.source_song_id === song.id) {
-      const other = byId.get(rel.target_song_id);
-      if (!other) continue;
-      existing.push({ id: rel.id, type: rel.relationship_type, direction: "source", otherSong: other, notes: rel.notes });
-    } else if (rel.target_song_id === song.id) {
-      const other = byId.get(rel.source_song_id);
-      if (!other) continue;
-      existing.push({ id: rel.id, type: rel.relationship_type, direction: "target", otherSong: other, notes: rel.notes });
-    }
+    if (rel.source_song_id !== song.id && rel.target_song_id !== song.id) continue;
+    const direction = rel.source_song_id === song.id ? "source" : "target";
+    const end = otherEnd(rel, direction);
+    if (!end) continue;
+    existing.push({
+      id: rel.id,
+      type: rel.relationship_type,
+      direction,
+      otherSong: byId.get(end.songId ?? "") ?? null,
+      typed: end.typed ?? undefined,
+      idea: !!rel.idea,
+      notes: rel.notes,
+    });
   }
   return existing;
 }
@@ -86,6 +95,20 @@ function directionPreview(
   return direction === "source"
     ? `“${songTitle} ${name} ${other}” — ${other} reads “${relationshipPhrase(typeId, "target")}”.`
     : `“${other} ${relationshipPhrase(typeId, "source")} ${songTitle}” — this track reads “${name}”${arrow ? ` ${arrow}` : ""}.`;
+}
+
+/** A relationship's type line and its "Idea" mark (REQ-19-TI VC3). */
+function PartnerPhrase({ rel }: { rel: ExistingRelationship }) {
+  return (
+    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+      <RelationLine type={rel.type} />
+      {relationshipPhrase(rel.type, rel.direction)}
+      {relationshipPartnerArrow(rel.type, rel.direction)}
+      {rel.idea && (
+        <span className="rounded-chip bg-signal-soft px-1.5 py-0.5 text-[10px] font-medium text-signal-text">Idea</span>
+      )}
+    </span>
+  );
 }
 
 export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange, onSave }: SongRelationshipsDialogProps) {
@@ -239,7 +262,7 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
   };
 
   const availableSongs = useMemo(
-    () => allSongs.filter((s) => !existing.some((r) => r.otherSong.id === s.id)),
+    () => allSongs.filter((s) => !existing.some((r) => r.otherSong?.id === s.id)),
     [allSongs, existing],
   );
 
@@ -255,7 +278,7 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
   const shownSong = useMemo(() => {
     if (!song) return null;
     if (selectedId === song.id) return song;
-    return songIndex.get(selectedId ?? "") ?? existing.find((r) => r.otherSong.id === selectedId)?.otherSong ?? null;
+    return songIndex.get(selectedId ?? "") ?? existing.find((r) => r.otherSong?.id === selectedId)?.otherSong ?? null;
   }, [existing, selectedId, song, songIndex]);
 
   const shownPartners = useMemo<PartnerRow[]>(() => {
@@ -268,6 +291,8 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
     return relationshipsFor(shownSong, allRelationships, byId).map((relationship) => ({
       id: relationship.id,
       song: relationship.otherSong,
+      typed: relationship.typed,
+      idea: relationship.idea,
       type: relationship.type,
       direction: relationship.direction,
       notes: relationship.notes,
@@ -388,35 +413,48 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
                 <ul className="divide-y divide-border/70 border-y border-border/70">
                   {existing.map((rel) => (
                     <li key={rel.id} className="flex items-center gap-2 py-2">
-                      <button
-                        type="button"
-                        onClick={() => navigateTo(rel.otherSong)}
-                        aria-label={`Show the relationships of ${rel.otherSong.title}`}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <CoverArt
-                          src={rel.otherSong.artwork_url}
-                          current={current?.id === rel.otherSong.id}
-                          className="h-9 w-9 rounded-[3px]"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <RelationLine type={rel.type} />
-                            {relationshipPhrase(rel.type, rel.direction)}
-                            {relationshipPartnerArrow(rel.type, rel.direction)}
+                      {rel.otherSong ? (
+                        <button
+                          type="button"
+                          onClick={() => navigateTo(rel.otherSong!)}
+                          aria-label={`Show the relationships of ${rel.otherSong.title}`}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <CoverArt
+                            src={rel.otherSong.artwork_url}
+                            current={current?.id === rel.otherSong.id}
+                            className="h-9 w-9 rounded-[3px]"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <PartnerPhrase rel={rel} />
+                            <span className="block truncate text-[13px] font-medium">{rel.otherSong.title}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {rel.otherSong.artist}
+                              {rel.notes ? ` · ${rel.notes}` : ""}
+                            </span>
                           </span>
-                          <span className="block truncate text-[13px] font-medium">{rel.otherSong.title}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {rel.otherSong.artist}
-                            {rel.notes ? ` · ${rel.notes}` : ""}
+                        </button>
+                      ) : (
+                        // A typed side has no track to walk to, so its row is
+                        // text with the mark (REQ-19-TM VC7).
+                        <div className="flex min-w-0 flex-1 items-start gap-3 p-1">
+                          <span className="min-w-0 flex-1 space-y-1">
+                            <PartnerPhrase rel={rel} />
+                            <span className="flex items-start gap-3">
+                              <TypedSideText
+                                artist={rel.typed?.artist ?? ""}
+                                title={rel.typed?.title ?? ""}
+                                notes={rel.notes}
+                              />
+                            </span>
                           </span>
-                        </span>
-                      </button>
+                        </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleDelete(rel.id)}
-                        aria-label={`Delete the relationship with ${rel.otherSong.title}`}
+                        aria-label={`Delete the relationship with ${rel.otherSong?.title ?? rel.typed?.title ?? "this track"}`}
                         title="Delete"
                         className="text-muted-foreground hover:text-destructive"
                       >

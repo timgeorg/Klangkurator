@@ -72,7 +72,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-40 | Transition mining from existing sets | Analyze saved sets/blocks and extract transition patterns: "A → B worked, here's how" |
 | PF-41 | Transition suggestion engine | Given track A, suggest tracks B that have worked as transitions in the past (from saved transitions + sets) |
 | PF-42 | Transition compatibility scoring | Score how well two tracks transition based on BPM, key, energy, genre compatibility |
-| PF-43 | Transition library | Dedicated view to browse, search, and manage all known transitions. **Specced 2026-11-04** as the Transitions page (issue #82). It lists saved transitions and the consecutive tracks of blocks and sets. A side can be a typed track that is not in the library, and a transition can be an idea. Spec: `19_TRANSITIONS.md` REQ-19-TL, REQ-19-TA, REQ-19-TM, REQ-19-TI |
+| PF-43 | Transition library | Dedicated view to browse, search, and manage all known transitions. **Built 2026-11-04** as the Transitions page (issue #82). It lists saved transitions and the consecutive tracks of blocks and sets. A side can be a typed track that is not in the library, and a transition can be an idea. Spec: `19_TRANSITIONS.md` REQ-19-TL, REQ-19-TA, REQ-19-TM, REQ-19-TI |
 | PF-44 | Transition import from DJ software | Parse Rekordbox history/mix recordings to extract transitions that were actually played |
 
 ## AI-Assisted Curation

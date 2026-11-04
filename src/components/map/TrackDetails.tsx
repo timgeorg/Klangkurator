@@ -15,15 +15,25 @@ import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/color-chip";
 import { getMainGenreColor } from "@/lib/genreData";
 import { relationshipPartnerArrow, relationshipPhrase } from "@/lib/relationshipTypes";
-import type { Song, Tag } from "@/lib/storage";
+import type { Song, Tag, TypedTrack } from "@/lib/storage";
 import { formatBpm, keyName, trackGenre } from "@/lib/trackFormat";
 import type { TransitionEdge } from "@/lib/trackMap/transitions";
 import { cn } from "@/lib/utils";
 
-/** One of the selected track's relationship partners, as the details list it. */
+/** One of the selected track's relationship partners, as the details list it.
+ *
+ * A partner is a library track or a typed side (REQ-19-TM VC7): a transition
+ * whose other end is not in the library shows its text with the mark "Not in
+ * library", and its row has nothing to select.
+ */
 export interface PartnerRow {
   id: string;
-  song: Song;
+  /** The library track on the other side; null when that side is typed. */
+  song: Song | null;
+  /** The typed side, present exactly when `song` is null. */
+  typed?: TypedTrack;
+  /** True when the saved transition is an idea (REQ-19-TI). */
+  idea?: boolean;
   type: string;
   direction: "source" | "target";
   notes?: string;
@@ -220,23 +230,7 @@ export function TrackDetails({
           <h4 className="text-[13px] font-semibold">Relationship partners</h4>
           <ul className="divide-y divide-border/70 border-y border-border/70">
             {partners.map((partner) => (
-              <li key={partner.id}>
-                <button type="button" {...selectable(partner.song.id)} aria-label={`Select ${partner.song.title}`} className={rowClass}>
-                  <CoverArt src={partner.song.artwork_url} className="h-8 w-8 rounded-[3px]" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <RelationLine type={partner.type} />
-                      {relationshipPhrase(partner.type, partner.direction)}
-                      {relationshipPartnerArrow(partner.type, partner.direction)}
-                    </span>
-                    <span className="block truncate text-[13px] font-medium">{partner.song.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {partner.song.artist}
-                      {partner.notes ? ` · ${partner.notes}` : ""}
-                    </span>
-                  </span>
-                </button>
-              </li>
+              <PartnerEntry key={partner.id} partner={partner} rowClass={rowClass} onSelect={onSelect} />
             ))}
           </ul>
         </section>
@@ -299,5 +293,85 @@ export function TrackDetails({
         </section>
       )}
     </div>
+  );
+}
+
+/** A typed side of a transition, as text with its mark (REQ-19-TM VC4, VC7).
+ *
+ * It carries no cover and no link: the track it names is not in the library.
+ * @param artist - The typed artist; an empty one reads "No artist".
+ * @param title - The typed title.
+ * @param notes - The transition's note, shown after the mark.
+ */
+export function TypedSideText({ artist, title, notes }: { artist: string; title: string; notes?: string }) {
+  return (
+    <>
+      <span aria-hidden className="h-8 w-8 shrink-0 rounded-[3px] border border-dashed border-border" />
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] font-medium">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {artist || "No artist"}
+          {" · Not in library"}
+          {notes ? ` · ${notes}` : ""}
+        </span>
+      </span>
+    </>
+  );
+}
+
+/** One partner row: a library track, or a typed side with its mark (REQ-19-TM VC7). */
+function PartnerEntry({
+  partner,
+  rowClass,
+  onSelect,
+}: {
+  partner: PartnerRow;
+  rowClass: string;
+  onSelect?: (id: string) => void;
+}) {
+  const phrase = (
+    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+      <RelationLine type={partner.type} />
+      {relationshipPhrase(partner.type, partner.direction)}
+      {relationshipPartnerArrow(partner.type, partner.direction)}
+      {partner.idea && (
+        <span className="rounded-chip bg-signal-soft px-1.5 py-0.5 text-[10px] font-medium text-signal-text">Idea</span>
+      )}
+    </span>
+  );
+
+  if (!partner.song) {
+    const typed = partner.typed ?? { artist: "", title: "" };
+    return (
+      <li className="flex w-full min-w-0 items-start gap-3 px-1 py-1">
+        <div className="min-w-0 flex-1 space-y-1">
+          {phrase}
+          <div className="flex items-start gap-3">
+            <TypedSideText artist={typed.artist} title={typed.title} notes={partner.notes} />
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <button
+        type="button"
+        {...(onSelect ? { onClick: () => onSelect(partner.song!.id) } : {})}
+        aria-label={`Select ${partner.song.title}`}
+        className={rowClass}
+      >
+        <CoverArt src={partner.song.artwork_url} className="h-8 w-8 rounded-[3px]" />
+        <span className="min-w-0 flex-1">
+          {phrase}
+          <span className="block truncate text-[13px] font-medium">{partner.song.title}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {partner.song.artist}
+            {partner.notes ? ` · ${partner.notes}` : ""}
+          </span>
+        </span>
+      </button>
+    </li>
   );
 }

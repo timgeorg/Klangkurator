@@ -155,14 +155,18 @@ function compare(a: string, b: string): number {
 /** The title order the last resort uses, the same one the page's stopgap used. */
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-/** The seven non-transition relationship types, as stored. */
+/** The seven non-transition relationship types, as stored.
+ *
+ * A transition with a typed side draws no line: it has no second track
+ * (REQ-19-TM VC8), and `buildTransitions` never turned it into an edge.
+ */
 function relationshipEdges(relationships: readonly SongRelationship[], shownIds: Set<string>): MapEdge[] {
   return relationships
     .filter((relationship) => relationship.relationship_type !== "transition")
-    .filter((relationship) => shownIds.has(relationship.source_song_id) && shownIds.has(relationship.target_song_id))
+    .filter((relationship) => shownIds.has(relationship.source_song_id ?? "") && shownIds.has(relationship.target_song_id ?? ""))
     .map((relationship): MapEdge => ({
-      source: relationship.source_song_id,
-      target: relationship.target_song_id,
+      source: relationship.source_song_id ?? "",
+      target: relationship.target_song_id ?? "",
       kind: "relationship",
       relationshipType: relationship.relationship_type,
     }));

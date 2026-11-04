@@ -98,7 +98,7 @@ function SetForm({
   const [nameError, setNameError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<{ song: Song; notes?: string }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ song: Song; notes?: string; idea?: boolean }>>([]);
   const nameRef = useRef<HTMLInputElement>(null);
   const { playRun } = usePlayer();
 
@@ -371,17 +371,22 @@ function SetForm({
                 Saved transitions from <TrackTitle title={lastSong.title} className="text-foreground" />
               </p>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {freshSuggestions.map(({ song, notes }) => (
+                {freshSuggestions.map(({ song, notes, idea }) => (
                   <Button
                     key={song.id}
                     variant="outline"
                     size="sm"
                     onClick={() => append("song", song.id)}
-                    title={notes || undefined}
+                    title={notes || (idea ? "An idea, not tried yet" : undefined)}
                     className="max-w-full"
                   >
                     <Plus />
                     <TrackTitle title={song.title} className="truncate" />
+                    {idea && (
+                      <span className="rounded-chip bg-signal-soft px-1.5 py-0.5 text-[10px] font-medium text-signal-text">
+                        Idea
+                      </span>
+                    )}
                   </Button>
                 ))}
               </div>

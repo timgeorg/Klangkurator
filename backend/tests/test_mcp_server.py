@@ -848,3 +848,33 @@ def test_a_huge_timeout_is_capped(monkeypatch):
     """1e10 s would overflow the socket layer; it is capped at a day."""
     monkeypatch.setenv("KLANGKURATOR_TIMEOUT", "1e10")
     assert config.timeout() == config.MAX_TIMEOUT
+
+
+def test_list_relationships_returns_a_typed_side(song):
+    """REQ-19-TM VC10: an agent sees the artist and the title of a typed side."""
+    app_client.post("/api/relationships", json={
+        "source_song_id": song["id"],
+        "target_track": {"artist": "hannah montana", "title": "best of both worlds"},
+        "relationship_type": "transition",
+        "idea": True,
+    })
+
+    row = tools.list_relationships(song_id=song["id"])[0]
+
+    assert row["target_track"] == {"artist": "hannah montana", "title": "best of both worlds"}
+    assert row["target_song_id"] is None
+    assert row["idea"] is True
+
+
+def test_get_transitions_marks_an_idea(song):
+    """REQ-19-TI VC8: an idea comes back with its mark."""
+    other = app_client.post("/api/songs", json={
+        "title": "Other", "artist": "a", "file_path": "/music/other.mp3",
+    }).json()
+    tools.link_tracks(song["id"], other["id"], "transition", notes="key match")
+    stored = get_library_store().get_relationships()[-1]
+    app_client.patch(f"/api/relationships/{stored['id']}", json={"idea": True})
+
+    rows = tools.get_transitions(song["id"])
+
+    assert [row["idea"] for row in rows] == [True]

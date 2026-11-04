@@ -708,7 +708,10 @@ def list_relationships(song_id: str | None = None) -> list[dict]:
     """Relationships between tracks, optionally only the ones touching a track.
 
     Each row names its type as Settings shows it (`type_name`), because the row
-    itself stores only the type's id (REQ-34-RT VC4).
+    itself stores only the type's id (REQ-34-RT VC4). A side that is not a
+    library track comes back as `source_track` / `target_track` with its artist
+    and title (REQ-19-TM VC10), and a transition that is an idea carries
+    `idea: true` (REQ-19-TI).
 
     Args:
         song_id (str | None): Keep only relationships with this track.
@@ -796,14 +799,20 @@ def link_tracks(
 def get_transitions(song_id: str) -> list[dict]:
     """Transition suggestions for a track: its related tracks and the notes.
 
+    A transition that the user marked as an idea comes back with `idea: true`,
+    so an agent can tell an untried idea from one the user knows works
+    (REQ-19-TI VC8). A transition whose other side is not a library track is not
+    a suggestion and does not appear.
+
     Args:
         song_id (str): The track's id.
 
     Returns:
-        list[dict]: `[{song, notes}]`, the songs slim.
+        list[dict]: `[{song, notes, idea}]`, the songs slim.
     """
     rows = call("GET", f"/api/songs/{_require_id(song_id, 'track')}/transition-suggestions")
     for row in rows:
+        row["idea"] = bool(row.get("idea"))
         if isinstance(row.get("song"), dict):
             row["song"] = _slim(row["song"])
     return rows

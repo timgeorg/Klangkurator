@@ -488,6 +488,10 @@ def _merge_variant_updates(local: dict, imported: dict, updates: dict) -> int:
 def _remap_relationship(r: dict, remap: dict, type_ids: dict[str, str]) -> dict | None:
     """One imported relationship with local song ids and a local type id.
 
+    A typed side names no song, so it needs no remap and is kept as it stands
+    (REQ-19-TM VC12). Only an id that names a song the library does not already
+    have drops its row.
+
     Args:
         r (dict): The envelope's row.
         remap (dict): Exported song id → local song id.
@@ -497,11 +501,17 @@ def _remap_relationship(r: dict, remap: dict, type_ids: dict[str, str]) -> dict 
         dict | None: The row, or None when it names a song the library lacks.
     """
     m = dict(r)
-    for key in ("source_song_id", "target_song_id"):
-        if m.get(key) not in remap:
+    for side in ("source", "target"):
+        song_id = m.get(f"{side}_song_id")
+        if song_id is None:
+            if not m.get(f"{side}_track"):
+                return None  # a side with neither form names nothing
+            continue
+        if song_id not in remap:
             return None  # referenced song unknown locally — drop, never dangle
-    for key in ("source_song_id", "target_song_id"):
-        m[key] = remap[m[key]]
+        m[f"{side}_song_id"] = remap[song_id]
+    if not m.get("idea"):
+        m.pop("idea", None)
     local_type = type_ids.get(str(m.get("relationship_type")))
     if local_type is None:
         return None  # the type was not imported; a row never names an unknown type
