@@ -46,6 +46,11 @@ A DJ who:
 
 - [lexicondj.com](https://www.lexicondj.com/) — but more organization-focused,
   with set planning and transition mining as first-class features.
+  **Basis: Q** (checked 2026-11-04, zenture run `run_eb3198fba7cc58bb988ec8f218d5d0de`):
+  the landing page describes DJ-library *syncing* across six apps, not set planning or
+  transition mining. Nothing on the page we fetched supported the claim. Two pages of
+  marketing copy is not evidence about a competitor's feature set either way. Settle it
+  by using the product, not by reading its homepage.
 - Rekordbox — for playback, cue points, and USB export. Klangkurator reads
   from and writes to Rekordbox, but does not replace it.
 - AI-assisted curation — future: spectral analysis, AI transition suggestions,

@@ -1,0 +1,24 @@
+{
+  "_comment": "Baseline for check_requirements.py. Counts record accepted debt as of 2026-11-04; the gate fails when a count grows, so new debt is refused while old debt stays visible. Lower a number when you fix some of it. On 2026-11-04 the four blocks added by #63, #64, #66 and #68 were given Status, Priority, Basis and VCs (REQ024 now 0), and REQ-13-CT (issue #49, shipped before this gate) is the one section still carrying all four fields as debt. REQ060 is 0: the technology names it flags are real API names, not plan decisions. REQ004/REQ006 are the pre-existing 00_INDEX.md / 00_Index.md pair and the 31/31a number pair; both are structural and neither is introduced by a change here.",
+  "id_style": "either",
+  "max_sentence_words": 25,
+  "technology_patterns": [
+    "React",
+    "FastAPI",
+    "PyWebView",
+    "SQLite",
+    "d3-force",
+    "react-force-graph",
+    "librosa",
+    "localStorage"
+  ],
+  "baseline": {
+    "REQ020": 25,
+    "REQ022": 25,
+    "REQ024": 0,
+    "REQ027": 25,
+    "REQ060": 0,
+    "REQ004": 1,
+    "REQ006": 1
+  }
+}
