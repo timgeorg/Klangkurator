@@ -1,7 +1,7 @@
 # Planned Features (Not Yet Specced)
 
 Status: Active
-Last Updated: 2026-10-29
+Last Updated: 2026-11-04
 Source: Requirements.md section 15; new ideas from set planning session; Tim's 2026-09-24 backlog list
 
 ## Confirmed Future Work
@@ -31,6 +31,8 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-15 | Column reorder via drag and drop | Swap columns in the table by dragging headers, persisted like visibility/widths |
 | PF-16 | Media player | Actually play songs from the library — transport controls, current-track indicator |
 | PF-17 | Song detail view | Click a track → dedicated view with full metadata, notes, tags, relationships, waveform |
+| PF-92 | Crate and genre in the running order of a set | **Specced 2026-11-04** (issue #83). Each track row of the set editor shows the crate and the genre as the library shows them. The set card on the Sets page and the block rows stay as they are. Spec: `16_SET_PLANNING.md` REQ-16-CG |
+| PF-91 | Relationship types the user edits | **Specced 2026-11-04** (issue #81). The fixed list of eight types becomes a list that the user edits in Settings, like tags and genres. Six defaults: "is remix of", "is original of" (its opposite), "same sample", "works as mashup", "transition", "same vibe". A relationship reads in its direction on both tracks. The list lives in `library.json` and in the export. Spec: `14_RELATIONSHIPS.md` REQ-14-RT, REQ-14-RD, REQ-14-RP, REQ-14-RM, and `34_MCP_SERVER.md` REQ-34-RT |
 | PF-90 | Add a song to a set from the library and the song page | **Built 2026-10-30** (issue #64). A third row action beside Play and Edit, and a button after Relationships on the song page, open the same list of sets. Selecting one appends the song to that set's running order and saves at once, with `items` only. The name, the notes and the phases stay as they were. A set that already holds the song shows a tick. Spec: `16_SET_PLANNING.md` REQ-16-AS, plan: `docs/plans/ADD_TO_SET_PLAN.md` |
 | PF-89 | Settings in files, not the browser | **Built 2026-10-29** (issue #51; PR pending). The UI preferences moved from `localStorage` into `~/.klangkurator/settings.json`, and the genre list into `library.json` as `genres`, so both travel with the library folder, survive clearing site data and appear in the backup. The desktop window runs with `private_mode=False` so its storage survives too. A one-time migration copies an existing browser's values; an unreadable data file is preserved as `*.corrupt-<timestamp>` instead of being overwritten. Spec: `17_SETTINGS.md`; plan: `docs/plans/SETTINGS_PORTABILITY_PLAN.md` |
 | PF-88 | Crate tabs: collapse past 10, Shift+click for several | **Built 2026-10-23** (issue #49, PR #54; review fixes #57). More than 10 crates: the tab bar collapses to the first 10 plus every selected crate and a "+N more" toggle; the choice is remembered per browser. Shift+click adds a crate to or removes it from the selection (A+B+C), feeding the existing multi-select Crate filter the table and the map share. Spec: `13_LIBRARY_VIEW.md` REQ-13-CT; plan: `docs/plans/CRATE_TABS_PLAN.md` |
@@ -68,7 +70,7 @@ Source: Requirements.md section 15; new ideas from set planning session; Tim's 2
 | PF-40 | Transition mining from existing sets | Analyze saved sets/blocks and extract transition patterns: "A → B worked, here's how" |
 | PF-41 | Transition suggestion engine | Given track A, suggest tracks B that have worked as transitions in the past (from saved transitions + sets) |
 | PF-42 | Transition compatibility scoring | Score how well two tracks transition based on BPM, key, energy, genre compatibility |
-| PF-43 | Transition library | Dedicated view to browse, search, and manage all known transitions |
+| PF-43 | Transition library | Dedicated view to browse, search, and manage all known transitions. **Specced 2026-11-04** as the Transitions page (issue #82). It lists saved transitions and the consecutive tracks of blocks and sets. A side can be a typed track that is not in the library, and a transition can be an idea. Spec: `19_TRANSITIONS.md` REQ-19-TL, REQ-19-TA, REQ-19-TM, REQ-19-TI |
 | PF-44 | Transition import from DJ software | Parse Rekordbox history/mix recordings to extract transitions that were actually played |
 
 ## AI-Assisted Curation

@@ -1,7 +1,7 @@
 # Track Map (Similarity Canvas)
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-11-04
 Source: issue #8 (brainstorm 2026-10-13, round two 2026-10-14) and Tim's
 answers of 2026-10-14 late, quoted verbatim in
 [TRACK_MAP_PLAN.md](../plans/TRACK_MAP_PLAN.md) › Decisions
@@ -244,6 +244,12 @@ Not in the MVP:
   its transitions also show as edge labels
 - The dialog has no layers: it draws all eight relationship
   types
+- This changes with issue #81. The relationship types become a list that
+  the user edits (REQ-14-RT). "The eight types" then reads "every type", and
+  "the seven non-transition types" reads "every type except transition". Each
+  relationship draws in the colour of its type. A one-way type draws solid, and
+  a both-ways type draws dotted (REQ-14-RD). A transition with a typed side
+  draws no edge (REQ-19-TM)
 
 ## Interaction (REQ-33-IN)
 

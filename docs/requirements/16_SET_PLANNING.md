@@ -1,7 +1,7 @@
 # Set Planning
 
 Status: Active
-Last Updated: 2026-10-23
+Last Updated: 2026-11-04
 Source: New — based on set planning session 2026-08-08
 
 ## Vision
@@ -127,6 +127,47 @@ The user adds the track they are looking at without going to Sets first.
 
 **Known limit:** a set editor open on the same set with unsaved changes keeps
 its own copy of the running order. When it saves, it replaces this addition.
+
+### The running order shows the crate and the genre of each track (REQ-16-CG, issue #83)
+
+Status: Active
+Priority: P1
+Basis: V — Tim, 2026-11-03 (verbatim below). The reading of "set view" as the set editor is I: the app has no other view of one set. VC5, VC6 and VC10 are I.
+Serves: the user sees where each track of a set comes from while they plan the set.
+
+The ask (Tim, 2026-11-03, verbatim):
+
+> *"Additionally (#3) I want to see in the edit set or set view where a track
+> is from (crate) + genre."*
+
+The app has no separate set view. A set opens in the set editor on the Sets
+page (route `/sets`), so both words point at the running order of the editor.
+The set card on the Sets page stays as it is (PF-92).
+
+The Genre cell of the library shows the main genre, else the first genre from
+the tags of the file. On 2026-11-04, 8 of 1,907 tracks had a main genre, and
+1,542 had a genre from their tags (a read-only count). So the row follows the
+cell, not the main genre alone.
+
+**Must not change:** the order of the rows, Play on a row, the move and remove
+actions, and the transition notes between the rows.
+
+Verification criteria:
+
+- VC1: In the set editor, each track row of the running order shows the crate
+  of the track.
+- VC2: The row shows the same crate text as the Crate column of the library
+  shows for that track.
+- VC3: Each track row shows the genre of the track.
+- VC4: The row shows the same genre, in the same colour, as the Genre cell of
+  the library shows for that track.
+- VC5: Where the Crate column shows a dash, the row shows no crate.
+- VC6: Where the Genre cell shows a dash, the row shows no genre.
+- VC7: The row of a track that is no longer in the library shows no crate and
+  no genre.
+- VC8: In the set editor, the row of a block keeps its current text.
+- VC9: At a width of 375 px, the set editor does not scroll sideways.
+- VC10: The crate and the genre show at every width, also below 640 px.
 
 ## Set Planning UI
 
