@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
-import { FolderInput, Layers, Library, Moon, Settings, Sun } from "lucide-react";
+import { ChartNoAxesColumn, FolderInput, Layers, Library, Moon, Settings, Sun } from "lucide-react";
 
 import { Wordmark } from "@/components/brand";
 import {
@@ -20,13 +20,20 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { title: "Library", url: "/", icon: Library, match: (p: string) => p === "/" || p.startsWith("/song/") || isMapRoute(p) },
   { title: "Sets", url: "/sets", icon: Layers, match: (p: string) => p.startsWith("/sets") },
+  {
+    title: "Gaps",
+    url: "/gaps",
+    icon: ChartNoAxesColumn,
+    match: (p: string) => p === "/gaps" || p.startsWith("/gaps/"),
+  },
   { title: "Import", url: "/load-files", icon: FolderInput, match: (p: string) => p.startsWith("/load-files") },
   { title: "Settings", url: "/settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
 
-/** The ink rail: wordmark, the four real destinations, theme and collapse controls.
+/** The ink rail: wordmark, the five destinations, theme and collapse controls.
  * The Library item stays active on the map, which is the library's other view
- * (TM-M1); it gains no entry point of its own until phase 7. */
+ * (TM-M1). Gaps is the read-only report of where the collection is thin
+ * (REQ-9-GR): a destination of its own, because it is not a view of the tracks. */
 export function DJSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { pathname } = useLocation();

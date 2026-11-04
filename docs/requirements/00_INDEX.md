@@ -1,7 +1,7 @@
 # Klangkurator Requirements Index
 
 Status: Active
-Last Updated: 2026-11-04 (19_TRANSITIONS added)
+Last Updated: 2026-11-04 (35_LIBRARY_GAPS added)
 
 ## Purpose
 
@@ -26,6 +26,7 @@ reduce drift and improve navigability. It supersedes the monolithic
 - [31_TRANSITION_MINING.md](31_TRANSITION_MINING.md) — transition mining, suggestion engine, transition library
 - [32_AI_CURATION.md](32_AI_CURATION.md) — AI-assisted curation: set planning, transition suggestions, spectral clustering
 - [33_TRACK_MAP.md](33_TRACK_MAP.md) — the track map: all tracks placed by similarity, clusters, relationship and transition layers (PF-81)
+- [35_LIBRARY_GAPS.md](35_LIBRARY_GAPS.md) — the library gap report (PF-93, issue #9): thin regions in one dimension at a time, with a relative threshold
 
 ## Masterplan
 

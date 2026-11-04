@@ -26,6 +26,10 @@ import NotFound from "./pages/NotFound";
 // entry chunk entirely.
 const TrackMap = lazy(() => import("./pages/TrackMap"));
 
+// The gap report is its own route and its own chunk: it is read-only, needs no
+// player state and no filters, and nothing else in the app opens it (issue #9).
+const LibraryGaps = lazy(() => import("./pages/LibraryGaps"));
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -62,6 +66,14 @@ function App() {
                         element={
                           <Suspense fallback={<MapRouteFallback />}>
                             <TrackMap />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/gaps"
+                        element={
+                          <Suspense fallback={<MapRouteFallback />}>
+                            <LibraryGaps />
                           </Suspense>
                         }
                       />

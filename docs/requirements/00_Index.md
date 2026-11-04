@@ -31,4 +31,5 @@ tags:
 - [[32_AI_CURATION.md]] — AI-assisted curation: set planning, transition suggestions, spectral clustering (planned).
 - [[33_TRACK_MAP.md]] — the track map (PF-81, issue #8; **Active** since phase 7): every track placed by a user-weighted similarity, with clusters and relationship/transition layers.
 - [[31a_REKORDBOX_PLAYLIST_EXPORT.md]] — export a set as a rekordbox XML playlist: the element list, the `file://` URI rules, the rating table and the phase nesting.
+- [[35_LIBRARY_GAPS.md]] — the library gap report (PF-93, issue #9): thin regions per dimension (BPM, energy, year, playtime) with a relative threshold, read-only and unweighted.
 - [[34_MCP_SERVER.md]] — the MCP server (PF-85, issue #47): 24 curated tools over stdio as a thin client of the backend, its config env vars, annotations, error mapping and read-only mode.
