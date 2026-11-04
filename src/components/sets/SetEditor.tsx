@@ -9,10 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SwatchPicker } from "@/components/ui/swatch-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { ColorChip } from "@/components/ui/color-chip";
+import { crateName } from "@/lib/crates";
+import { getMainGenreColor } from "@/lib/genreData";
 import { ENTITY_COLORS } from "@/lib/palette";
 import { usePlayer } from "@/lib/PlayerContext";
 import { type AltTransition, type Block, type DJSet, type SetItem, type Song, storage } from "@/lib/storage";
-import { formatBpm, formatDuration, formatTotal } from "@/lib/trackFormat";
+import { crateOf, formatBpm, formatDuration, formatTotal, trackGenre } from "@/lib/trackFormat";
 import { TrackTitle } from "@/components/dj/TrackTitle";
 
 import { EntityTile } from "./CoverMosaic";
@@ -404,14 +407,42 @@ function SetForm({
   );
 }
 
+/**
+ * The second line of a song row: the artist, the crate as the Crate column
+ * shows it, and the genre as the Genre cell shows it. A value the library
+ * leaves empty comes back empty, so the row draws neither it nor a separator.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- the row's parts and its test share this
+export function songRowMeta(song: Song): { artist: string; crate: string; genre?: string } {
+  return { artist: song.artist?.trim() ?? "", crate: crateName(crateOf(song)), genre: trackGenre(song) };
+}
+
+/** The artist, the crate and the genre as the library shows them, with no gap where a value is empty. */
+function SongSubtitle({ artist, crate, genre }: { artist: string; crate: string; genre?: string }) {
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      {artist && <span className="min-w-0 truncate">{artist}</span>}
+      {artist && (crate || genre) && <span aria-hidden>·</span>}
+      {crate && (
+        <span className="min-w-0 truncate" title={crate}>
+          {crate}
+        </span>
+      )}
+      {genre && <ColorChip color={getMainGenreColor(genre)} label={genre} />}
+    </span>
+  );
+}
+
 function rowFor(entry: ResolvedItem): OrderRow {
   if (entry.kind === "song") {
+    const { artist, crate, genre } = songRowMeta(entry.song);
     return {
       key: entry.item.id,
       name: entry.song.title,
       art: <CoverArt src={entry.song.artwork_url} className="h-10 w-10 rounded-[3px]" />,
       title: <TrackTitle title={entry.song.title} />,
-      subtitle: entry.song.artist,
+      subtitle: artist || crate || genre ? <SongSubtitle artist={artist} crate={crate} genre={genre} /> : undefined,
+      subtitleWide: true,
       meta: (
         <>
           {formatBpm(entry.song.bpm)}

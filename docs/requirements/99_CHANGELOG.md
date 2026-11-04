@@ -56,6 +56,11 @@ Tim: *"I want to see in the edit set or set view where a track is from (crate)
 - **Only 8 of 1,907 tracks had a main genre** on 2026-11-04 (a read-only count).
   The Genre cell falls back to the genre from the tags of the file, so the row
   follows the cell.
+- **Built 2026-11-04** (issue #83). A track row gives the artist and the crate
+  a line of their own under the title, and puts the genre chip at its end. A
+  value the library leaves empty drops out together with its separator. That
+  covers the 365 tracks with a crate and no genre, and any track with neither:
+  no stray dot. The line shows at every width. The block rows keep their text.
 
 ## 2026-10-31
 

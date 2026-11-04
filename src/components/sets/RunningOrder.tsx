@@ -13,6 +13,8 @@ export interface OrderRow {
   art: React.ReactNode;
   title: React.ReactNode;
   subtitle?: React.ReactNode;
+  /** Draws the subtitle on its own line under the row, at every width. */
+  subtitleWide?: boolean;
   /** Mono data on the right: BPM, key, length. */
   meta?: React.ReactNode;
   /** A deleted track or block that still holds its slot. */
@@ -76,7 +78,9 @@ export function RunningOrderList({ rows, onMove, onRemove, renderTransition }: R
               >
                 {row.title}
               </p>
-              {row.subtitle && <p className="truncate text-xs text-muted-foreground">{row.subtitle}</p>}
+              {row.subtitle && !row.subtitleWide && (
+                <p className="truncate text-xs text-muted-foreground">{row.subtitle}</p>
+              )}
             </div>
             <span className="k-num hidden whitespace-nowrap text-xs text-muted-foreground sm:block">{row.meta}</span>
             <div className="flex items-center">
@@ -114,6 +118,11 @@ export function RunningOrderList({ rows, onMove, onRemove, renderTransition }: R
                 <X />
               </Button>
             </div>
+            {row.subtitle && row.subtitleWide && (
+              <p className="col-start-3 col-span-2 row-start-2 min-w-0 text-xs text-muted-foreground">
+                {row.subtitle}
+              </p>
+            )}
           </div>
           {index < rows.length - 1 && renderTransition(index)}
         </li>
