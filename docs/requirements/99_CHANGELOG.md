@@ -5,6 +5,34 @@ Last Updated: 2026-11-04
 
 ## 2026-11-04
 
+### The library gap report (PF-93, issue #9)
+
+Tim: *"implement all currently open github issues"* (2026-11-04). That message
+is the pull-back-up the parked issue named. The issue said on 2026-10-14: *"do
+not build now … Reconsider after #8's canvas exists and has been used"*, and
+called itself *"a candidate to close as covered by #8 rather than to schedule"*.
+
+- **New domain file:** 35_LIBRARY_GAPS.md. It holds REQ-9-GR, one block, for a
+  read-only report of where the library is thin in one dimension at a time.
+- **The narrowest shape ships.** The issue warns against building a gap-finder
+  for its own elegance, so the report is the 1-D marginal histogram only. It
+  needs no intent model and no canvas.
+- **Rejected: joint 2-D regions.** The issue points them at #8's canvas, which
+  already draws a 2-D projection. VC14 keeps them out.
+- **Rejected: any write path.** No download handoff to Sonotheca (PF-75), no
+  target-setting form. The issue settled the intent signal as usage, not
+  configuration.
+- **The usage weighting is not built, and the limit is recorded.** No play
+  count or play history exists in the store, and the sandbox's 1,907 tracks sit
+  in one set and one block (49 tracks, 2.6 %). That is too thin to weight.
+- **The threshold is relative, as the issue required.** A run is thin when its
+  total is at most 10 % of its smaller dense flank, not when it falls under a
+  bare count.
+- **A known limit of the data is recorded, not hidden.** 31 of the 37 distinct
+  BPM values in the sandbox sit on the app's own analyser lattice,
+  `60 × (22050 / 512) / k`. A thin BPM bin can be a hole in the analyser's grid.
+
+
 ### Relationship types become a list the user edits (PF-91, issue #81)
 
 Tim: *"I want transitions to be like tags and genres to be editable. And the
