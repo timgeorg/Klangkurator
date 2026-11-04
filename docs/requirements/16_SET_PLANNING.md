@@ -154,7 +154,7 @@ its own copy of the running order. When it saves, it replaces this addition.
 
 ### The running order shows the crate and the genre of each track (REQ-16-CG, issue #83)
 
-Status: Active
+Status: Done (issue #83, 2026-11-04)
 Priority: P1
 Basis: V — Tim, 2026-11-03 (verbatim below). The reading of "set view" as the set editor is I: the app has no other view of one set. VC5, VC6 and VC10 are I.
 Serves: the user sees where each track of a set comes from while they plan the set.
@@ -175,6 +175,11 @@ cell, not the main genre alone.
 
 **Must not change:** the order of the rows, Play on a row, the move and remove
 actions, and the transition notes between the rows.
+
+The build of 2026-11-04 gives a track row a second line under the title. That
+line holds the artist, the crate and the genre chip. It shows at every width,
+so a narrow row never hides the crate. Block rows keep the subtitle inside the
+title block.
 
 Verification criteria:
 
