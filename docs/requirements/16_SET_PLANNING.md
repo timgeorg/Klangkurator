@@ -100,6 +100,30 @@ not used by the UI):
 
 ### Add to a set from the library and the song page (REQ-16-AS, built 2026-10-30, issue #64)
 
+Status: Active
+Priority: P1
+Basis: V — Tim, 2026-10-30 (quoted in issue #64): he wanted to add the song he was
+looking at without going to Sets first. The placement is I.
+Serves: one action, from where the track already is on screen.
+
+Verification criteria:
+
+- VC1: Each library row shows an "Add to set" action beside Play and Edit.
+- VC2: The action shows on row hover and on keyboard focus.
+- VC3: The song page shows an "Add to set" button.
+- VC4: The list shows every set, in the Sets page's order.
+- VC5: Each row shows the set's colour, name and track count.
+- VC6: Typing filters the list by set name.
+- VC7: Selecting a set appends the song to that set's running order.
+- VC8: The save happens at once, without opening the Sets page.
+- VC9: A notice names the set.
+- VC10: A set that already holds the song shows a tick and cannot be picked.
+- VC11: Only `items` changes. The name, notes and phases stay.
+- VC12: With no set, the list says "No sets yet" and links to the Sets page.
+- VC13: A failed save shows an error and leaves the set as it was.
+- VC14: The list works with the keyboard alone.
+- VC15: On a touch screen the action and each row are at least 44 px tall.
+
 The user adds the track they are looking at without going to Sets first.
 
 - A library row carries a third icon action beside Play and Edit. It shows on
