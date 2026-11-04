@@ -121,9 +121,12 @@ export interface SongRelationship {
   id: string;
   source_song_id: string;
   target_song_id: string;
-  relationship_type: 'remix' | 'same_sample' | 'cover' | 'mashup' | 'edit' | 'bootleg' | 'in_playlist' | 'transition';
+  /** The id of a type in the user's list; a rename never changes it (issue #81). */
+  relationship_type: string;
   notes?: string;
   created_at: string;
+  /** The type's name as Settings shows it, filled in on a read (REQ-34-RT VC4). */
+  type_name?: string | null;
 }
 
 export interface SongPlaylistMembership {

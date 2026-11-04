@@ -14,13 +14,15 @@
 // drawn and never re-solves the layout, so no node moves (TM-L4).
 import { Switch } from "@/components/ui/switch";
 import type { MapLayers } from "@/hooks/useMapConfig";
-import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, relationshipStyle, type RelationshipType } from "@/lib/relationshipStyle";
+import { getRelationshipTypes, relationshipLegend } from "@/lib/relationshipTypes";
+import { relationshipStyle } from "@/lib/relationshipStyle";
 import { onScreenEdgeKinds } from "@/lib/trackMap/layerEdges";
 import type { MapEdge } from "@/lib/trackMap/types";
 import { cn } from "@/lib/utils";
 
-/** The seven non-transition relationship types the Relationships layer draws. */
-const AUTHORED_TYPES: RelationshipType[] = RELATIONSHIP_TYPES.filter((type) => type !== "transition");
+/** The relationship types the Relationships layer draws: every type but the transition one. */
+const authoredTypes = () => relationshipLegend(getRelationshipTypes().map((type) => type.id))
+  .filter((entry) => !entry.isTransition);
 
 /** The layer switches, in the order the section lists them. */
 const LAYER_ROWS: { id: keyof MapLayers; label: string; hint: string }[] = [
@@ -125,10 +127,10 @@ export function LayersSection({ layers, onLayerChange, edges }: LayersSectionPro
                 line style, so the switch's scope is legible (REQ-33-LY, TM-L1). */}
             {row.id === "relationships" && (
               <ul aria-label="Relationship types in this layer" className="flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5">
-                {AUTHORED_TYPES.map((type) => (
-                  <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <EdgeLineSample kind="relationship" type={type} />
-                    {RELATIONSHIP_STYLES[type].label}
+                {authoredTypes().map((entry) => (
+                  <li key={entry.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <EdgeLineSample kind="relationship" type={entry.id} />
+                    {entry.label}
                   </li>
                 ))}
               </ul>
@@ -166,10 +168,10 @@ export function LayersSection({ layers, onLayerChange, edges }: LayersSectionPro
         <p className="text-xs text-muted-foreground">Authored</p>
         {kinds.relationshipTypes.length > 0 ? (
           <ul aria-label="Relationship line styles" className="space-y-1.5">
-            {kinds.relationshipTypes.map((type) => (
-              <li key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <EdgeLineSample kind="relationship" type={type} />
-                {relationshipStyle(type).label}
+            {kinds.relationshipTypes.map((entry) => (
+              <li key={entry.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <EdgeLineSample kind="relationship" type={entry.id} />
+                {entry.label}
               </li>
             ))}
           </ul>

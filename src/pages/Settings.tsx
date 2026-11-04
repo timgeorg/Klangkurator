@@ -32,7 +32,15 @@ import { refreshCratesQuietly, type MusicLocation } from "@/lib/crates";
 import { useCoverStyle } from "@/lib/appearance";
 import { getGenreConfig, saveGenreConfig, type GenreConfig } from "@/lib/genreData";
 import { refreshGenres, saveSettings, useSettingsTick } from "@/lib/settings";
-import { ENTITY_COLORS } from "@/lib/palette";
+import { ENTITY_COLORS, FALLBACK_COLOR } from "@/lib/palette";
+import {
+  getRelationshipTypes,
+  refreshRelationshipTypes,
+  subscribeRelationshipTypes,
+  TRANSITION_TYPE_ID,
+  type RelationshipType,
+} from "@/lib/relationshipTypes";
+import { RelationLine } from "@/components/detail/RelationLine";
 import { usePlayer } from "@/lib/PlayerContext";
 import { cn } from "@/lib/utils";
 import { storage, type Tag } from "@/lib/storage";
@@ -44,15 +52,20 @@ const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
 type Editing =
   | { kind: "tag"; tag: Tag | null }
   | { kind: "genre"; genre: GenreConfig | null }
-  | { kind: "subgenre"; main: string; sub: string | null };
+  | { kind: "subgenre"; main: string; sub: string | null }
+  | { kind: "relationship"; type: RelationshipType | null };
 
 type PendingDelete =
   | { kind: "tag"; tag: Tag; uses: number }
   | { kind: "genre"; genre: GenreConfig }
   | { kind: "subgenre"; main: string; sub: string }
-  | { kind: "location"; location: MusicLocation };
+  | { kind: "location"; location: MusicLocation }
+  | { kind: "relationship"; type: RelationshipType };
 
 export default function Settings() {
+  const [relationshipTypes, setTypes] = useState<RelationshipType[]>(getRelationshipTypes());
+  const [typesStatus, setTypesStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [typesError, setTypesError] = useState("");
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagUses, setTagUses] = useState<Map<string, number>>(new Map());
   const [tagStatus, setTagStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -220,6 +233,22 @@ export default function Settings() {
     window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
   };
 
+  const loadTypes = useCallback(async () => {
+    try {
+      await refreshRelationshipTypes();
+      setTypes([...getRelationshipTypes()]);
+      setTypesStatus("ready");
+    } catch (error) {
+      setTypesError(describeApiError(error));
+      setTypesStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTypes();
+    return subscribeRelationshipTypes(() => setTypes([...getRelationshipTypes()]));
+  }, [loadTypes]);
+
   const loadTags = useCallback(async () => {
     try {
       const [loadedTags, songTags] = await Promise.all([storage.getTags(), storage.getSongTags()]);
@@ -274,6 +303,23 @@ export default function Settings() {
       }
       return;
     }
+    if (target.kind === "relationship") {
+      const clash = relationshipTypes.find(
+        (type) => type.id !== target.type?.id && sameName(type.name, name),
+      );
+      if (clash) return `The relationship type “${clash.name}” already exists.`;
+      try {
+        if (target.type) {
+          await api.patch<RelationshipType>(`/relationship-types/${encodeURIComponent(target.type.id)}`, { name, color });
+        } else {
+          await api.post<RelationshipType>("/relationship-types", { name, color });
+        }
+        await loadTypes();
+      } catch (error) {
+        return `The relationship type wasn't saved: ${describeApiError(error)}`;
+      }
+      return;
+    }
     if (target.kind === "genre") {
       const clash = genres.find((g) => g.name !== target.genre?.name && sameName(g.name, name));
       if (clash) return `The genre “${clash.name}” already exists.`;
@@ -317,6 +363,23 @@ export default function Settings() {
       updateGenres(
         genres.map((g) => (g.name === pending.main ? { ...g, subgenres: g.subgenres.filter((s) => s !== pending.sub) } : g)),
       );
+    } else if (pending.kind === "relationship") {
+      try {
+        const result = await api.delete<{ id: string; converted: number; deleted: number }>(
+          `/relationship-types/${encodeURIComponent(pending.type.id)}`,
+        );
+        toast({
+          title: "Relationship type deleted",
+          description:
+            result.converted > 0
+              ? `${plural(result.converted, "relationship")} now ${result.converted === 1 ? "reads" : "read"} as “${relationshipOppositeName(pending.type)}”, with the two tracks swapped.`
+              : `${plural(result.deleted, "relationship")} deleted.`,
+        });
+        await loadTypes();
+        window.dispatchEvent(new CustomEvent("klangkurator:library-changed"));
+      } catch (error) {
+        toast({ title: `“${pending.type.name}” wasn't deleted`, description: describeApiError(error), variant: "destructive" });
+      }
     } else {
       try {
         const result = await api.delete<{
@@ -521,6 +584,91 @@ export default function Settings() {
         </PageSection>
 
         <PageSection
+          id="relationships"
+          title="Relationship types"
+          description="The connections between tracks, in your own words. Each one reads on both tracks: “is remix of” shows as “is original of” on the other one."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => edit({ kind: "relationship", type: null })}>
+              <Plus />
+              New type
+            </Button>
+          }
+        >
+          {typesStatus === "loading" ? (
+            <div role="status" aria-label="Loading relationship types" className="space-y-3">
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-2/3" />
+            </div>
+          ) : typesStatus === "error" ? (
+            <div role="alert" className="text-[13px]">
+              <p className="text-destructive">The relationship types didn't load: {typesError}.</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => loadTypes()}>
+                Try again
+              </Button>
+            </div>
+          ) : relationshipTypes.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">No relationship types yet.</p>
+          ) : (
+            <ul className="border-t border-border">
+              {relationshipTypes.map((type) => {
+                const opposite = relationshipTypes.find((entry) => entry.id === type.opposite_id);
+                const isTransition = type.id === TRANSITION_TYPE_ID;
+                return (
+                  <li key={type.id} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2">
+                    <RelationLine type={type.id} className="w-7" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium">{type.name}</span>
+                      {/* Wraps rather than truncates: the opposite's name is the
+                          part that says how the type reads, so a narrow screen
+                          keeps it whole. */}
+                      <span className="block text-xs text-muted-foreground">
+                        {isTransition
+                          ? "One way, no opposite · found by id by the Transitions page and the map"
+                          : opposite
+                            ? `Opposite: ${opposite.name}`
+                            : type.both_ways
+                              ? "Reads the same both ways"
+                              : "One way, no opposite"}
+                      </span>
+                    </span>
+                    <span className="k-num shrink-0 text-xs text-muted-foreground">
+                      {plural(type.uses, "relationship")}
+                    </span>
+                    <span className="flex shrink-0 items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => edit({ kind: "relationship", type })}
+                        aria-label={`Edit relationship type ${type.name}`}
+                        title="Edit"
+                      >
+                        <Pencil />
+                      </Button>
+                      {!isTransition && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => askDelete({ kind: "relationship", type })}
+                          aria-label={`Delete relationship type ${type.name}`}
+                          title="Delete"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Colours come from the same palette as the tags. A type and its opposite share one colour and one
+            entry in every legend.
+          </p>
+        </PageSection>
+
+        <PageSection
           id="genres"
           title="Genres"
           description="Each track has one main genre and any of its subgenres. The genre's color is the dot next to it in the library."
@@ -675,7 +823,11 @@ export default function Settings() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
-                  {pending.kind === "location" ? "Remove folder" : `Delete ${pending.kind}`}
+                  {pending.kind === "location"
+                    ? "Remove folder"
+                    : pending.kind === "relationship"
+                      ? "Delete type"
+                      : `Delete ${pending.kind}`}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>
@@ -785,8 +937,14 @@ function SubgenreChip({
   );
 }
 
+/** The name of a type's opposite, for a delete confirmation. */
+function relationshipOppositeName(type: RelationshipType): string {
+  return getRelationshipTypes().find((entry) => entry.id === type.opposite_id)?.name ?? "its opposite";
+}
+
 function editKey(target: Editing): string {
   if (target.kind === "tag") return `tag:${target.tag?.id ?? "new"}`;
+  if (target.kind === "relationship") return `relationship:${target.type?.id ?? "new"}`;
   if (target.kind === "genre") return `genre:${target.genre?.name ?? "new"}`;
   return `sub:${target.main}:${target.sub ?? "new"}`;
 }
@@ -801,21 +959,36 @@ function EditForm({
   onSave: (name: string, color: string) => Promise<string | void>;
 }) {
   const initialName =
-    target.kind === "tag" ? (target.tag?.name ?? "") : target.kind === "genre" ? (target.genre?.name ?? "") : (target.sub ?? "");
+    target.kind === "tag"
+      ? (target.tag?.name ?? "")
+      : target.kind === "genre"
+        ? (target.genre?.name ?? "")
+        : target.kind === "relationship"
+          ? (target.type?.name ?? "")
+          : (target.sub ?? "");
   const initialColor =
     target.kind === "tag"
       ? target.tag?.color
       : target.kind === "genre"
         ? target.genre?.color
-        : undefined;
+        : target.kind === "relationship"
+          ? (target.type?.color ?? FALLBACK_COLOR)
+          : undefined;
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(() => initialColor ?? ENTITY_COLORS[Math.floor(Math.random() * ENTITY_COLORS.length)].hex);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const isNew = target.kind === "tag" ? !target.tag : target.kind === "genre" ? !target.genre : !target.sub;
-  const noun = target.kind;
+  const isNew =
+    target.kind === "tag"
+      ? !target.tag
+      : target.kind === "genre"
+        ? !target.genre
+        : target.kind === "relationship"
+          ? !target.type
+          : !target.sub;
+  const noun = target.kind === "relationship" ? "relationship type" : target.kind;
   const hasColor = target.kind !== "subgenre";
 
   const copy = useMemo(() => {
@@ -823,6 +996,17 @@ function EditForm({
       return {
         title: isNew ? "New tag" : "Edit tag",
         description: isNew ? "Name it for what you hear, e.g. Piano or Sing-along." : "The change shows on every track with this tag.",
+      };
+    }
+    if (target.kind === "relationship") {
+      const isTransition = target.type?.id === "transition";
+      return {
+        title: isNew ? "New relationship type" : "Edit relationship type",
+        description: isNew
+          ? "Name the connection as it reads from one track, e.g. “is a bootleg of”."
+          : isTransition
+            ? "Only the name and the colour change: the Transitions page and the map find this type by its id."
+            : "Every relationship of this type shows the new name at once.",
       };
     }
     if (target.kind === "genre") {
@@ -887,7 +1071,11 @@ function EditForm({
       {hasColor && (
         <div className="space-y-2.5">
           <Label id="entity-color">Color</Label>
-          <SwatchPicker value={color} onChange={setColor} label={`${noun === "tag" ? "Tag" : "Genre"} color`} />
+          <SwatchPicker
+            value={color}
+            onChange={setColor}
+            label={`${noun === "tag" ? "Tag" : noun === "relationship type" ? "Relationship type" : "Genre"} color`}
+          />
           <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
             Preview
             <ColorChip size="md" color={color} label={name.trim() || "Name"} />
@@ -909,12 +1097,22 @@ function EditForm({
 
 function deleteTitle(pending: PendingDelete): string {
   if (pending.kind === "tag") return `Delete the tag “${pending.tag.name}”?`;
+  if (pending.kind === "relationship") return `Delete the relationship type “${pending.type.name}”?`;
   if (pending.kind === "genre") return `Delete the genre “${pending.genre.name}”?`;
   if (pending.kind === "location") return `Remove the music folder “${pending.location.path}”?`;
   return `Delete the subgenre “${pending.sub}”?`;
 }
 
 function deleteBody(pending: PendingDelete): string {
+  if (pending.kind === "relationship") {
+    const uses = pending.type.uses;
+    if (pending.type.opposite_id) {
+      return uses === 0
+        ? `No relationship uses it. Its rows would read as “${relationshipOppositeName(pending.type)}”, with the two tracks swapped.`
+        : `${plural(uses, "relationship")} now ${uses === 1 ? "reads" : "read"} as “${relationshipOppositeName(pending.type)}”, with the two tracks swapped. Nothing is lost.`;
+    }
+    return uses === 0 ? "No relationship uses it." : `${plural(uses, "relationship")} deleted with it.`;
+  }
   if (pending.kind === "tag") {
     return pending.uses > 0 ? `It's removed from ${plural(pending.uses, "track")}.` : "No track uses it.";
   }

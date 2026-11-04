@@ -56,7 +56,7 @@ def test_export_has_the_envelope_and_excludes_config():
     assert d["version"] == 1
     assert "exported_at" in d
     assert set(d["data"].keys()) == {
-        "songs", "tags", "genres", "song_tags", "song_relationships",
+        "songs", "tags", "genres", "relationship_types", "song_tags", "song_relationships",
         "playlists", "playlist_songs", "blocks", "sets",
     }
     assert "_config" not in d["data"]

@@ -27,7 +27,7 @@ app_client = TestClient(app)
 READ_TOOLS = {
     "list_crates", "search_tracks", "get_track", "scan_status",
     "list_music_locations", "analyze_status", "list_tags", "list_playlists",
-    "list_relationships", "get_transitions",
+    "list_relationships", "list_relationship_types", "get_transitions",
 }
 WRITE_TOOLS = {
     "update_track", "scan_library", "add_music_location", "remove_music_location",
@@ -107,17 +107,17 @@ def song() -> dict:
 def test_exactly_the_curated_tools_are_listed():
     """BC-6: the curated list, nothing generated, nothing destructive.
 
-    25 tools since the music-location CRUD replaced the single root pair
-    (issue #11): `list_music_locations`, `add_music_location` and
-    `remove_music_location` in place of `get_library_root` and
-    `set_library_root`.
+    26 tools since the music-location CRUD replaced the single root pair
+    (issue #11) and `list_relationship_types` joined (issue #81):
+    `list_music_locations`, `add_music_location` and `remove_music_location`
+    in place of `get_library_root` and `set_library_root`.
     """
     import asyncio
 
     listed = asyncio.run(tools.server.list_tools())
     names = {tool.name for tool in listed}
 
-    assert len(listed) == 25
+    assert len(listed) == 26
     assert names == READ_TOOLS | WRITE_TOOLS
     assert not any(name.startswith("delete_") for name in names)
 
@@ -290,18 +290,80 @@ def test_playlist_add_refuses_ids_the_api_would_accept(song):
 
 
 def test_link_tracks_validates_the_type(song):
-    """BC-16: the API takes any string; the app knows eight."""
+    """BC-16, REQ-34-RT VC3: the API takes any string; the app knows the user's list."""
     other = app_client.post("/api/songs", json={
         "title": "Other", "artist": "a", "file_path": "/music/other.mp3",
     }).json()
 
-    with pytest.raises(ToolError, match="Unknown relationship type"):
+    with pytest.raises(ToolError, match="Unknown relationship type") as error:
         tools.link_tracks(song["id"], other["id"], "vibes")
+    # The message names every type in the list, so a caller can retry.
+    assert "is remix of" in str(error.value)
+    assert "same vibe" in str(error.value)
 
     link = tools.link_tracks(song["id"], other["id"], "transition", notes="key match")
     assert link["relationship_type"] == "transition"
     assert link["id"] in {row["id"] for row in tools.list_relationships(song_id=song["id"])}
     assert "waveform_peaks" not in tools.get_transitions(song["id"])[0]["song"]
+
+
+def test_list_relationship_types_gives_what_an_agent_needs(song):
+    """REQ-34-RT VC1: id, name, both-ways mark and the opposite's name."""
+    listed = tools.list_relationship_types()
+
+    assert [row["name"] for row in listed] == [
+        "is remix of", "is original of", "same sample",
+        "works as mashup", "transition", "same vibe",
+    ]
+    by_id = {row["id"]: row for row in listed}
+    assert by_id["remix"]["both_ways"] is False
+    assert by_id["remix"]["opposite_id"] == "original"
+    assert by_id["same_vibe"]["both_ways"] is True
+    assert by_id["transition"]["opposite_id"] is None
+
+
+def test_link_tracks_takes_a_type_by_name_or_id(song):
+    """REQ-34-RT VC2: the match ignores case, and both spellings work."""
+    first = app_client.post("/api/songs", json={
+        "title": "First", "artist": "a", "file_path": "/music/first.mp3",
+    }).json()
+    second = app_client.post("/api/songs", json={
+        "title": "Second", "artist": "a", "file_path": "/music/second.mp3",
+    }).json()
+
+    by_name = tools.link_tracks(song["id"], first["id"], "Same Sample")
+    by_id = tools.link_tracks(song["id"], second["id"], "SAME_SAMPLE")
+
+    assert by_name["relationship_type"] == "same_sample"
+    assert by_id["relationship_type"] == "same_sample"
+
+
+def test_a_name_wins_over_another_type_s_id(song):
+    """REQ-34-RT VC8: a type the user named after another type's id stays reachable."""
+    other = app_client.post("/api/songs", json={
+        "title": "Other", "artist": "a", "file_path": "/music/other.mp3",
+    }).json()
+    # A type whose name is another type's id.
+    app_client.post("/api/relationship-types", json={"name": "remix", "color": "#111111"})
+
+    link = tools.link_tracks(song["id"], other["id"], "Remix")
+
+    named = next(row for row in tools.list_relationship_types() if row["name"] == "remix")
+    assert link["relationship_type"] == named["id"]
+    assert link["relationship_type"] != "remix"
+
+
+def test_a_row_names_its_type_as_settings_shows_it(song):
+    """REQ-34-RT VC4."""
+    other = app_client.post("/api/songs", json={
+        "title": "Other", "artist": "a", "file_path": "/music/other.mp3",
+    }).json()
+    tools.link_tracks(song["id"], other["id"], "same vibe")
+    app_client.patch("/api/relationship-types/same_vibe", json={"name": "same feeling"})
+
+    row = tools.list_relationships(song_id=song["id"])[0]
+
+    assert row["type_name"] == "same feeling"
 
 
 def test_export_gives_a_summary_not_the_envelope(tmp_path, monkeypatch):

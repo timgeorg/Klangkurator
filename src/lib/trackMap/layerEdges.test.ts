@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { setRelationshipTypesForTests, __resetRelationshipTypesForTests } from "@/lib/relationshipTypes";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   PARALLEL_EDGE_SPACING,
@@ -11,6 +12,16 @@ import {
 import type { MapEdge, TransitionSource } from "./types";
 
 const ALL_ON: LayerFlags = { relationships: true, transitions: true, nearest: true };
+
+/** The six defaults, as `GET /api/relationship-types` reports them. */
+const DEFAULTS = [
+  { id: "remix", name: "is remix of", color: "#6B5BD6", both_ways: false, opposite_id: "original", uses: 0 },
+  { id: "original", name: "is original of", color: "#6B5BD6", both_ways: false, opposite_id: "remix", uses: 0 },
+  { id: "same_sample", name: "same sample", color: "#C9A227", both_ways: true, opposite_id: null, uses: 0 },
+  { id: "works_as_mashup", name: "works as mashup", color: "#E0607E", both_ways: true, opposite_id: null, uses: 0 },
+  { id: "transition", name: "transition", color: null, both_ways: false, opposite_id: null, uses: 0 },
+  { id: "same_vibe", name: "same vibe", color: "#4E9A2A", both_ways: true, opposite_id: null, uses: 0 },
+];
 
 function relationshipEdge(source: string, target: string, type: string): MapEdge {
   return { source, target, kind: "relationship", relationshipType: type };
@@ -192,13 +203,18 @@ describe("transitionNotes", () => {
 });
 
 describe("onScreenEdgeKinds", () => {
-  it("lists the authored types on screen in the palette's order", () => {
+  beforeEach(() => {
+    __resetRelationshipTypesForTests();
+    setRelationshipTypesForTests(DEFAULTS);
+  });
+
+  it("lists the authored types on screen in the user's order, one entry each", () => {
     const kinds = onScreenEdgeKinds([
       relationshipEdge("A", "B", "same_sample"),
       relationshipEdge("B", "C", "remix"),
       relationshipEdge("C", "D", "remix"),
     ]);
-    expect(kinds.relationshipTypes).toEqual(["remix", "same_sample"]);
+    expect(kinds.relationshipTypes.map((entry) => entry.id)).toEqual(["remix", "same_sample"]);
   });
 
   it("reads the transition and nearest layers off what is drawn", () => {
@@ -210,11 +226,21 @@ describe("onScreenEdgeKinds", () => {
     expect(onScreenEdgeKinds([])).toEqual({ relationshipTypes: [], transitions: false, nearest: false });
   });
 
-  it("keeps a type the palette does not name, after the named ones", () => {
+  it("keeps a type the list does not know, after the ones it does", () => {
     const kinds = onScreenEdgeKinds([
       relationshipEdge("A", "B", "unheard_of"),
-      relationshipEdge("B", "C", "cover"),
+      relationshipEdge("B", "C", "remix"),
     ]);
-    expect(kinds.relationshipTypes).toEqual(["cover", "unheard_of"]);
+    expect(kinds.relationshipTypes.map((entry) => entry.id)).toEqual(["remix", "unheard_of"]);
+  });
+
+  it("gives a type and its opposite one entry that names both", () => {
+    // REQ-14-RD VC12: the pair states one fact from either side.
+    const kinds = onScreenEdgeKinds([
+      relationshipEdge("A", "B", "remix"),
+      relationshipEdge("B", "C", "original"),
+    ]);
+    expect(kinds.relationshipTypes).toHaveLength(1);
+    expect(kinds.relationshipTypes[0].label).toBe("is remix of / is original of");
   });
 });

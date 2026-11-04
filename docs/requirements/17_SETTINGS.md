@@ -21,13 +21,28 @@ Source: Requirements.md section 11
 - Edit and delete are always visible, never only on hover
 - **No "Reset to Defaults" button** — user changes are permanent
 
-## Relationship Types Management
+## Relationship Types Management (built 2026-11-04, issue #81)
 
-Planned with issue #81. The rules are in 14_RELATIONSHIPS.md
-(REQ-14-RT). The section works like Tags Management: add, rename, colour, the
-both-ways mark, the opposite, and delete. The delete confirmation states how
-many relationships use the type. For the transition type, the section offers
-only the name and the colour (INV-26). The list joins the export (REQ-14-RP).
+Works like Tags Management. The rules are in 14_RELATIONSHIPS.md
+(REQ-14-RT).
+
+- Add a type with a name and a colour from the tag palette. The app refuses a
+  name another type holds, and ignores case in the comparison.
+- Rename a type and recolour it. A pair shares one colour, so a recolour of one
+  side recolours the other.
+- Mark a type as "reads the same both ways" or as one-way, and name another
+  one-way type as its opposite. The link is mutual. Naming B as A's opposite
+  also names A on B, and clears any opposite B had before.
+- Each row shows how many relationships use the type.
+- Delete a type after a confirmation that states the count. A type with an
+  opposite hands its relationships to that opposite with the two tracks
+  swapped. A type without one takes its relationships with it.
+- The **transition** type offers only the name and the colour, and no delete
+  action (INV-26). The app keeps its id fixed, so the Transitions page, the set
+  editor and the map still find it after a rename.
+- **`relationship_types` inside `library.json`** holds the list, beside `tags`
+  and `genres`, so it survives cleared site data and joins the backup
+  (REQ-14-RP).
 
 ## Root Folder
 
@@ -39,10 +54,10 @@ Lives on the Import page, not in Settings (see 10_LIBRARY_AND_FILE_LOADING):
 
 ## Backup & Export (built 2026-10-13, PF-83, issue #10)
 
-- **Full JSON export**: entire library (songs, tags, song_tags, relationships,
-  playlists, playlist_songs, blocks, sets) in a single versioned envelope
-  `klangkurator-library-<date>.json`. The machine-local `_config` (root path)
-  is excluded.
+- **Full JSON export**: entire library (songs, tags, genres, relationship
+  types, song_tags, relationships, playlists, playlist_songs, blocks, sets) in a
+  single versioned envelope `klangkurator-library-<date>.json`. The
+  machine-local `_config` (root path) is excluded.
 - **Merge import with a conflict popup**: matched tracks are found by
   file_path → artist+title+duration ±2 s → artist+title; empty local fields
   are filled silently, differing values are resolved one by one (overwrite
@@ -65,6 +80,9 @@ could not keep them at all. They are files now.
 - **`genres` inside `library.json`** holds the genre list
   (`[{name, color, subgenres}]`). Genres are library vocabulary like tags, and
   the backup covers the whole library, so they join the export.
+- **`relationship_types` inside `library.json`** holds the relationship type
+  list (`[{id, name, color, both_ways, opposite_id}]`), for the same reason
+  (issue #81).
 - **`GET /api/settings`** returns the document, or `{}` when nothing was saved.
   **`PUT /api/settings`** shallow-merges a partial object. Only `columns`,
   `map`, `theme`, `covers`, `playerDock`, `volume` and `crateTabsExpanded` are

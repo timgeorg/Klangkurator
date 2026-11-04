@@ -86,6 +86,9 @@ def export_data():
             # Genres are library vocabulary like tags, so a backup carries them
             # (NFR-2, issue #51).
             "genres": library.get_genres(),
+            # The relationship type list is library vocabulary too, so a backup
+            # carries it and an import maps onto it (REQ-14-RP, issue #81).
+            "relationship_types": library.get_relationship_types(),
             "song_tags": library.get_song_tags(),
             "song_relationships": library.get_relationships(),
             "playlists": library.get_playlists(),

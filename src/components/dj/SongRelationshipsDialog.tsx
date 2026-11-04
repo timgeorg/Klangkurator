@@ -15,10 +15,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { apiStatus } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { usePlayer } from "@/lib/PlayerContext";
 import { MAP_PATH } from "@/lib/mapRoute";
-import { RELATIONSHIP_STYLES, RELATIONSHIP_TYPES, RelationshipType, relationshipPhrase } from "@/lib/relationshipStyle";
+import {
+  getRelationshipTypes,
+  relationshipPartnerArrow,
+  relationshipPhrase,
+  subscribeRelationshipTypes,
+} from "@/lib/relationshipTypes";
+import { relationshipStyle } from "@/lib/relationshipStyle";
 import { Song, SongPlaylistMembership, SongRelationship, storage } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +64,30 @@ function relationshipsFor(song: Song, rels: SongRelationship[], byId: Map<string
   return existing;
 }
 
+/**
+ * The sentence under the direction picker, so the choice has no surprises.
+ *
+ * @param typeId - The chosen type, or "" before one is chosen.
+ * @param direction - The side the open track takes.
+ * @param songTitle - The open track's title.
+ * @param otherTitle - The chosen partner's title, when there is one.
+ * @returns The sentence to show.
+ */
+function directionPreview(
+  typeId: string,
+  direction: "source" | "target",
+  songTitle: string,
+  otherTitle?: string,
+): string {
+  if (!typeId) return "Pick a type to see how both tracks read it.";
+  const other = otherTitle ?? "the other track";
+  const name = relationshipPhrase(typeId, direction);
+  const arrow = relationshipPartnerArrow(typeId, direction);
+  return direction === "source"
+    ? `“${songTitle} ${name} ${other}” — ${other} reads “${relationshipPhrase(typeId, "target")}”.`
+    : `“${other} ${relationshipPhrase(typeId, "source")} ${songTitle}” — this track reads “${name}”${arrow ? ` ${arrow}` : ""}.`;
+}
+
 export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange, onSave }: SongRelationshipsDialogProps) {
   const { current, isPlaying, play, toggle } = usePlayer();
   const navigate = useNavigate();
@@ -76,6 +107,8 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
   const [showAddForm, setShowAddForm] = useState(false);
   const [newType, setNewType] = useState<string>("");
   const [newTargetId, setNewTargetId] = useState<string>("");
+  /** Which side of the fact the open track is: the row's source or its target. */
+  const [newDirection, setNewDirection] = useState<"source" | "target">("source");
   const [newNotes, setNewNotes] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,6 +120,7 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
     setShowAddForm(false);
     setNewType("");
     setNewTargetId("");
+    setNewDirection("source");
     setNewNotes("");
     setSearchQuery("");
   };
@@ -107,6 +141,14 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
     setSelectedId(target.id);
     setLoaded(true);
   }, []);
+
+  // A rename in Settings shows here at once, without reopening the dialog.
+  const [typeTick, setTypeTick] = useState(0);
+  useEffect(() => subscribeRelationshipTypes(() => setTypeTick((value) => value + 1)), []);
+  const types = useMemo(() => {
+    void typeTick;
+    return getRelationshipTypes();
+  }, [typeTick]);
 
   const songId = song?.id;
   useEffect(() => {
@@ -130,19 +172,29 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
       toast({ title: "Missing information", description: "Choose a relationship type and a track.", variant: "destructive" });
       return;
     }
+    // The type reads from the track it is picked on. "is original of" on B is
+    // "is remix of B" on A, so choosing the target direction stores the other
+    // track as the source: one fact, one row (REQ-14-RD VC7).
+    const sourceId = newDirection === "source" ? song.id : newTargetId;
+    const targetId = newDirection === "source" ? newTargetId : song.id;
     setSaving(true);
     try {
       await storage.addSongRelationship({
-        source_song_id: song.id,
-        target_song_id: newTargetId,
-        relationship_type: newType as RelationshipType,
+        source_song_id: sourceId,
+        target_song_id: targetId,
+        relationship_type: newType,
         notes: newNotes.trim() || undefined,
       });
       toast({ title: "Relationship added", description: "The song relationship has been created." });
       resetForm();
       await refresh();
-    } catch {
-      toast({ title: "Error adding relationship", description: "The relationship wasn't saved.", variant: "destructive" });
+    } catch (error) {
+      const duplicate = apiStatus(error) === 409;
+      toast({
+        title: duplicate ? "This relationship exists" : "Error adding relationship",
+        description: duplicate ? "The two tracks already have this relationship." : "The relationship wasn't saved.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -351,6 +403,7 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
                           <span className="flex items-center gap-2 text-xs text-muted-foreground">
                             <RelationLine type={rel.type} />
                             {relationshipPhrase(rel.type, rel.direction)}
+                            {relationshipPartnerArrow(rel.type, rel.direction)}
                           </span>
                           <span className="block truncate text-[13px] font-medium">{rel.otherSong.title}</span>
                           <span className="block truncate text-xs text-muted-foreground">
@@ -389,11 +442,11 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
                           <SelectValue placeholder="Choose a type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {RELATIONSHIP_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
+                          {types.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>
                               <span className="flex items-center gap-2">
-                                <RelationLine type={type} />
-                                {RELATIONSHIP_STYLES[type].label}
+                                <RelationLine type={type.id} />
+                                {type.name}
                               </span>
                             </SelectItem>
                           ))}
@@ -451,6 +504,25 @@ export function SongRelationshipsDialog({ song: initialSong, open, onOpenChange,
                         </PopoverContent>
                       </Popover>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="rel-direction">This track is</Label>
+                    <Select
+                      value={newDirection}
+                      onValueChange={(value) => setNewDirection(value as "source" | "target")}
+                    >
+                      <SelectTrigger id="rel-direction" aria-describedby="rel-direction-help">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="source">The one the type names</SelectItem>
+                        <SelectItem value="target">The one the type is about</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p id="rel-direction-help" className="text-xs text-muted-foreground">
+                      {directionPreview(newType, newDirection, song.title, selectedSong?.title)}
+                    </p>
                   </div>
 
                   <div className="space-y-2">

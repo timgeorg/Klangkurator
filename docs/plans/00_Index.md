@@ -16,6 +16,8 @@ tags:
 - [[AUDIO_VARIANTS_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the variants (issue #65), from the scan's offer through Files, make primary, playback fallback, the octave report and export, judged black-box against a sandbox copy.
 - [[PLAYER_RUN_PLAN.md]] — plan for the player stepping through a run (issue #5, PF-80): Tim's decisions, the queue model, data flow, interaction semantics, files.
 - [[PLAYER_RUN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for next/previous and auto-advance (issue #5), judged black-box against a sandbox copy of the library.
+- [[RELATIONSHIP_TYPES_PLAN.md]] — plan for relationship types the user edits (issue #81, PF-91): the type list in `library.json`, the migration that gives every old row a type without rewriting one, the direction rule, and the one MCP tool the change adds.
+- [[RELATIONSHIP_TYPES_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for issue #81, from the first-start defaults and the migration through the direction reading, the picker, the refusals, deletion, the backup and the agent's view, judged black-box against a sandbox copy.
 - [[TRACK_MAP_PLAN.md]] — plan for the track map (issue #8, PF-81): shared types, the similarity/cluster/transition algorithm contract, and seven phases as PRs into int.
 - [[TRACK_MAP_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the track map (issue #8), grouped by phase, judged black-box against a sandbox copy of the library.
 - [[REDESIGN_BEHAVIOR_CONTRACT.md]] — Given/When/Then contract for the editorial redesign (issue #1), judged black-box against a sandbox copy of the library.

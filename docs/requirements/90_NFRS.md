@@ -9,7 +9,7 @@ Source: Requirements.md section 14
 | ID | Category | Requirement |
 |---|---|---|
 | NFR-1 | Security | No authentication, no cloud, no Supabase — fully local |
-| NFR-2 | Backup | Full JSON export/import of entire library (songs, tags, genres, relationships, playlists, blocks, sets) → built in Settings (PF-83, issue #10); genres added by #51; the import merges and asks before overwriting, it never replaces |
+| NFR-2 | Backup | Full JSON export/import of entire library (songs, tags, genres, relationship types, relationships, playlists, blocks, sets) → built in Settings (PF-83, issue #10); genres added by #51 and relationship types by #81; the import merges and asks before overwriting, it never replaces |
 | NFR-3 | Performance | A library of 1,000–5,000 songs shows its first row in under 1 s on a cold load. The table builds at most 50 rows per render (REQ-13-LR, issue #63) |
 | NFR-4 | Performance | Memoize filter options; avoid render loops in filter popovers |
 | NFR-5 | Performance | Set planning board must handle 50–100 tracks in the pool without lag |

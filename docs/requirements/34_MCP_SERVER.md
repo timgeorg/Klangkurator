@@ -1,7 +1,8 @@
 # MCP Server
 
-Status: Active — built (issue #47, 2026-10-23)
-Last Updated: 2026-11-04 (REQ-34-RT added, issue #81)
+Status: Active — built (issue #47, 2026-10-23; tool surface corrected for #11 and #81, 2026-11-04)
+Last Updated: 2026-11-04 (REQ-34-RT built, issue #81. The tool list and the
+counts are corrected for #11 and #81.)
 Source: issue #47 (Tim, 2026-10-23: *"Would you need MCP to better interact with
 Klangkurator? What would MCP need for that tool?"*). Plan:
 [`docs/plans/MCP_SERVER_PLAN.md`](../plans/MCP_SERVER_PLAN.md). Contract:
@@ -20,9 +21,9 @@ the library through a curated set of tools, without a second process writing
   renames it (`backend/storage/base_store.py:34-41`); two processes doing that
   to the same library lose writes.
 - **Curated, not generated.** 40 paths in `/openapi.json` (2026-10-23) is noise, and a
-  generated surface would offer `DELETE /api/songs/{song_id}`. The 24 tools
-  below are the whole surface; deletion is absent on purpose (a track or
-  playlist should be removed in the app, where the user sees what is going).
+  generated surface would offer `DELETE /api/songs/{song_id}`. The 26 tools
+  below are the whole surface. Deletion is absent on purpose: a track or a
+  playlist should leave in the app, where the user sees what is going.
 - **Local only.** stdio transport, no listener, no auth, no CORS change
   (`backend/main.py:22-36`). The server is a local process, not a browser
   origin; NFR-1 stands.
@@ -42,8 +43,8 @@ the library through a curated set of tools, without a second process writing
 | 4 | `update_track` | `PUT /api/songs/{id}` | `song_id` + any writable field | the updated song, slim |
 | 5 | `scan_library` | `POST /api/library/scan` | `root_path` | `{started, total}` |
 | 6 | `scan_status` | `GET /api/library/scan-status` | — | the job state (REQ-10-SP) |
-| 7 | `get_library_root` | `GET /api/library/root` | — | `{root_path}` |
-| 8 | `set_library_root` | `PUT /api/library/root` | `root_path` | `{root_path}` |
+| 7 | `list_music_locations` | `GET /api/library/locations` | — | `[{id, path, exists, crate_count, track_count}]` |
+| 8 | `add_music_location` | `POST /api/library/locations` | `path` | the location, with `added_crates` and `exists` |
 | 9 | `analyze_all` | `POST /api/library/analyze-all` | — | `{started, total}` |
 | 10 | `analyze_status` | `GET /api/library/analyze-status` | — | the job state (REQ-10-AP) |
 | 11 | `analyze_track` | `POST /api/library/analyze/{id}` | `song_id`, `bpm_min`, `bpm_max` | `{song_id, bpm, musical_key, duration, bpm_fit, applied}` |
@@ -60,6 +61,8 @@ the library through a curated set of tools, without a second process writing
 | 22 | `link_tracks` | `POST /api/relationships` | `source_song_id`, `target_song_id`, `relationship_type`, `notes` | the relationship |
 | 23 | `get_transitions` | `GET /api/songs/{id}/transition-suggestions` | `song_id` | `[{song, notes}]`, songs slim |
 | 24 | `export_library` | `GET /api/export` | `output_path` (optional) | a summary, or `{path, bytes, counts}` |
+| 25 | `remove_music_location` | `DELETE /api/library/locations/{id}` | `location_id` | `{id, path, songs_flagged, crates_removed}` |
+| 26 | `list_relationship_types` | `GET /api/relationship-types` | — | `[{id, name, both_ways, opposite_id}]` |
 
 Rules that belong to the tool layer, not the backend:
 
@@ -94,10 +97,11 @@ Rules that belong to the tool layer, not the backend:
   in the playlist is answered as it is — a retry never adds it twice. There is
   no `position` argument: the store does not move the other rows, so an insert
   position did nothing useful.
-- **`link_tracks` validates the type** against the eight the app knows
-  (`relationship_type` in `src/lib/storage.ts`): remix, same_sample, cover, mashup, edit, bootleg,
-  in_playlist, transition. The API takes any string. This changes with issue
-  #81: the check moves to the type list of the user (REQ-34-RT).
+- **`link_tracks` resolves the type against the user's list** (REQ-34-RT). It
+  takes a name or an id, ignores case, and lets a name match win. A miss raises
+  one `ToolError` that names every type, so a caller can retry. The API refuses
+  an id outside the list, and it refuses a relationship the library already
+  holds. Both answers carry the status and the API's own `detail`.
 - **`create_tag` defaults the colour** to `#A1A2B3` (the palette's
   `FALLBACK_COLOR`, `src/lib/palette.ts:38`). The app's name hash
   (`colorForName`, `:41-45`) is not ported; the user recolours in Settings.
@@ -111,11 +115,11 @@ Rules that belong to the tool layer, not the backend:
   export folder inside `~/.klangkurator/`. A failed write removes only the file
   it created. (Issue #57: the first version wrote and overwrote any path.)
 
-## Relationship types for agents (REQ-34-RT, issue #81)
+## Relationship types for agents (REQ-34-RT, issue #81, built)
 
-Status: Active
+Status: Done
 Priority: P1
-Basis: I — follows from REQ-14-RT. Today `link_tracks` checks a fixed list of eight types (`mcp_server/tools.py:33-36`), and that list stops being true. The tables in this file count 24 tools, but the code has 25 since issue #11. So VC6 counts the change, not the total.
+Basis: I — follows from REQ-14-RT. `link_tracks` checked a fixed list of eight types. That list stopped being true once the user edits it. The tables in this file counted 24 tools while the code had 25 since issue #11. They now count 26. VC6 counts the change, not the total.
 Serves: an agent links tracks with the types that the user sees.
 
 Verification criteria:
@@ -148,14 +152,14 @@ Verification criteria:
   `KLANGKURATOR_URL` (default `http://127.0.0.1:8000`) ·
   `KLANGKURATOR_TIMEOUT` (default 30 s, per request; 0 or less falls back to 30) ·
   `KLANGKURATOR_EXPORT_DIR` (default `~/klangkurator-exports`, where `export_library` writes) ·
-  `KLANGKURATOR_READ_ONLY` (`1` refuses the 13 tools that change the library;
+  `KLANGKURATOR_READ_ONLY` (`1` refuses the 14 tools that change the library;
   unset or empty is off) ·
   `KLANGKURATOR_ROOTS` (`os.pathsep`-separated allowlist for `scan_library`
   and `set_library_root`; default: the configured root only, read on each call from
   `GET /api/library/root`).
-- **Annotations.** All 24 tools carry `openWorldHint: false` — the domain is
-  one local library. The 10 read tools carry `readOnlyHint: true`. The other
-  14 carry `readOnlyHint: false` and, because `destructiveHint` defaults to
+- **Annotations.** All 26 tools carry `openWorldHint: false` — the domain is
+  one local library. The 11 read tools carry `readOnlyHint: true`. The other
+  15 carry `readOnlyHint: false` and, because `destructiveHint` defaults to
   **true** when omitted, an explicit `destructiveHint: false` — true for
   `export_library` too, since it never replaces a file.
   `idempotentHint: true` only where a repeat call leaves the same state:
@@ -175,7 +179,7 @@ Verification criteria:
   path — letters, digits, `-` and `_` only — and the client refuses any path
   with a `.`/`..` segment or `? # % \`. An id such as `../../<song-id>` once
   reached `DELETE /api/songs/<id>` (issue #57).
-- **Read-only mode.** With `KLANGKURATOR_READ_ONLY=1` the **13 tools that
+- **Read-only mode.** With `KLANGKURATOR_READ_ONLY=1` the **14 tools that
   change the library** fail before any HTTP request; reads still work.
   `export_library` still gives its summary, but writing the export file is
   refused like every other write: a read-only session writes nothing.
@@ -201,16 +205,16 @@ Checked by a reviewer with `curl` and an MCP client, without reading the diff:
 | AX-3 | `GET /api/songs?slim=true` is ≥ 55 % smaller than `GET /api/songs`, same `len()`, and no row carries a `waveform_peaks` key |
 | AX-4 | `GET /api/library/browse?path=<configured root>` → 200 listing the crates; `?path=/etc` → 403; any other path outside home and root → 403 |
 | AX-5 | `python -m pytest backend/tests` passes with no existing test edited |
-| AX-6 | A client over stdio lists exactly the 24 tools above: no `delete_*`, no generated extras |
+| AX-6 | A client over stdio lists exactly the 26 tools above: no `delete_*`, no generated extras |
 | AX-7 | `list_crates` returns one entry per crate and the counts sum to the track total (27 today) |
 | AX-8 | `search_tracks(bpm_min=128, bpm_max=132, limit=5)` returns ≤ 5 tracks, all in range, `total ≥ returned`, no `waveform_peaks` key on any row |
 | AX-9 | `search_tracks(offset=25, limit=25)` is disjoint from `offset=0, limit=25` for the same filters |
 | AX-10 | `get_track(<id>)` returns `waveform_peaks`: a list of 200 floats |
 | AX-11 | `update_track(<id>, energy=3.5)` changes only `energy` and `updated_at`; a second call leaves the same values |
 | AX-12 | `update_track(<id>)` with no fields is refused with a clear message and writes nothing |
-| AX-13 | `KLANGKURATOR_READ_ONLY=1` makes each of the 13 library-writing tools fail with `library.json`'s mtime unchanged; reads and the export summary still work, the export file is refused |
+| AX-13 | `KLANGKURATOR_READ_ONLY=1` makes each of the 14 library-writing tools fail with `library.json`'s mtime unchanged; reads and the export summary still work, the export file is refused |
 | AX-14 | `KLANGKURATOR_URL=http://127.0.0.1:9/` → every tool returns one message naming the URL and `./run.sh`, no traceback, no hang past the timeout |
-| AX-15 | With the backend stopped the server still starts and lists its 24 tools |
+| AX-15 | With the backend stopped the server still starts and lists its 26 tools |
 | AX-16 | `scan_library(<path outside the allowlist>)` is refused and no request is made (proved by pointing `KLANGKURATOR_URL` at a dead port and getting the roots message, not the unreachable one) |
 | AX-17 | `python -c "import backend.main"` succeeds with `mcp` unavailable |
 

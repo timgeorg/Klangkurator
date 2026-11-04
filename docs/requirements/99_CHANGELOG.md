@@ -34,6 +34,30 @@ called itself *"a candidate to close as covered by #8 rather than to schedule"*.
 
 
 ### Relationship types become a list the user edits (PF-91, issue #81)
+### Built: relationship types the user edits (PF-91, issue #81)
+
+The requirement blocks moved to Done. Their wording did not change. The code
+landed with them.
+
+- **Five blocks moved to Done:** REQ-14-RT, REQ-14-RD, REQ-14-RP, REQ-14-RM
+  and REQ-34-RT. The fixed table of eight types is gone from
+  14_RELATIONSHIPS.md, because the app no longer holds one. An old value that a
+  row uses gets a type of its own (REQ-14-RM VC5), so its old label still
+  shows.
+- **INV-26 and INV-27 hold.** The transition type cannot be deleted, and the
+  API refuses a relationship whose type is not in the list.
+- **`relationship_types` joins the content lists.** 17_SETTINGS.md,
+  20_DATA_MODEL_OVERVIEW.md and 90_NFRS.md (NFR-2) now name it beside the
+  genres, in `library.json` and in the backup.
+- **The MCP surface is 26 tools, 11 of them read tools.** 34_MCP_SERVER.md
+  counted 24 and named a single-root pair that issue #11 replaced. The table,
+  REQ-34-PR, REQ-34-CT, AX-6, AX-13 and AX-15 now match the code, and
+  `list_relationship_types` is the one addition.
+- **33_TRACK_MAP.md stops promising a change.** Its "this changes with issue
+  #81" notes read as the built rule: every type in the list, one legend entry
+  per pair, the Transitions layer in the transition type's colour.
+
+### Specified: relationship types become a list the user edits (PF-91, issue #81)
 
 Tim: *"I want transitions to be like tags and genres to be editable. And the
 ones I want to have at the moment is "is remix of", "is original of", "same
@@ -45,9 +69,9 @@ sample", "works as mashup", "transition"."* A later message added "same vibe".
   the same list.
 - **New invariants:** INV-26 (the transition type always exists) and INV-27 (no
   relationship has an unknown type).
-- **The fixed table in 14_RELATIONSHIPS.md stays true until the build.** Notes
-  there, in 33_TRACK_MAP.md and in 34_MCP_SERVER.md point at the new
-  requirements.
+- **The fixed table in 14_RELATIONSHIPS.md stayed true until the build.** The
+  notes there, in 33_TRACK_MAP.md and in 34_MCP_SERVER.md pointed at these
+  requirements. The entry above records the build.
 - **21_DATA_MODEL_LIBRARY_JSON.md now matches the code.** It showed
   `from_song_id`, `to_song_id` and `type`. The code uses `source_song_id`,
   `target_song_id` and `relationship_type` (`backend/models/relationship.py`).

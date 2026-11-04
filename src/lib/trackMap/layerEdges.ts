@@ -16,9 +16,11 @@
 // Phase 6: a clustered model's "nearest" edges are its cluster links, which the
 // nearest switch shows in full (`options.clusterLinks`) instead of following the
 // selection, because a cluster is never the selected track.
-import { RELATIONSHIP_TYPES } from "@/lib/relationshipStyle";
+import { relationshipLegend } from "@/lib/relationshipTypes";
 
 import type { MapEdge } from "./types";
+
+import type { RelationshipLegendEntry } from "@/lib/relationshipTypes";
 
 /** The map's layer switches: the `layers` slice of `useMapConfig`. */
 export interface LayerFlags {
@@ -50,8 +52,8 @@ export interface OffsetEdge {
 
 /** The edge kinds the canvas is drawing, which the rail's legend names. */
 export interface EdgeKinds {
-  /** The authored relationship types on screen, in the order the legends list them. */
-  relationshipTypes: string[];
+  /** The types on screen, one entry per type and one per opposite pair. */
+  relationshipTypes: RelationshipLegendEntry[];
   transitions: boolean;
   nearest: boolean;
 }
@@ -124,13 +126,13 @@ export function offsetEdges(edges: readonly MapEdge[]): OffsetEdge[] {
 
 /**
  * The kinds of edge the canvas is drawing, for the legend: the authored
- * relationship types on screen in the palette's own order (then any type the
- * data carries that the palette does not name, sorted), and whether a
- * transition or a nearest edge is on screen.
+ * relationship types on screen in the user's own order, one entry per type and
+ * one per opposite pair (a pair states the same fact from either side), and
+ * whether a transition or a nearest edge is on screen.
  *
  * The legend names what is drawn rather than what could be, so a switched-off
  * layer — or a type the library holds no edge for — stays out of it (TM-L1,
- * TM-L5).
+ * TM-L5, REQ-14-RD VC12).
  *
  * @param edges - The edges the canvas is drawing.
  */
@@ -148,10 +150,11 @@ export function onScreenEdgeKinds(edges: readonly MapEdge[]): EdgeKinds {
     }
   }
 
-  const named = new Set<string>(RELATIONSHIP_TYPES);
-  const known = RELATIONSHIP_TYPES.filter((type) => type !== "transition" && types.has(type));
-  const rest = [...types].filter((type) => !named.has(type)).sort(compare);
-  return { relationshipTypes: [...known, ...rest], transitions, nearest };
+  return {
+    relationshipTypes: relationshipLegend([...types]),
+    transitions,
+    nearest,
+  };
 }
 
 /**
