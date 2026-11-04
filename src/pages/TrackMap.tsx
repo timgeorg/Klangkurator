@@ -684,7 +684,7 @@ export default function TrackMap() {
     const rows: PartnerRow[] = [];
     for (const relationship of relationships) {
       if (relationship.source_song_id === selectedId) {
-        const song = songById.get(relationship.target_song_id);
+        const song = songById.get(relationship.target_song_id ?? "");
         if (song) {
           rows.push({
             id: relationship.id,
@@ -695,7 +695,7 @@ export default function TrackMap() {
           });
         }
       } else if (relationship.target_song_id === selectedId) {
-        const song = songById.get(relationship.source_song_id);
+        const song = songById.get(relationship.source_song_id ?? "");
         if (song) {
           rows.push({
             id: relationship.id,

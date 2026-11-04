@@ -2,7 +2,7 @@
 
 Status: Active
 Last Updated: 2026-11-04
-Source: Tim, 2026-11-03 and 2026-11-04 (verbatim below). The page builds on
+Built: 2026-11-04 (issue #82). Source: Tim, 2026-11-03 and 2026-11-04 (verbatim below). The page builds on
 14_RELATIONSHIPS.md and on REQ-33-LY. It specifies PF-43 from
 31_TRANSITION_MINING.md.
 
@@ -47,7 +47,7 @@ What follows from the decision:
 
 ### The Transitions page lists every transition (REQ-19-TL, issue #82)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim, 2026-11-03 (verbatim above), and his decision of 2026-11-04. VC16 to VC18 are I. VC18 follows REQ-33-LY.
 Serves: the user sees all transitions in one place, in a set or not.
@@ -83,7 +83,7 @@ Verification criteria:
 
 ### The user adds, edits and deletes saved transitions (REQ-19-TA, issue #82)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim, 2026-11-03: "view and store and add transitions".
 Serves: the user saves a transition at the moment they find it, without a block or a set.
@@ -112,7 +112,7 @@ Verification criteria:
 
 ### A side of a transition can be a track that is not in the library (REQ-19-TM, issue #82)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim, 2026-11-03: "Maybe the songs are missing maybe not." VC13 is I: a link that the app guesses can join the wrong track. VC14 to VC16 are I. They apply the duplicate rule of REQ-14-RD to typed sides.
 Serves: the user saves a transition before they own both tracks.
@@ -150,7 +150,7 @@ Verification criteria:
 
 ### A transition can be an idea (REQ-19-TI, issue #82)
 
-Status: Active
+Status: Done
 Priority: P1
 Basis: V — Tim, 2026-11-03: "transitions and transition ideas". VC2 is I: a new entry is a transition unless the user says that it is an idea. VC7 and VC8 are I: an idea stays a transition everywhere, with its mark.
 Serves: the user keeps untried ideas apart from transitions that they know work.

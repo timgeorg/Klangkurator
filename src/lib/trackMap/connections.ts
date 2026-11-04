@@ -46,6 +46,8 @@ export function buildConnections(
 ): Connections {
   const connections: Connections = new Map();
   for (const relationship of relationships) {
+    // A typed side names no track, so it is no connection (REQ-19-TM VC8).
+    if (!relationship.source_song_id || !relationship.target_song_id) continue;
     connect(connections, relationship.source_song_id, relationship.target_song_id);
   }
   for (const transition of transitions) {

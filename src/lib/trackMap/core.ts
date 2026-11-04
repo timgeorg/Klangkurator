@@ -25,8 +25,10 @@ export function coreMemberIds(coreId: string, relationships: readonly SongRelati
   if (!coreId) return members;
   members.add(coreId);
   for (const relationship of relationships) {
-    if (relationship.source_song_id === coreId) addPartner(members, relationship.target_song_id);
-    else if (relationship.target_song_id === coreId) addPartner(members, relationship.source_song_id);
+    // A typed side names no track, and it joins the core through no node
+    // (REQ-19-TM VC8).
+    if (relationship.source_song_id === coreId) addPartner(members, relationship.target_song_id ?? "");
+    else if (relationship.target_song_id === coreId) addPartner(members, relationship.source_song_id ?? "");
   }
   return members;
 }

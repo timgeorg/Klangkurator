@@ -175,7 +175,7 @@ export (REQ-14-RT, REQ-14-RP).
   have keeps its local settings. The import remaps the type ids of the imported
   relationship rows. It takes relationships only into a library that has none.
 
-## Typed sides and ideas on transitions (planned 2026-11-04, issue #82)
+## Typed sides and ideas on transitions (built 2026-11-04, issue #82)
 
 ```json
 {
@@ -195,8 +195,10 @@ export (REQ-14-RT, REQ-14-RP).
   `""`.
 - Only a relationship of the transition type takes a typed side or `idea`
   (19_TRANSITIONS.md).
-- `idea` is absent or `false` on a transition that is not an idea.
-- A link of a typed side writes the song id in place of the typed track.
+- `idea` is absent, or `false` in a read, on a transition that is not an idea.
+  The file keeps no `false`: a row that is not an idea has no `idea` key.
+- A link of a typed side writes the song id in place of the typed track: the
+  row then holds `source_song_id` and no `source_track`.
 - The track map and the graph of the Relationships dialog skip a relationship
   with a typed side. They have no node for it.
 - The deletion of a song still deletes its relationships (INV-6).

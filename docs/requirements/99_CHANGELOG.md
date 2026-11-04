@@ -5,6 +5,42 @@ Last Updated: 2026-11-04
 
 ## 2026-11-04
 
+### The Transitions page (PF-43, issue #82)
+
+Tim asked for a view of transitions and transition ideas, in a set or not. His
+words are verbatim at the top of 19_TRANSITIONS.md, with the hierarchy
+transition → block → set and the Tate McRae and Hannah Montana example. He
+later picked *"One store (Recommended)"* of three options. A transition stays a
+relationship of the transition type.
+
+- **New domain file:** 19_TRANSITIONS.md. It holds REQ-19-TL (the list),
+  REQ-19-TA (add, edit, delete), REQ-19-TM (a side not in the library) and
+  REQ-19-TI (ideas). The four blocks moved to Done. Their wording did not
+  change.
+- **One store, no second entity.** The page lists what `buildTransitions`
+  already finds. That is the saved transitions and the consecutive tracks of
+  blocks and sets. It adds the saved transitions that have a typed side,
+  because that function needs two song ids and skips them.
+- **A side is a song id or a typed track.** `source_song_id` and
+  `target_song_id` became optional beside `source_track` / `target_track` and
+  `idea`. One form per side. A typed side needs a title. No song sits on both
+  ends. Typed sides and `idea` belong to the transition type alone.
+- **The duplicate rule now covers typed sides.** Two typed sides are the same
+  track when their artists and titles match, case ignored. A library song never
+  matches a typed side, because the app links nothing by itself.
+- **New `PATCH /api/relationships/{id}`.** It changes `notes` and `idea`, and
+  it links one side. A link writes the song id in place of the typed track. The
+  app refuses a link that makes a self-pair or a restatement.
+- **Every consumer now handles an absent id.** That is the graph, the map's
+  connections and nearest sets, `get_related_songs` and the transition
+  suggestions. The song page and the Relationships dialog show a typed partner
+  as text with the mark "Not in library".
+- **The import keeps a typed side.** `_remap_relationship` no longer drops a row
+  whose side has no id to remap. An export and an import round trip keeps the
+  typed side.
+- **Rejected: a `Transition` entity and a second store.** Tim picked one store.
+  The richer transition fields of 14_RELATIONSHIPS stay future work, as fields
+  of the relationship.
 ### The library gap report (PF-93, issue #9)
 
 Tim: *"implement all currently open github issues"* (2026-11-04). That message

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { CoverArt } from "@/components/brand";
+import { TypedSideText } from "@/components/map/TrackDetails";
 import { RelationLine } from "@/components/detail/RelationLine";
 import { AudioFilesSection } from "@/components/dj/AudioFilesSection";
 import { EditSongDialog } from "@/components/dj/EditSongDialog";
@@ -29,6 +30,7 @@ import { MAP_PATH } from "@/lib/mapRoute";
 import { crateName } from "@/lib/crates";
 import { usePlayer } from "@/lib/PlayerContext";
 import { relationshipPartnerArrow, relationshipPhrase } from "@/lib/relationshipTypes";
+import { otherEnd } from "@/lib/transitionRows";
 import { storage, Song, SongRelationship, Tag } from "@/lib/storage";
 import {
   crateOf,
@@ -38,11 +40,15 @@ import {
   splitTitle,
 } from "@/lib/trackFormat";
 
-/** A relationship seen from this song (PF-17). */
+/** A relationship seen from this song (PF-17).
+ *
+ * A transition whose other side is a typed track shows that text with the mark
+ * "Not in library" (REQ-19-TM VC7); its `otherSong` is then null.
+ */
 interface RelRow {
   rel: SongRelationship;
   direction: "source" | "target";
-  otherSong: Song;
+  otherSong: Song | null;
 }
 
 const formatDate = (iso?: string) =>
@@ -94,19 +100,15 @@ export default function SongDetailPage() {
           setRelationships(
             allRelationships
               .map((rel): RelRow | null => {
-                if (rel.source_song_id === loaded.id) {
-                  const otherSong = byId.get(rel.target_song_id);
-                  return otherSong
-                    ? { rel, direction: "source", otherSong }
-                    : null;
-                }
-                if (rel.target_song_id === loaded.id) {
-                  const otherSong = byId.get(rel.source_song_id);
-                  return otherSong
-                    ? { rel, direction: "target", otherSong }
-                    : null;
-                }
-                return null;
+                // A side is a song id or a typed track: the id resolves to a
+                // track, and a typed side shows as text (REQ-19-TM VC7). A side
+                // with neither names nothing, so no row.
+                if (rel.source_song_id !== loaded.id && rel.target_song_id !== loaded.id) return null;
+                const direction = rel.source_song_id === loaded.id ? "source" : "target";
+                const end = otherEnd(rel, direction);
+                if (!end) return null;
+                const otherSong = byId.get(end.songId ?? "") ?? null;
+                return otherSong || end.typed ? { rel, direction, otherSong } : null;
               })
               .filter((r): r is RelRow => r !== null),
           );
@@ -406,24 +408,35 @@ export default function SongDetailPage() {
                     <RelationLine type={rel.relationship_type} />
                     {relationshipPhrase(rel.relationship_type, direction)}
                     {relationshipPartnerArrow(rel.relationship_type, direction)}
+                    {rel.idea && (
+                      <span className="rounded-chip bg-signal-soft px-1.5 py-0.5 text-[10px] font-medium text-signal-text">
+                        Idea
+                      </span>
+                    )}
                   </span>
-                  <CoverArt
-                    src={otherSong.artwork_url}
-                    current={current?.id === otherSong.id}
-                    className="h-8 w-8 rounded-[3px]"
-                  />
-                  <span className="min-w-0">
-                    <Link
-                      to={`/song/${otherSong.id}`}
-                      className="block truncate rounded-sm text-[13px] font-medium hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {otherSong.title}
-                    </Link>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {otherSong.artist}
-                      {rel.notes ? ` · ${rel.notes}` : ""}
-                    </span>
-                  </span>
+                  {otherSong ? (
+                    <>
+                      <CoverArt
+                        src={otherSong.artwork_url}
+                        current={current?.id === otherSong.id}
+                        className="h-8 w-8 rounded-[3px]"
+                      />
+                      <span className="min-w-0">
+                        <Link
+                          to={`/song/${otherSong.id}`}
+                          className="block truncate rounded-sm text-[13px] font-medium hover:text-signal-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {otherSong.title}
+                        </Link>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {otherSong.artist}
+                          {rel.notes ? ` · ${rel.notes}` : ""}
+                        </span>
+                      </span>
+                    </>
+                  ) : (
+                    <TypedSideText {...(otherEnd(rel, direction)?.typed ?? { artist: "", title: "" })} notes={rel.notes} />
+                  )}
                 </li>
               ))}
             </ul>

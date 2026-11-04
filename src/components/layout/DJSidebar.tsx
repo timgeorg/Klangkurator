@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
-import { ChartNoAxesColumn, FolderInput, Layers, Library, Moon, Settings, Sun } from "lucide-react";
+import { ChartNoAxesColumn, FolderInput, Layers, Library, Moon, Repeat, Settings, Sun } from "lucide-react";
 
 import { Wordmark } from "@/components/brand";
 import {
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { title: "Library", url: "/", icon: Library, match: (p: string) => p === "/" || p.startsWith("/song/") || isMapRoute(p) },
   { title: "Sets", url: "/sets", icon: Layers, match: (p: string) => p.startsWith("/sets") },
+  { title: "Transitions", url: "/transitions", icon: Repeat, match: (p: string) => p.startsWith("/transitions") },
   {
     title: "Gaps",
     url: "/gaps",
@@ -30,7 +31,7 @@ const navigation = [
   { title: "Settings", url: "/settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
 
-/** The ink rail: wordmark, the five destinations, theme and collapse controls.
+/** The ink rail: wordmark, the six destinations, theme and collapse controls.
  * The Library item stays active on the map, which is the library's other view
  * (TM-M1). Gaps is the read-only report of where the collection is thin
  * (REQ-9-GR): a destination of its own, because it is not a view of the tracks. */

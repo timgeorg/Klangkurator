@@ -249,7 +249,10 @@ Not in the MVP:
   type draws solid, and a both-ways type draws dotted (REQ-14-RD). The legend
   names a pair once, with both names (REQ-14-RD VC12). The Transitions layer
   draws in the transition type's colour (VC19). A transition with a typed side
-  draws no edge (REQ-19-TM)
+  draws no edge (REQ-19-TM VC8, built 2026-11-04 in issue #82). Three places
+  keep it out. `buildTransitions` needs two song ids. The graph of the
+  Relationships dialog skips a typed partner. The map's connections and nearest
+  sets skip it too.
 
 ## Interaction (REQ-33-IN)
 

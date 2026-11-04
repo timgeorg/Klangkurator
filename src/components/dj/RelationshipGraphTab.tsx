@@ -20,12 +20,20 @@ import { trackGenre } from "@/lib/trackFormat";
 import { solveLayout, GOLDEN_ANGLE } from "@/lib/trackMap/layout";
 import type { MapEdge, MapLink, MapNode, Positions } from "@/lib/trackMap/types";
 
-/** One relationship seen from the dialog's song, as the dialog holds it. */
+/** One relationship seen from the dialog's song, as the dialog holds it.
+ *
+ * `otherSong` is null when the other side is a typed track: the list shows it
+ * as text and the graph draws no edge for it (REQ-19-TM VC7, VC8).
+ */
 export interface DialogPartner {
   id: string;
   type: string;
   direction: "source" | "target";
-  otherSong: Song;
+  otherSong: Song | null;
+  /** The typed side, present exactly when `otherSong` is null. */
+  typed?: { artist: string; title: string };
+  /** True when a saved transition is an idea (REQ-19-TI). */
+  idea?: boolean;
   notes?: string;
 }
 
@@ -51,9 +59,11 @@ interface DialogGraph {
  * ring; the same canvas renderer and the same headless layout draw it.
  */
 function buildDialogGraph(song: Song, partners: readonly DialogPartner[]): DialogGraph {
+  // A typed side has no node, so it draws no edge (REQ-19-TM VC8).
+  const shown = partners.filter((partner): partner is DialogPartner & { otherSong: Song } => !!partner.otherSong);
   const seen = new Set<string>([song.id]);
   const others: Song[] = [];
-  for (const partner of partners) {
+  for (const partner of shown) {
     if (seen.has(partner.otherSong.id)) continue;
     seen.add(partner.otherSong.id);
     others.push(partner.otherSong);
@@ -67,7 +77,7 @@ function buildDialogGraph(song: Song, partners: readonly DialogPartner[]): Dialo
     genreLabel: trackGenre(entry),
   }));
 
-  const edges: MapEdge[] = partners.map((partner) => ({
+  const edges: MapEdge[] = shown.map((partner) => ({
     source: song.id,
     target: partner.otherSong.id,
     kind: partner.type === "transition" ? "transition" : "relationship",
@@ -86,7 +96,7 @@ function buildDialogGraph(song: Song, partners: readonly DialogPartner[]): Dialo
     seeds.set(other.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
   });
 
-  const legend = relationshipLegend(partners.map((partner) => partner.type));
+  const legend = relationshipLegend(shown.map((partner) => partner.type));
 
   return { nodes, links, edges, positions: solveLayout(nodes, links, seeds), legend };
 }

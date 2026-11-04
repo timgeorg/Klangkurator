@@ -77,7 +77,7 @@ Suggestions are ranked and shown as quick-add buttons in the set editor.
 
 ## Transition Library View (PF-43)
 
-**Specced 2026-11-04 as the Transitions page** (issue #82,
+**Built 2026-11-04 as the Transitions page** (issue #82,
 [19_TRANSITIONS.md](19_TRANSITIONS.md)). That spec replaces this list for the
 first build: search, the sources of each row, notes, ideas and tracks that are
 not in the library. Filters by technique, rating and genre pair, and the sort

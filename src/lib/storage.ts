@@ -117,13 +117,25 @@ export interface SongTag {
   tag_id: string;
 }
 
+/** A side of a transition that is not a library track (REQ-19-TM). */
+export interface TypedTrack {
+  /** May be empty; a typed side needs a title. */
+  artist: string;
+  title: string;
+}
+
 export interface SongRelationship {
   id: string;
-  source_song_id: string;
-  target_song_id: string;
+  /** A side is this id **or** the typed track beside it, never both. */
+  source_song_id?: string | null;
+  target_song_id?: string | null;
+  source_track?: TypedTrack | null;
+  target_track?: TypedTrack | null;
   /** The id of a type in the user's list; a rename never changes it (issue #81). */
   relationship_type: string;
   notes?: string;
+  /** True when the transition is not tried yet (REQ-19-TI). Absent means false. */
+  idea?: boolean;
   created_at: string;
   /** The type's name as Settings shows it, filled in on a read (REQ-34-RT VC4). */
   type_name?: string | null;
@@ -132,6 +144,15 @@ export interface SongRelationship {
 export interface SongPlaylistMembership {
   playlist: Playlist;
   position: number;
+}
+
+/** The fields `PATCH /api/relationships/{id}` changes (issue #82). */
+export interface RelationshipPatch {
+  notes?: string | null;
+  idea?: boolean;
+  /** The end a link replaces, so a typed track there gives way to a song id. */
+  link_side?: "source" | "target";
+  song_id?: string;
 }
 
 export interface Playlist {
@@ -225,7 +246,9 @@ export interface StorageInterface {
   addSongTag(songId: string, tagId: string): Promise<void>;
   removeSongTag(songId: string, tagId: string): Promise<void>;
   getSongRelationships(): Promise<SongRelationship[]>;
-  addSongRelationship(rel: Omit<SongRelationship, 'id' | 'created_at'>): Promise<SongRelationship>;
+  addSongRelationship(rel: Omit<SongRelationship, 'id' | 'created_at' | 'type_name'>): Promise<SongRelationship>;
+  /** Change a relationship's notes, its idea mark, or link a typed side (issue #82). */
+  updateSongRelationship(id: string, patch: RelationshipPatch): Promise<SongRelationship>;
   deleteSongRelationship(id: string): Promise<boolean>;
   getPlaylists(): Promise<Playlist[]>;
   addPlaylist(p: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>): Promise<Playlist>;
@@ -286,7 +309,8 @@ class RemoteStorageImpl implements StorageInterface {
   async addSongTag(sid: string, tid: string) { await api.post(`/songs/${sid}/tags`, { tag_id: tid }); }
   async removeSongTag(sid: string, tid: string) { await api.delete(`/songs/${sid}/tags/${tid}`); }
   async getSongRelationships() { return api.get<SongRelationship[]>('/relationships'); }
-  async addSongRelationship(data: Omit<SongRelationship, 'id' | 'created_at'>) { return api.post<SongRelationship>('/relationships', data); }
+  async addSongRelationship(data: Omit<SongRelationship, 'id' | 'created_at' | 'type_name'>) { return api.post<SongRelationship>('/relationships', data); }
+  async updateSongRelationship(id: string, patch: RelationshipPatch) { return api.patch<SongRelationship>(`/relationships/${id}`, patch); }
   async deleteSongRelationship(id: string) { await api.delete(`/relationships/${id}`); return true; }
   async getPlaylists() { return api.get<Playlist[]>('/playlists'); }
   async addPlaylist(data: Omit<Playlist, 'id' | 'created_at' | 'updated_at'>) { return api.post<Playlist>('/playlists', data); }
