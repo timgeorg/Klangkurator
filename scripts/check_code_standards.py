@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import argparse
 import ast
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tokenize
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
@@ -108,9 +110,7 @@ def is_skipped(path: str, settings: Settings) -> bool:
     return is_excluded(path, settings.exclude)
 
 
-# ---------------------------------------------------------------------------
 # Diff discovery
-# ---------------------------------------------------------------------------
 
 def run_git(root: Path, *args: str) -> str:
     """Run a git command in `root` and return stdout, or raise on failure."""
@@ -203,9 +203,7 @@ def all_python_files(root: Path) -> dict[str, set[int]]:
     return found
 
 
-# ---------------------------------------------------------------------------
 # AST helpers
-# ---------------------------------------------------------------------------
 
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 CONTAINER_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -334,9 +332,7 @@ def complexity_of(node: ast.AST) -> int:
     return counter.score
 
 
-# ---------------------------------------------------------------------------
 # Standards checks
-# ---------------------------------------------------------------------------
 
 def check_module(path: str, tree: ast.Module) -> list[Finding]:
     """Every module carries a header describing its purpose."""
@@ -584,6 +580,32 @@ def check_scope(path: str, settings: Settings) -> list[Finding]:
     ]
 
 
+SEPARATOR_COMMENT = re.compile(r"#\s*[-=*_~#─━]{4,}\s*")
+
+
+def check_separators(path: str, source: str, lines: set[int]) -> list[Finding]:
+    """Flag comment lines that hold only a run of punctuation, like `# ------`.
+
+    Works on comment tokens, so a string that contains dashes is not a finding.
+
+    Args:
+        path (str): Path to report.
+        source (str): File content, already known to parse.
+        lines (set[int]): Changed lines; empty means the whole file.
+
+    Returns:
+        list[Finding]: One STD010 error per separator line.
+    """
+    tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+    return [
+        Finding("STD010", "error", path, token.start[0], "separator comment line; keep only the comment text")
+        for token in tokens
+        if token.type == tokenize.COMMENT
+        and SEPARATOR_COMMENT.fullmatch(token.string)
+        and (not lines or token.start[0] in lines)
+    ]
+
+
 LEGACY_CODES = {"STD001", "STD002", "STD003", "STD004", "STD009"}
 
 
@@ -648,12 +670,11 @@ def check_file(
     findings = run_checks(path, tree, lines, settings, parents)
     findings += check_sizes(path, tree, lines, settings, parents, baseline_shapes(baseline_source))
     findings += check_scope(path, settings)
+    findings += check_separators(path, source.lstrip("\ufeff"), lines)
     return mark_legacy(findings, baseline_keys(baseline_source))
 
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
 
 def load_settings(root: Path, explicit: str | None) -> Settings:
     """Read settings from pyproject.toml or a JSON file, then CLI flags override."""
@@ -709,9 +730,7 @@ def read_scope_file(path: Path) -> list[str]:
     return [p for p in patterns if p]
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     """Definition of the command line."""
