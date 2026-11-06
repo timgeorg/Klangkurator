@@ -120,9 +120,7 @@ DEFAULT_GATE_CONFIG = {
 }
 
 
-# --------------------------------------------------------------------------
 # findings
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -181,9 +179,7 @@ class Requirement:
         return None
 
 
-# --------------------------------------------------------------------------
 # parsing
-# --------------------------------------------------------------------------
 
 
 def split_frontmatter(text: str) -> tuple[dict[str, str], list[str]]:
@@ -287,9 +283,7 @@ def word_count(sentence: str) -> int:
     return len(re.findall(r"[A-Za-z0-9][A-Za-z0-9'’\-]*", sentence))
 
 
-# --------------------------------------------------------------------------
 # folder-level checks
-# --------------------------------------------------------------------------
 
 
 def prefix_of(name: str) -> str | None:
@@ -420,9 +414,7 @@ def check_folder(folder: Path) -> tuple[list[Finding], dict]:
     return findings, stats
 
 
-# --------------------------------------------------------------------------
 # per-requirement checks
-# --------------------------------------------------------------------------
 
 
 def check_requirement(req: Requirement, settings: dict) -> list[Finding]:
@@ -633,9 +625,7 @@ def check_id_style(folder: Path, pinned: str) -> list[Finding]:
     return findings
 
 
-# --------------------------------------------------------------------------
 # cross-file checks
-# --------------------------------------------------------------------------
 
 
 def check_ids(requirements: Iterable[Requirement]) -> list[Finding]:
@@ -731,9 +721,7 @@ def check_technology_leak(requirements: Iterable[Requirement], patterns: Sequenc
     return findings
 
 
-# --------------------------------------------------------------------------
 # diff-scoped checks
-# --------------------------------------------------------------------------
 
 
 def git(root: Path, *args: str) -> str:
@@ -844,9 +832,7 @@ def check_changelog_names_ids(
     ]
 
 
-# --------------------------------------------------------------------------
 # runner
-# --------------------------------------------------------------------------
 
 
 def load_config(root: Path, explicit: str | None) -> dict:
